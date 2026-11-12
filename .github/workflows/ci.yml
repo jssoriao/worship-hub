@@ -2,8 +2,8 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  # the deploy workflow runs these checks first, on every push to main
+  workflow_call:
 
 # A new push to the same branch or PR cancels the run that is still going.
 concurrency:

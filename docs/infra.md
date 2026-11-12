@@ -52,10 +52,32 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
   name and caches the ids in `.dev-song-ids.json` (gitignored), so it keeps working offline. Delete that file
   after resetting the branch or switching databases.
 
+## Deploy (GitHub Actions)
+Every push to `main` runs `.github/workflows/deploy.yml`: the CI checks, then in the GitHub environment
+`production` (no approval step): `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`. A failed check or
+migration stops the run before anything is deployed. If the smoke test fails, the job runs `wrangler rollback`
+to the previous Worker version and the run is marked failed. Runs never overlap and are never cancelled halfway.
+Manual deploy from a laptop still works: `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`.
+
+- Secrets of the environment `production`: `CLOUDFLARE_API_TOKEN`, `DATABASE_OWNER_URL` (the owner login: it can
+  change the schema, so only this environment sees it).
+- Variables of the environment `production`: `CLOUDFLARE_ACCOUNT_ID`, `SMOKE_URL` (the app's address).
+- The Worker's own secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`) stay in Cloudflare; a deploy does not touch them.
+- The API token `worship-hub-github-deploy` is a Cloudflare account API token made from the "Edit Cloudflare Workers"
+  template, limited to the personal account and, for Workers Routes, to the zone `jssoriao.dev`. It expires on
+  2027-11-12: make a new one then, store it in the Keychain (`security add-generic-password -U -a "$USER" -s
+  cloudflare-worship-hub-deploy -w`) and update the secret (`gh secret set CLOUDFLARE_API_TOKEN --env production`).
+  After that date a deploy fails with an authentication error.
+- The environment `production` only accepts runs from the branch `main`.
+- Migrations run while the previous Worker version is still live (and stay applied after a rollback), so every
+  migration must work with both the old and the new code: add columns, tables and indexes first; remove or rename
+  only in a later deploy, once no running version uses them.
+
 ## Everyday commands
 
 ```sh
-pnpm cf:deploy                       # build the PWA and deploy the Worker + assets
+pnpm cf:deploy                       # build the PWA and deploy the Worker + assets (CI does this on every push to main)
+pnpm smoke [url]                     # check a deployed Worker answers (/, /api/auth/ok, /songs/index.json is 401)
 pnpm db:migrate [--target prod]      # Better Auth tables (incl. organization/member) + db/schema.sql (song, arrangement); idempotent; owner login
 pnpm db:app-role [--target prod]     # create the app role worship_hub_worker or give it a new password; writes DATABASE_URL
 pnpm test                            # vitest: permissions, tenancy (PGlite + fake R2), address rules
