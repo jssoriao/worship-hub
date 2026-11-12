@@ -60,6 +60,11 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Streaming: playback starts after the first seconds of every heard stem; if a download falls
   within 1 s of the playhead it stalls ("Buffering…") and resumes at 6 s ahead. `unload()` aborts
   all downloads. `setBeats/setClick` schedule the click on the stems' clock.
+- `src/lib/key-shift.ts` (`KeyBus`): key change for the Practice player (±6 semitones, same tempo). Stems and
+  click play into the bus; at the original key it is a straight wire, otherwise one Signalsmith Stretch
+  AudioWorklet (npm `signalsmith-stretch`, lazy chunk) shifts the summed stems and the click is delayed by its
+  latency. `StemEngine.setKey`. Key is stored per song as the chart's `transpose` (`chart-view.ts`), so Charts
+  and Practice agree; `transposeAnalysis` moves the chords shown in Practice.
 - `src/lib/mix.ts`: pure mix rules (`computeMix`, `families`, `lazyFlags`), shared by the engine
   and the UI. A group can have a combined stem (`mix: true`, a file named like its folder) plus
   parts; they never play together. Parts are fetched after the first load (`preloadParts`, skipped

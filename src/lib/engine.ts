@@ -1,6 +1,7 @@
 import { openStem } from './audio-cache'
 import { HttpError, type ByteStream } from './bytestream'
 import { Mp3Feed, createDecoder, peaksOfBytes, sniffSampleRate, streamingMp3Decoder, type StemDecoder } from './decoders'
+import { KeyBus } from './key-shift'
 import { computeMix, lazyFlags, type MixState, type StemLayout } from './mix'
 import type { StemSource } from './sources'
 
@@ -132,6 +133,9 @@ export class StemEngine {
   private clickOn = false
   private clickVolume = 0.8
   private clickGain: GainNode | null = null
+  /** where stems and click play into (and the key they sound in), made again for a new context */
+  private bus: KeyBus | null = null
+  private semitones = 0
   private clickSounds: { ctx: AudioContext; accent: AudioBuffer; beat: AudioBuffer } | null = null
   /** the clicks as heard: the song's beats, or mapped through the timeline (plus a count-in) */
   private clicks: ClickBeat[] = []
@@ -145,6 +149,8 @@ export class StemEngine {
   private nextUnit = 0
   onEnded?: () => void
   onError?: (e: unknown) => void
+  /** The key could not be changed (the pitch shifter did not load); the stems play in their own key. */
+  onKeyError?: (e: unknown) => void
   /** A stem started or finished downloading (parts of combined stems load on demand). */
   onStemsChange?: (stems: StemInfo[]) => void
   /** Playback is waiting for audio to download (true) or carries on (false). */
@@ -157,6 +163,25 @@ export class StemEngine {
 
   get ctx() {
     return this._ctx
+  }
+
+  /** The stems' and click's output for the current context, in the chosen key. */
+  private get keyBus(): KeyBus {
+    if (this.bus?.ctx !== this._ctx) {
+      this.bus = new KeyBus(this._ctx)
+      this.bus.onError = (e) => {
+        this.semitones = 0 // it plays in the original key then
+        this.onKeyError?.(e)
+      }
+      if (this.semitones !== 0) void this.bus.setSemitones(this.semitones)
+    }
+    return this.bus
+  }
+
+  /** Plays the stems this many semitones up (+) or down (-), at the same tempo. 0 is the original key. */
+  setKey(semitones: number) {
+    this.semitones = semitones
+    void this.keyBus.setSemitones(semitones)
   }
 
   private static createContext(sampleRate?: number): AudioContext {
@@ -313,7 +338,7 @@ export class StemEngine {
     this.layout = layout
     this.tracks = sources.map((s, i) => {
       const gain = this.ctx.createGain()
-      gain.connect(this.ctx.destination)
+      gain.connect(this.keyBus.stems)
       const d = made.get(i)
       return {
         source: s,
@@ -744,7 +769,7 @@ export class StemEngine {
     if (!this.clickGain || this.clickGain.context !== ctx) {
       this.clickGain = ctx.createGain()
       this.clickGain.gain.value = this.clickOn ? this.clickVolume : 0
-      this.clickGain.connect(ctx.destination)
+      this.clickGain.connect(this.keyBus.click)
     }
     if (this.clickSounds?.ctx !== ctx) {
       // short sine blips with a fast decay: higher for the first beat of a bar
