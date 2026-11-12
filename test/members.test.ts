@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Db } from '../src/api/data.ts'
+import type { Db } from '../src/db/client.ts'
 import { Memo } from '../src/api/data.ts'
 import { isMembersPath, manageableRoles, routeMembers } from '../src/api/members.ts'
 import type { SessionSource } from '../src/api/tenant.ts'
-import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
+import { freshDb, seedChurch, seedMember, seedSession, seedUser } from './helpers.ts'
 
 const A = 'churchaaaaaa'
 const B = 'churchbbbbbb'
@@ -35,13 +35,10 @@ const call = (who: string | null, method: string, path = '', body?: unknown, hea
     db,
     cache,
   )
-const memberId = async (user: string, church = A) => (await pg.query<{ id: string }>('select id from member where "userId" = $1 and "organizationId" = $2', [user, church])).rows[0]?.id
+const memberId = async (user: string, church = A) => (await pg.query<{ id: string }>('select id from members where user_id = $1 and organization_id = $2', [user, church])).rows[0]?.id
 
 beforeEach(async () => {
   ;({ pg, db } = await freshDb())
-  // the Better Auth tables that removing a person cleans up (the shared helper does not create them)
-  await pg.exec(`create table session (id text primary key, "userId" text not null references "user"(id) on delete cascade, "activeOrganizationId" text);
-    create table account (id text primary key, "userId" text not null references "user"(id) on delete cascade);`)
   cache = new Memo()
   await seedChurch(pg, A, 'a')
   await seedChurch(pg, B, 'b')
@@ -102,7 +99,7 @@ describe('access', () => {
   it('refuses writes from another origin', async () => {
     const res = await call(as('owner'), 'POST', '', { email: 'x@example.com' }, { Origin: 'https://evil.test' })
     expect(res.status).toBe(403)
-    expect((await pg.query('select 1 from "user" where email = $1', ['x@example.com'])).rows).toHaveLength(0)
+    expect((await pg.query('select 1 from users where email = $1', ['x@example.com'])).rows).toHaveLength(0)
   })
 })
 
@@ -140,7 +137,7 @@ describe('changing a role', () => {
   it('lets an admin move members and editors between member and editor only', async () => {
     const id = await memberId('member')
     expect((await call(as('admin'), 'PATCH', `/${id}`, { role: 'editor' })).status).toBe(200)
-    expect((await pg.query('select role from member where id = $1', [id])).rows[0]).toEqual({ role: 'editor' })
+    expect((await pg.query('select role from members where id = $1', [id])).rows[0]).toEqual({ role: 'editor' })
     expect((await call(as('admin'), 'PATCH', `/${id}`, { role: 'admin' })).status).toBe(403)
   })
 
@@ -175,27 +172,28 @@ describe('changing a role', () => {
 
 describe('removing', () => {
   it('removes a person who is in no other church, with their sessions and account', async () => {
-    await pg.query(`insert into session (id, "userId", "activeOrganizationId") values ('s1', 'member', $1)`, [A])
-    await pg.query(`insert into account (id, "userId") values ('a1', 'member')`)
+    await seedSession(pg, 's1', 'member', A)
+    await pg.query(`insert into accounts (id, account_id, provider_id, user_id) values ('a1', 'member', 'email-otp', 'member')`)
     expect((await call(as('admin'), 'DELETE', `/${await memberId('member')}`)).status).toBe(200)
-    expect((await pg.query(`select 1 from "user" where id = 'member'`)).rows).toHaveLength(0)
-    expect((await pg.query(`select 1 from session where id = 's1'`)).rows).toHaveLength(0)
-    expect((await pg.query(`select 1 from account where id = 'a1'`)).rows).toHaveLength(0)
+    expect((await pg.query(`select 1 from users where id = 'member'`)).rows).toHaveLength(0)
+    expect((await pg.query(`select 1 from sessions where id = 's1'`)).rows).toHaveLength(0)
+    expect((await pg.query(`select 1 from accounts where id = 'a1'`)).rows).toHaveLength(0)
   })
 
   it('keeps a person who belongs to another church, ending only their sessions here', async () => {
     await seedMember(pg, B, 'editor', 'member')
-    await pg.query(`insert into session (id, "userId", "activeOrganizationId") values ('sa', 'editor', $1), ('sb', 'editor', $2)`, [A, B])
+    await seedSession(pg, 'sa', 'editor', A)
+    await seedSession(pg, 'sb', 'editor', B)
     expect((await call(as('admin'), 'DELETE', `/${await memberId('editor')}`)).status).toBe(200)
     expect(await memberId('editor', A)).toBeUndefined()
     expect(await memberId('editor', B)).toBeTruthy()
-    expect((await pg.query(`select id from session where "userId" = 'editor'`)).rows).toEqual([{ id: 'sb' }])
+    expect((await pg.query(`select id from sessions where user_id = 'editor'`)).rows).toEqual([{ id: 'sb' }])
   })
 
   it('keeps the platform admin account when they leave their last church', async () => {
-    await pg.query(`update "user" set "platformAdmin" = true where id = 'member'`)
+    await pg.query(`update users set platform_admin = true where id = 'member'`)
     expect((await call(as('owner'), 'DELETE', `/${await memberId('member')}`)).status).toBe(200)
-    expect((await pg.query(`select 1 from "user" where id = 'member'`)).rows).toHaveLength(1)
+    expect((await pg.query(`select 1 from users where id = 'member'`)).rows).toHaveLength(1)
   })
 
   it('denies the removed person straight away', async () => {

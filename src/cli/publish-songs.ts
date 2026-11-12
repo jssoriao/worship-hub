@@ -51,9 +51,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { ANALYSIS_FILE, currentAnalysis } from './lib/analysis.ts'
 import { CHART_FILE, MIME, TIERS, cachedVariant, fileHash, isDir, listSongs, manifest, songMusic, stemFiles, tierPath, tierSizes, variantFile } from './lib/song-files.ts'
-import { Pool, neonConfig } from '@neondatabase/serverless'
+import { openDb } from '../db/client.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
-import { churchBySlug, ensureSong, userIdByEmail } from './lib/songs-db.ts'
+import { churchBySlug, ensureSong, songIdByTitle, userIdByEmail } from './lib/songs-db.ts'
 import { offeredTiers, parseTierList, pickVersion, tiersFromManifest, versionsFromManifest, type TierStatus } from './tiers.ts'
 
 const BUCKET = 'worship-hub'
@@ -93,14 +93,13 @@ const R2_STATE = path.join(
 /** The wrangler flags that choose the bucket: the real one, or the local one. */
 const where = remote ? ['--remote'] : ['--local', '--persist-to', R2_STATE]
 const databaseUrl = loadTarget(target)
-neonConfig.webSocketConstructor = WebSocket
-const pool = new Pool({ connectionString: databaseUrl })
-const church = await churchBySlug(pool, churchSlug)
+const { db, close: closeDb } = openDb(databaseUrl)
+const church = await churchBySlug(db, churchSlug)
 if (!church) {
   console.error(`No church "${churchSlug}" in the ${target} database. pnpm churches list --target ${target}`)
   process.exit(1)
 }
-const operator = await userIdByEmail(pool, process.env.WORSHIP_HUB_OPERATOR ?? spawnSync('git', ['config', 'user.email'], { encoding: 'utf8' }).stdout.trim())
+const operator = await userIdByEmail(db, process.env.WORSHIP_HUB_OPERATOR ?? spawnSync('git', ['config', 'user.email'], { encoding: 'utf8' }).stdout.trim())
 /** The prefix of everything of one song in the bucket. */
 const rootOf = (songId: string) => `churches/${church.id}/songs/${songId}`
 const root = path.resolve(process.env.SONGS_DIR || 'songs')
@@ -200,11 +199,10 @@ try {
     // the song's row (found by title in this church, created when new; a dry run creates nothing)
     let songId: string
     if (dryRun) {
-      const found = await pool.query<{ id: string }>('select id from song where "organizationId" = $1 and title = $2', [church.id, song.title])
-      songId = found.rows[0]?.id ?? '<new song id>'
+      songId = (await songIdByTitle(db, church.id, song.title)) ?? '<new song id>'
     } else {
       const music = songMusic(path.join(root, song.dir))
-      songId = (await ensureSong(pool, church.id, song.title, { stems: true, key: music?.key ?? null, bpm: music?.bpm ?? null, meter: music?.meter ?? null }, operator)).id
+      songId = (await ensureSong(db, church.id, song.title, { stems: true, key: music?.key ?? null, bpm: music?.bpm ?? null, meter: music?.meter ?? null }, operator)).id
     }
     const songRoot = rootOf(songId)
     console.log(`\n${song.title} -> ${remote ? '' : 'local R2: '}${songRoot}${dryRun ? ' (dry run)' : ''}`)
@@ -309,5 +307,5 @@ try {
   console.log(`\n${dryRun ? 'Would publish' : 'Published'} ${selected.length} song(s) to ${church.name}.`)
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true })
-  await pool.end()
+  await closeDb()
 }

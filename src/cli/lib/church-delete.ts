@@ -7,7 +7,10 @@
  * same command again finds it and carries on: files already gone are simply not listed any more.
  * Deleting rows first, as before, could leave files under churches/<id>/ that nothing points to.
  */
-import type { Db } from '../../api/data.ts'
+import { and, eq, ne, notExists, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
+import type { Db } from '../../db/client.ts'
+import { arrangements, members, organizations, sessions, songs } from '../../db/schema/index.ts'
 import type { ObjectStore } from './r2.ts'
 
 export interface ChurchRef {
@@ -32,25 +35,35 @@ export interface DeletePlan {
 /** The R2 prefix that holds every file of a church. */
 export const churchPrefix = (id: string) => `churches/${id}/`
 
-const count = async (db: Db, sql: string, id: string) => Number((await db.query<{ n: number }>(sql, [id])).rows[0]?.n ?? 0)
+const n = sql<number>`count(*)::int`
 
 /** What deleting the church would remove. Reads only. */
 export async function planChurchDelete(db: Db, store: ObjectStore | null, church: ChurchRef): Promise<DeletePlan> {
   const files = store ? await store.list(churchPrefix(church.id)) : null
+  const other = alias(members, 'other')
+  const [[memberCount], [left], [songCount], [arrangementCount], [sessionCount]] = await Promise.all([
+    db.select({ n }).from(members).where(eq(members.organizationId, church.id)),
+    db
+      .select({ n })
+      .from(members)
+      .where(
+        and(
+          eq(members.organizationId, church.id),
+          notExists(db.select({ id: other.id }).from(other).where(and(eq(other.userId, members.userId), ne(other.organizationId, church.id)))),
+        ),
+      ),
+    db.select({ n }).from(songs).where(eq(songs.organizationId, church.id)),
+    db.select({ n }).from(arrangements).innerJoin(songs, eq(songs.id, arrangements.songId)).where(eq(songs.organizationId, church.id)),
+    db.select({ n }).from(sessions).where(eq(sessions.activeOrganizationId, church.id)),
+  ])
   return {
     church,
-    members: await count(db, 'select count(*)::int as n from member where "organizationId" = $1', church.id),
-    peopleLeftWithoutChurch: await count(
-      db,
-      `select count(*)::int as n from member m
-        where m."organizationId" = $1
-          and not exists (select 1 from member o where o."userId" = m."userId" and o."organizationId" <> $1)`,
-      church.id,
-    ),
-    songs: await count(db, 'select count(*)::int as n from song where "organizationId" = $1', church.id),
-    arrangements: await count(db, 'select count(*)::int as n from arrangement a join song s on s.id = a."songId" where s."organizationId" = $1', church.id),
-    sessions: await count(db, 'select count(*)::int as n from session where "activeOrganizationId" = $1', church.id),
-    files: files ? { count: files.length, bytes: files.reduce((n, f) => n + f.size, 0) } : null,
+    members: memberCount.n,
+    peopleLeftWithoutChurch: left.n,
+    songs: songCount.n,
+    arrangements: arrangementCount.n,
+    sessions: sessionCount.n,
+    files: files ? { count: files.length, bytes: files.reduce((total, f) => total + f.size, 0) } : null,
   }
 }
 
@@ -75,7 +88,6 @@ export interface DeleteResult {
 /**
  * Deletes the church: its R2 files first (when a store is given), checked to be gone, then its rows
  * in one transaction (songs, arrangements and member links cascade from the organization).
- * `db` must be a single connection, so the transaction holds.
  */
 export async function deleteChurch(db: Db, store: ObjectStore | null, church: ChurchRef, log: (line: string) => void = () => {}): Promise<DeleteResult> {
   let filesDeleted = 0
@@ -90,15 +102,10 @@ export async function deleteChurch(db: Db, store: ObjectStore | null, church: Ch
     const left = await store.list(prefix)
     if (left.length > 0) throw new Error(`${left.length} file(s) are still under ${prefix}; nothing was deleted from the database. Run the same command again.`)
   }
-  await db.query('begin')
-  try {
+  await db.transaction(async (tx) => {
     // sessions pointing at it would otherwise keep an active church that no longer exists
-    await db.query('update session set "activeOrganizationId" = null where "activeOrganizationId" = $1', [church.id])
-    await db.query('delete from organization where id = $1', [church.id])
-    await db.query('commit')
-  } catch (error) {
-    await db.query('rollback')
-    throw error
-  }
+    await tx.update(sessions).set({ activeOrganizationId: null }).where(eq(sessions.activeOrganizationId, church.id))
+    await tx.delete(organizations).where(eq(organizations.id, church.id))
+  })
   return { filesDeleted }
 }

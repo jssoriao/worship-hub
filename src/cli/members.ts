@@ -1,5 +1,5 @@
 /**
- * Manage who may sign in, and in which church. People are `user` rows; their church and role is a `member` row.
+ * Manage who may sign in, and in which church. People are `users` rows; their church and role is a `members` row.
  * Nobody signs up themselves. Roles: member, editor, admin, owner (see src/shared/permissions.ts).
  *
  *   pnpm members list [--church <slug>]
@@ -10,7 +10,10 @@
  * Add --target prod to act on the production database (default is the Neon dev database).
  * A removed person's open session works for up to 30 seconds on songs and 5 minutes elsewhere (cookie cache).
  */
-import { Pool, neonConfig } from '@neondatabase/serverless'
+import { and, asc, eq, sql } from 'drizzle-orm'
+import { removePersonIfChurchless } from '../api/data.ts'
+import { openDb } from '../db/client.ts'
+import { members, organizations, users } from '../db/schema/index.ts'
 import { normalizeEmail, parseArgs, parseRole, parseSlug } from './lib/cli.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
 import { churchBySlug } from './lib/songs-db.ts'
@@ -27,24 +30,24 @@ if (!['list', 'add', 'remove', 'platform-admin'].includes(command ?? '')) {
     'Usage:\n  pnpm members list [--church <slug>]\n  pnpm members add <email> [name] --church <slug> --role member|editor|admin|owner\n  pnpm members remove <email> --church <slug>\n  pnpm members platform-admin <email> [--revoke]\n(add --target prod for production)',
   )
 }
-neonConfig.webSocketConstructor = WebSocket
-const pool = new Pool({ connectionString: loadTarget(target) })
+const { db, close } = openDb(loadTarget(target))
 
 async function churchOf(): Promise<{ id: string; slug: string; name: string }> {
   const slug = typeof flags.church === 'string' ? flags.church : ''
   if (!slug) return fail('Say which church: --church <slug> (pnpm churches list)')
-  return (await churchBySlug(pool, parseSlug(slug))) ?? fail(`No church "${slug}". pnpm churches list`)
+  return (await churchBySlug(db, parseSlug(slug))) ?? fail(`No church "${slug}". pnpm churches list`)
 }
 
 try {
   if (command === 'list') {
     const church = typeof flags.church === 'string' ? await churchOf() : null
-    const { rows } = await pool.query(
-      `select u.email, u.name, u."platformAdmin" as platform, o.slug, m.role
-         from "user" u left join member m on m."userId" = u.id left join organization o on o.id = m."organizationId"
-        where ($1::text is null or o.id = $1) order by u."createdAt", o.slug`,
-      [church?.id ?? null],
-    )
+    const rows = await db
+      .select({ email: users.email, name: users.name, platform: users.platformAdmin, slug: organizations.slug, role: members.role })
+      .from(users)
+      .leftJoin(members, eq(members.userId, users.id))
+      .leftJoin(organizations, eq(organizations.id, members.organizationId))
+      .where(church ? eq(organizations.id, church.id) : undefined)
+      .orderBy(asc(users.createdAt), asc(organizations.slug))
     if (rows.length === 0) console.log('No members yet.')
     for (const r of rows) console.log(`${r.email}\t${r.slug ?? '(no church)'}\t${r.role ?? '-'}\t${r.platform ? 'platform admin' : ''}\t${r.name}`)
   } else if (command === 'add') {
@@ -52,67 +55,42 @@ try {
     const name = args[1] ?? email.split('@')[0]
     const role = parseRole(flags.role)
     const church = await churchOf()
-    const client = await pool.connect()
-    try {
-      await client.query('begin')
+    const updated = await db.transaction(async (tx) => {
       // Better Auth looks people up by email; emailVerified is true because only invited people exist here
-      const user = await client.query<{ id: string }>(
-        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-         values ($1, $2, $3, true, now(), now())
-         on conflict (email) do update set "updatedAt" = now() returning id`,
-        [crypto.randomUUID(), name, email],
-      )
-      const userId = user.rows[0].id
-      const existing = await client.query('select id from member where "organizationId" = $1 and "userId" = $2', [church.id, userId])
-      if (existing.rows[0]) await client.query('update member set role = $1 where id = $2', [role, existing.rows[0].id])
-      else await client.query(`insert into member (id, "organizationId", "userId", role, "createdAt") values ($1, $2, $3, $4, now())`, [crypto.randomUUID(), church.id, userId, role])
-      await client.query('commit')
-      console.log(`${existing.rows[0] ? 'Updated' : 'Added'} ${email} in ${church.slug} as ${role}.`)
-    } catch (error) {
-      await client.query('rollback')
-      throw error
-    } finally {
-      client.release()
-    }
+      const [user] = await tx
+        .insert(users)
+        .values({ id: crypto.randomUUID(), name, email, emailVerified: true })
+        .onConflictDoUpdate({ target: users.email, set: { updatedAt: sql`now()` } })
+        .returning({ id: users.id })
+      const changed = await tx
+        .update(members)
+        .set({ role })
+        .where(and(eq(members.organizationId, church.id), eq(members.userId, user.id)))
+        .returning({ id: members.id })
+      if (changed.length === 0) await tx.insert(members).values({ id: crypto.randomUUID(), organizationId: church.id, userId: user.id, role })
+      return changed.length > 0
+    })
+    console.log(`${updated ? 'Updated' : 'Added'} ${email} in ${church.slug} as ${role}.`)
   } else if (command === 'remove') {
     const email = normalizeEmail(args[0])
     const church = await churchOf()
-    const client = await pool.connect()
-    try {
-      await client.query('begin')
-      const found = await client.query<{ id: string; platformAdmin: boolean }>('select id, "platformAdmin" from "user" where email = $1', [email])
-      if (!found.rows[0]) {
-        console.log(`${email} is not a member.`)
-      } else {
-        const { id, platformAdmin } = found.rows[0]
-        await client.query('delete from member where "organizationId" = $1 and "userId" = $2', [church.id, id])
-        // sessions open in that church would keep pointing at it
-        await client.query('delete from session where "userId" = $1 and "activeOrganizationId" = $2', [id, church.id])
-        const left = await client.query('select 1 from member where "userId" = $1', [id])
-        if (left.rowCount === 0 && !platformAdmin) {
-          await client.query('delete from session where "userId" = $1', [id])
-          await client.query('delete from account where "userId" = $1', [id])
-          await client.query('delete from "user" where id = $1', [id])
-          console.log(`Removed ${email} from ${church.slug}; they are in no church now, so they were removed.`)
-        } else {
-          console.log(`Removed ${email} from ${church.slug}.`)
-        }
-      }
-      await client.query('commit')
-    } catch (error) {
-      await client.query('rollback')
-      throw error
-    } finally {
-      client.release()
-    }
+    const outcome = await db.transaction(async (tx) => {
+      const [person] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email))
+      if (!person) return 'unknown'
+      await tx.delete(members).where(and(eq(members.organizationId, church.id), eq(members.userId, person.id)))
+      return (await removePersonIfChurchless(tx, person.id, church.id)) ? 'gone' : 'left'
+    })
+    if (outcome === 'unknown') console.log(`${email} is not a member.`)
+    else if (outcome === 'gone') console.log(`Removed ${email} from ${church.slug}; they are in no church now, so they were removed.`)
+    else console.log(`Removed ${email} from ${church.slug}.`)
   } else if (command === 'platform-admin') {
     const email = normalizeEmail(args[0])
     const grant = flags.revoke !== true
-    const { rowCount } = await pool.query('update "user" set "platformAdmin" = $1, "updatedAt" = now() where email = $2', [grant, email])
-    console.log(rowCount ? `${email} is ${grant ? 'now' : 'no longer'} the platform admin.` : `${email} is not a member. Add them to a church first.`)
+    const changed = await db.update(users).set({ platformAdmin: grant, updatedAt: sql`now()` }).where(eq(users.email, email)).returning({ id: users.id })
+    console.log(changed.length ? `${email} is ${grant ? 'now' : 'no longer'} the platform admin.` : `${email} is not a member. Add them to a church first.`)
   }
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
 } finally {
-  await pool.end()
+  await close()
 }

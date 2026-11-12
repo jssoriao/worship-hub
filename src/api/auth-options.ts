@@ -1,13 +1,15 @@
 /**
- * Better Auth configuration shared by the Worker and the CLI (src/cli/auth-cli.ts),
- * so the database schema the CLI creates always matches what the Worker runs.
+ * Better Auth configuration. The tables are Drizzle tables in src/db/schema/auth.ts, created by the
+ * app's migrations; test/auth-schema.test.ts checks they match what this configuration needs.
  *
  * Invite-only, emailed 6-digit code only: there is no password sign-in and no self sign-up.
  * A church is a Better Auth organization; people are in it through `member` rows. Churches and members
  * are added with `pnpm churches add` / `pnpm members add` only (no self sign-up, no user-created churches).
  */
+import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { emailOTP, organization } from 'better-auth/plugins'
-import type { Dialect } from 'kysely'
+import type { Db } from '../db/client.ts'
+import * as schema from '../db/schema/index.ts'
 import { ac, roles } from '../shared/permissions.ts'
 
 export const CODE_MINUTES = 10
@@ -16,7 +18,8 @@ export type AuthDeps = {
   /** Public origin of the app. Also the only trusted origin. */
   baseURL: string
   secret: string
-  dialect: Dialect
+  /** The database. In the Worker it stands for the current request's connection (see auth.ts). */
+  db: Db
   /**
    * Called for every sign-in request, member or not. The caller decides whether to send mail,
    * so the HTTP response never reveals whether an address is registered.
@@ -34,7 +37,8 @@ export function authOptions(deps: AuthDeps) {
   return {
     baseURL: deps.baseURL,
     secret: deps.secret,
-    database: { dialect: deps.dialect, type: 'postgres' as const },
+    // tables are looked up by their plural export names (users, sessions, ...) and columns by TypeScript name
+    database: drizzleAdapter(deps.db, { provider: 'pg', schema, usePlural: true }),
     trustedOrigins: [deps.baseURL],
 
     user: {

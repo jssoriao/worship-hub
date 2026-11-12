@@ -33,15 +33,15 @@ export default {
       return withAuth(env, ctx, (auth) => auth.handler(request))
     }
     if (isMembersPath(pathname)) {
-      return withAuth(env, ctx, (auth, pool) =>
-        routeMembers(request, { api: { getSession: (args) => auth.api.getSession(args) as never } }, pool, data.memo),
+      return withAuth(env, ctx, (auth, db) =>
+        routeMembers(request, { api: { getSession: (args) => auth.api.getSession(args) as never } }, db, data.memo),
       )
     }
     if (pathname.startsWith('/songs/')) {
       const path = parseSongPath(pathname)
       if (!path) return notFound()
-      return withAuth(env, ctx, (auth, pool) =>
-        routeSongs(request, env, ctx, { api: { getSession: (args) => auth.api.getSession(args) as never } }, pool, data.memo),
+      return withAuth(env, ctx, (auth, db) =>
+        routeSongs(request, env, ctx, { api: { getSession: (args) => auth.api.getSession(args) as never } }, db, data.memo),
       )
     }
     return json({ error: 'not found' }, 404)

@@ -18,7 +18,6 @@ minimumReleaseAgeExclude:
   - '@better-auth/prisma-adapter@1.7.19'
   - '@better-auth/telemetry@1.7.19'
   - better-auth@1.7.19
-  - auth@1.7.19
 overrides:
   # minimatch <11.0.1 has a denial-of-service bug (GHSA, Dependabot alert); glob@11 (via workbox-build,
   # build time only) still asks for ^10. Remove once workbox-build ships a fixed glob.
