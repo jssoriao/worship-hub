@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from 'react-router'
 import { audioCache } from '../lib/audio-cache'
 import { StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
 import { computeMix, families, type MixState } from '../lib/mix'
+import { keyName, parseKey, shiftKey } from '../lib/chords'
+import { MAX_KEY_SHIFT } from '../lib/key-shift'
+import { loadSong as loadSongSettings, saveSong as saveSongSettings } from '../lib/chart-view'
 import { describeMusic, fetchLibrary, sourcesFromSong, sourcesFromZip, type LibrarySong, type QualityTier, type SongMusic, type StemSource } from '../lib/sources'
 import { SONGS_BASE_URL } from '../config'
 import { useNowPlaying } from '../lib/now-playing-context'
@@ -16,7 +19,7 @@ import { LyricsView } from '../components/player/LyricsView'
 import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
-import { fetchAnalysis, fetchAnalysisVersion, indexAt, type ChordLevel, type SongAnalysis } from '../lib/analysis'
+import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { resolveSongParam } from '../lib/address'
 import { useChurch } from '../lib/church-context'
@@ -30,6 +33,12 @@ const TIER_INFO: Record<string, { label: string; hint: string }> = {
   original: { label: 'Original', hint: 'Full quality (256 kbps) and the largest download. For backing tracks.' },
 }
 const QUALITY_KEY = 'worship-hub:quality'
+/** A key's name moved by some semitones ("A" +2 -> "B"); what it was when it is not a key. */
+function shiftedKey(name: string, semitones: number): string {
+  const k = parseKey(name)
+  return k ? keyName(shiftKey(k, semitones)) : name
+}
+
 const CLICK_KEY = 'worship-hub:click'
 const VIEW_KEY = 'worship-hub:practice-view'
 
@@ -55,6 +64,13 @@ function savedViewPrefs(): ViewPrefs {
 }
 
 /** The click's settings on this device: off at first. */
+/** The key this device last used for a song, as semitones from the recording (-6..+6). */
+function savedKey(songId: string): number {
+  const t = loadSongSettings(songId).transpose
+  const wrapped = t > MAX_KEY_SHIFT ? t - 12 : t < -MAX_KEY_SHIFT ? t + 12 : t
+  return Math.max(-MAX_KEY_SHIFT, Math.min(MAX_KEY_SHIFT, wrapped))
+}
+
 function savedClick(): { on: boolean; volume: number } {
   try {
     const raw = JSON.parse(localStorage.getItem(CLICK_KEY) ?? 'null') as { on?: unknown; volume?: unknown } | null
@@ -127,6 +143,9 @@ export default function PracticePage() {
   /** the music of the song being loaded, until it has loaded */
   const nextMusic = useRef<SongMusic | undefined>(undefined)
   const [click, setClick] = useState(savedClick)
+  // the key the stems sound in, in semitones from the recording; remembered per song on this device
+  const [key, setKey] = useState(0)
+  const keyRef = useRef(0)
   // chords, beats, sections and timed lyrics, when the song has been analysed
   const [analysis, setAnalysis] = useState<SongAnalysis | null>(null)
   const [prefs, setPrefs] = useState<ViewPrefs>(savedViewPrefs)
@@ -138,6 +157,8 @@ export default function PracticePage() {
   const [editStatus, setEditStatus] = useState('')
   const [versions, setVersions] = useState<AnalysisVersion[] | null>(null)
   const shown = draft ?? analysis
+  // what is read while playing: chords and key as they sound (editing shows the recording's own)
+  const heard = useMemo(() => (shown && !editing ? transposeAnalysis(shown, key) : shown), [shown, editing, key])
   const change = (f: (a: SongAnalysis) => SongAnalysis) => {
     if (!shown) return
     setDraft(f(shown))
@@ -203,6 +224,10 @@ export default function PracticePage() {
         setDuration(e.duration)
       }
       e.onBuffering = setBuffering
+      e.onKeyError = () => {
+        setKey(0)
+        setError('Could not change the key on this device. Playing in the original key.')
+      }
       e.onDownload = (d) => {
         setDownload(d)
         // finished files are saved a moment after they arrive
@@ -230,6 +255,13 @@ export default function PracticePage() {
       // storage blocked: the setting just is not remembered
     }
   }, [click])
+
+  // the key follows its setting, which this device remembers for each song
+  useEffect(() => {
+    keyRef.current = key
+    engineRef.current?.setKey(key)
+    if (songId) saveSongSettings(songId, { ...loadSongSettings(songId), transpose: key })
+  }, [key, songId])
 
   // playhead ticker
   useEffect(() => {
@@ -283,6 +315,7 @@ export default function PracticePage() {
   ) => {
     setError(null)
     const engine = getEngine() // created inside the user gesture
+    engine.setKey(keyRef.current)
     engine.unload()
     if (!restore) {
       setStems([])
@@ -334,6 +367,7 @@ export default function PracticePage() {
     if (!file) return
     // a zip is not a library song: the address has none (setSongId first, so that is not a "close")
     setSongId('')
+    setKey(0)
     if (wanted) navigate('/practice')
     setTiers([])
     setTier(null)
@@ -358,6 +392,7 @@ export default function PracticePage() {
     const song = library.find((s) => s.id === id)
     if (!song) return
     setSongId(id)
+    setKey(savedKey(id))
     setAnalysis(null)
     setDraft(null)
     setEditing(false)
@@ -370,6 +405,7 @@ export default function PracticePage() {
   const closeSong = () => {
     engineRef.current?.unload()
     setSongId('')
+    setKey(0)
     setStems([])
     setMix([])
     mixRef.current = []
@@ -546,7 +582,7 @@ export default function PracticePage() {
   const tierBytes = tiers.find((t) => t.id === tier)?.bytes
   const stemsView = prefs.view === 'stems' || !analysis
   const facts = [
-    describeMusic(music),
+    describeMusic(music && key !== 0 && music.key ? { ...music, key: shiftedKey(music.key, key) } : music),
     stems.length > 0 && `${stems.length} stems`,
     anySolo && 'solo active',
     playing && buffering && 'Buffering…',
@@ -569,6 +605,7 @@ export default function PracticePage() {
       <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${on ? 'left-4.5' : 'left-0.5'}`} />
     </button>
   )
+  const originalKey = parseKey(analysis?.key || music?.key || '')
   const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
   const tools = (
     <>
@@ -597,6 +634,40 @@ export default function PracticePage() {
               </span>
               <input type="range" min={0} max={1} step={0.01} value={click.volume} onChange={(e) => setClick((c) => ({ ...c, volume: Number(e.target.value) }))} className="mt-1 w-full accent-teal-500" />
             </label>
+          </div>
+        </Popover>
+      )}
+      {stems.length > 0 && (
+        <Popover
+          label={key === 0 ? 'Key: original' : `Key: ${key > 0 ? '+' : ''}${key} semitones`}
+          title="Key"
+          active={key !== 0}
+          button={<span className="min-w-6 text-center text-sm font-medium tabular-nums">{key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>}
+        >
+          <div className="space-y-3 text-slate-300">
+            <p className="text-xs text-slate-400">
+              Move the whole song up or down to find a key the singer is comfortable in. The tempo stays the same and the chords follow.
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" aria-label="One semitone lower" disabled={key <= -MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))} className="size-9 rounded-lg border border-slate-700 text-lg outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40">
+                −
+              </button>
+              <div className="text-center" aria-live="polite">
+                <div className="text-lg font-medium text-slate-100">{originalKey ? keyName(shiftKey(originalKey, key)) : `${key > 0 ? '+' : ''}${key}`}</div>
+                <div className="text-xs text-slate-400">
+                  {key === 0 ? 'Original key' : `${originalKey ? `from ${keyName(originalKey)}, ` : ''}${key > 0 ? '+' : ''}${key} semitone${Math.abs(key) === 1 ? '' : 's'}`}
+                </div>
+              </div>
+              <button type="button" aria-label="One semitone higher" disabled={key >= MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))} className="size-9 rounded-lg border border-slate-700 text-lg outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40">
+                +
+              </button>
+            </div>
+            {key !== 0 && (
+              <button type="button" onClick={() => setKey(0)} className="text-teal-300 underline underline-offset-2">
+                Back to the original key
+              </button>
+            )}
+            {editing && <p className="text-xs text-amber-300">Chords show the recording's own key while you edit.</p>}
           </div>
         </Popover>
       )}
@@ -777,7 +848,7 @@ export default function PracticePage() {
                   position={pos}
                   onSeek={(t) => void seekTo(t)}
                   onPatch={patch}
-                  analysis={shown}
+                  analysis={heard}
                   level={prefs.level}
                   click={
                     music && music.beats.length > 0
@@ -862,9 +933,9 @@ export default function PracticePage() {
                 )}
               </div>
             )}
-            {shown && prefs.view === 'lyrics' && (
+            {heard && prefs.view === 'lyrics' && (
               <LyricsView
-                analysis={shown}
+                analysis={heard}
                 level={prefs.level}
                 position={pos}
                 onSeek={(t) => void seekTo(t)}
@@ -875,9 +946,9 @@ export default function PracticePage() {
                 onJoinLine={(i) => change((a) => joinWithNextLine(a, i))}
               />
             )}
-            {shown && prefs.view === 'chords' && (
+            {heard && prefs.view === 'chords' && (
               <ChordGrid
-                analysis={shown}
+                analysis={heard}
                 level={prefs.level}
                 position={pos}
                 onSeek={(t) => void seekTo(t)}
@@ -887,7 +958,7 @@ export default function PracticePage() {
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
               />
             )}
-            {shown && prefs.view === 'shapes' && <ShapesView analysis={shown} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}
+            {heard && prefs.view === 'shapes' && <ShapesView analysis={heard} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}
 
             <TransportBar
               title={title}
