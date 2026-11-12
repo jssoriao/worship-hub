@@ -51,7 +51,7 @@ describe('sign-in with an emailed code', () => {
 
     const session = await auth.api.getSession({ headers: new Headers({ cookie }) })
     expect(session?.user.email).toBe(EMAIL)
-    expect(session?.session.activeOrganizationId).toBe(CHURCH)
+    expect((session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId).toBe(CHURCH)
     const stored = await pg.query<{ user_id: string; active_organization_id: string }>('select user_id, active_organization_id from sessions')
     expect(stored.rows).toEqual([{ user_id: 'singer', active_organization_id: CHURCH }])
     // the code is stored hashed, never as sent
