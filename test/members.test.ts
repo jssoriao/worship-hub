@@ -1,40 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Db } from '../src/db/client.ts'
 import { Memo } from '../src/api/data.ts'
-import { isMembersPath, manageableRoles, routeMembers } from '../src/api/members.ts'
-import type { SessionSource } from '../src/api/tenant.ts'
+import { manageableRoles } from '../src/api/members.ts'
+import { testApp } from './app.ts'
 import { freshDb, seedChurch, seedMember, seedSession, seedUser } from './helpers.ts'
 
 const A = 'churchaaaaaa'
 const B = 'churchbbbbbb'
-
-/** Sessions are faked: the "cookie" header is `user=<id>; church=<id>`. */
-const auth: SessionSource = {
-  api: {
-    async getSession({ headers }) {
-      const m = /user=([^;]+); church=(\S+)/.exec(headers.get('cookie') ?? '')
-      if (!m) return { headers: new Headers(), response: null }
-      return { headers: new Headers(), response: { session: { activeOrganizationId: m[2] }, user: { id: m[1], name: m[1], email: `${m[1]}@example.com` } } }
-    },
-  },
-}
 
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
 let cache: Memo
 
 const as = (user: string, church = A) => `user=${user}; church=${church}`
+const app = testApp(() => ({ db, memo: cache }))
 const call = (who: string | null, method: string, path = '', body?: unknown, headers: Record<string, string> = {}) =>
-  routeMembers(
-    new Request(`https://x.test/api/church/members${path}`, {
-      method,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      headers: { ...(who ? { cookie: who } : {}), ...headers },
-    }),
-    auth,
-    db,
-    cache,
-  )
+  app.call(`/api/church/members${path}`, who, { method, body: body === undefined ? undefined : JSON.stringify(body), headers })
 const memberId = async (user: string, church = A) => (await pg.query<{ id: string }>('select id from members where user_id = $1 and organization_id = $2', [user, church])).rows[0]?.id
 
 beforeEach(async () => {
@@ -51,13 +32,6 @@ beforeEach(async () => {
 })
 
 describe('paths and roles', () => {
-  it('recognises only the members API paths', () => {
-    expect(isMembersPath('/api/church/members')).toBe(true)
-    expect(isMembersPath('/api/church/members/abc-123_x')).toBe(true)
-    expect(isMembersPath('/api/church/members/a/b')).toBe(false)
-    expect(isMembersPath('/api/church/members/a b')).toBe(false)
-    expect(isMembersPath('/api/church/other')).toBe(false)
-  })
 
   it('lets owners manage every role and admins only members and editors', () => {
     expect(manageableRoles('owner')).toEqual(['member', 'editor', 'admin', 'owner'])

@@ -23,6 +23,8 @@ export default defineConfig(({ mode }) => {
           path,
           {
             target: backend,
+            // the Worker sees its own host, so its same-origin check on writes matches the origin below
+            changeOrigin: true,
             // sign-in only trusts the Worker's own address (APP_URL), so requests say they come from there
             configure: (proxy: ProxyEvents) =>
               proxy.on('proxyReq', (req) => {

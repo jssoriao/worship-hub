@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Db } from '../src/db/client.ts'
 import { Memo } from '../src/api/data.ts'
 import { songKey, songPrefix, parseSongPath } from '../src/api/keys.ts'
-import { routeSongs } from '../src/api/router.ts'
-import { authPathAllowed, type SessionSource } from '../src/api/tenant.ts'
+import { authPathAllowed } from '../src/api/tenant.ts'
+import { testApp } from './app.ts'
 import { FakeR2 } from './fake-r2.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
@@ -12,21 +12,6 @@ const A = 'churchaaaaaa'
 const B = 'churchbbbbbb'
 const SONG_A = 'songaaaaaaaa'
 const SONG_B = 'songbbbbbbbb'
-const noWait = { waitUntil: () => {} }
-
-/** Sessions are faked: the "cookie" header is `user=<id>; church=<id|none>`. */
-const auth: SessionSource = {
-  api: {
-    async getSession({ headers }) {
-      const m = /user=([^;]+); church=(\S+)/.exec(headers.get('cookie') ?? '')
-      if (!m) return { headers: new Headers(), response: null }
-      return {
-        headers: new Headers(),
-        response: { session: { activeOrganizationId: m[2] === 'none' ? null : m[2] }, user: { id: m[1], name: m[1], email: `${m[1]}@example.com` } },
-      }
-    },
-  },
-}
 
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
@@ -34,15 +19,7 @@ let r2: FakeR2
 let cache: Memo
 let now: number
 
-const call = (path: string, who: string | null, init: RequestInit = {}) =>
-  routeSongs(
-    new Request(`https://x.test${path}`, { ...init, headers: { ...(who ? { cookie: who } : {}), ...(init.headers as Record<string, string>) } }),
-    { FILES: r2 as never },
-    noWait,
-    auth,
-    db,
-    cache,
-  )
+const { call } = testApp(() => ({ db, memo: cache, files: r2 }))
 const asA = (role: string) => `user=${role}-a; church=${A}`
 
 beforeEach(async () => {
