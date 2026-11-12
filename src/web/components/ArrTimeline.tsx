@@ -14,7 +14,7 @@ interface Props {
   downbeats: number[]
 }
 
-const COLOURS = ['bg-teal-800', 'bg-sky-800', 'bg-indigo-800', 'bg-violet-800', 'bg-fuchsia-900', 'bg-rose-900', 'bg-amber-800', 'bg-lime-900']
+const COLOURS = ['bg-primary/60', 'bg-sky-800', 'bg-indigo-800', 'bg-violet-800', 'bg-fuchsia-900', 'bg-rose-900', 'bg-amber-800', 'bg-lime-900']
 
 /** The part of the waveform from `a` to `b` seconds of the recording, as an SVG path (0..100 wide, 0..1 high, centred). */
 function wavePath(peaks: number[], recording: number, a: number, b: number): string {
@@ -57,7 +57,7 @@ export function ArrTimeline({ arr, lead, duration, position, onSeek, peaks, reco
             key={b.id}
             type="button"
             onClick={(e) => onSeek(at(e, starts[i], len))}
-            className={`relative h-full min-w-0 shrink-0 overflow-hidden border-r-2 border-slate-950 text-left text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-300 ${colour.get(b.section)} ${current ? '' : 'opacity-80'}`}
+            className={`relative h-full min-w-0 shrink-0 overflow-hidden border-r-2 border-slate-950 text-left text-xs text-white outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${colour.get(b.section)} ${current ? '' : 'opacity-80'}`}
             style={{ width: pct(len) }}
             aria-label={`Block ${i + 1}, ${s.label}: tap to play from there`}
           >

@@ -21,7 +21,7 @@ export default function ChartView({ chart, active = -1, onJump, sectionRef }: Pr
             key={i}
             ref={(el) => sectionRef?.(i, el)}
             aria-current={current ? 'true' : undefined}
-            className={`rounded-xl border px-3 py-2 ${current ? 'border-teal-400/70 bg-teal-400/10' : 'border-border'}`}
+            className={`rounded-xl border px-3 py-2 ${current ? 'border-highlight/70 bg-primary/10' : 'border-border'}`}
           >
             {(section.label || section.t !== null) && (
               <h3 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

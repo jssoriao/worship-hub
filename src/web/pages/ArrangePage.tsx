@@ -19,6 +19,8 @@ import {
   type Arrangement,
 } from '../lib/arrangement'
 import { newId } from '../../shared/ids'
+import { Alert } from '@/components/ui/alert'
+import { PageHeader } from '../components/PageHeader'
 import { songFile } from '../lib/api'
 import { deleteArrangement, listArrangements, loadArrangement, saveArrangement, type ArrangementInfo } from '../lib/arrangements-api'
 import { authClient } from '../lib/auth-client'
@@ -282,11 +284,8 @@ export default function ArrangePage() {
 
 
   return (
-    <div className="mx-auto max-w-5xl px-3 pb-24 pt-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-xl font-semibold tracking-tight">Arrange</h1>
-        <SongPicker songs={library ?? []} value={songId} onPick={(id) => void openSong(id)} loading={library === null} className="w-full sm:w-80" />
-      </div>
+    <div className="mx-auto max-w-5xl px-4 pt-3 pb-24 md:px-6">
+      <PageHeader title="Arrange" actions={<SongPicker songs={library ?? []} value={songId} onPick={(id) => void openSong(id)} loading={library === null} className="w-full sm:w-80" />} />
 
       {!songId && (
         <p className="mt-6 rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
@@ -295,9 +294,9 @@ export default function ArrangePage() {
       )}
       {loading && <p className="mt-4 text-sm text-muted-foreground">{loading}</p>}
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">
+        <Alert variant="destructive" className="mt-3">
           {error}
-        </p>
+        </Alert>
       )}
 
       {arr && !loading && (

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
+import { usePlayerSlot } from '../lib/player-slot'
 import { audioCache } from '../lib/audio-cache'
 import { StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
 import { computeMix, families, type MixState } from '../lib/mix'
@@ -13,6 +15,9 @@ import { StemRow } from '../components/StemRow'
 import { SongPicker } from '../components/SongPicker'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Popover } from '../components/Popover'
+import { PageHeader } from '../components/PageHeader'
+import { Alert } from '@/components/ui/alert'
+import { buttonVariants } from '@/components/ui/button'
 import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
 import { LyricsView } from '../components/player/LyricsView'
@@ -357,9 +362,10 @@ export default function PracticePage() {
 
   // On this page the address is the only thing that chooses the song: /practice?song=<id> opens
   // that song, /practice opens none. Picking a song just changes the address (a new history entry,
-  // so Back goes to the previous song). The nav bar links here with the song that is open, so
+  // so Back goes to the previous song). The sidebar links here with the song that is open, so
   // coming back from Charts keeps it; reloading or a shared link opens the same song.
   const { pathname, search } = useLocation()
+  const playerSlot = usePlayerSlot()
   const navigate = useNavigate()
   const onPracticePage = pathname === '/practice' || pathname.startsWith('/practice/')
   const wanted = songFromAddress(new URLSearchParams(search).get('song'))
@@ -600,7 +606,7 @@ export default function PracticePage() {
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className={`relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-teal-500' : 'bg-slate-700'}`}
+      className={`relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-primary' : 'bg-slate-700'}`}
     >
       <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${on ? 'left-4.5' : 'left-0.5'}`} />
     </button>
@@ -642,7 +648,13 @@ export default function PracticePage() {
           label={key === 0 ? 'Key: original' : `Key: ${key > 0 ? '+' : ''}${key} semitones`}
           title="Key"
           active={key !== 0}
-          button={<span className="min-w-6 text-center text-sm font-medium tabular-nums">{key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>}
+          button={
+            // the key itself, big, with what it is (or how far it moved) under it
+            <span className="flex min-w-7 flex-col items-center leading-none">
+              <span className="text-base font-semibold tabular-nums">{originalKey ? keyName(shiftKey(originalKey, key)) : key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>
+              {originalKey && <span className="mt-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">{key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>}
+            </span>
+          }
         >
           <div className="space-y-3 text-slate-300">
             <p className="text-xs text-muted-foreground">
@@ -734,14 +746,15 @@ export default function PracticePage() {
       )}
     </>
   )
-  const small = 'rounded-lg border border-input bg-card px-2.5 py-1.5 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+  // on phones the three controls share one row, so they get smaller there
+  const small = `${buttonVariants({ variant: 'outline', size: 'sm' })} max-sm:px-2.5 max-sm:text-xs`
   // nothing chosen or loading: show only a centred search
   const blank = songId === '' && stems.length === 0 && !loading && !error
 
   const zipButton = (
     <label
       title="Play your own stems from a zip of mp3/wav files"
-      className={`${small} inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-slate-300 focus-within:ring-2 focus-within:ring-ring`}
+      className={`${small} cursor-pointer focus-within:ring-2 focus-within:ring-ring`}
     >
       <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H8l2 2h5.5A1.5 1.5 0 0 1 17 8.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
@@ -760,29 +773,14 @@ export default function PracticePage() {
   )
 
   return (
-    <div className={`mx-auto max-w-7xl px-3 pt-2 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-24' : 'pb-48 md:pb-40'}`}>
-        <h1 className="sr-only">Practice</h1>
-        {notInChurch && wanted === '' && (
-          <p role="alert" className="mt-2 rounded-lg bg-card p-3 text-sm text-slate-300">
-            That song is not in this church.
-          </p>
-        )}
-        {/* nothing open yet: just the search, centred, with the zip as a quiet alternative */}
-        {blank && (
-          <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
-            <p className="text-lg font-medium text-slate-200">What are we practising?</p>
-            {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full" />}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {library.length > 0 && <span>or</span>}
-              {zipButton}
-            </div>
-          </div>
-        )}
-
-        {/* one row: the song, what it is, its quality, offline, another zip */}
-        {!blank && (
-        <div className="flex flex-wrap items-center gap-2">
-          {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full min-w-0 sm:w-auto sm:flex-1 sm:max-w-sm" />}
+    <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-24' : 'pb-48 md:pb-40'}`}>
+        {/* the title, and once a song is open: the song, its quality, offline, another zip */}
+        <PageHeader
+          title="Practice"
+          actions={
+            !blank && (
+              <>
+          {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full min-w-0 sm:w-72 lg:w-80" />}
           <div className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
             {songId !== '' && tiers.length > 1 && (
               <>
@@ -791,7 +789,7 @@ export default function PracticePage() {
                 </label>
                 <NativeSelect
                   size="sm"
-                  wrapperClassName="!flex-none" className="whitespace-nowrap"
+                  wrapperClassName="!flex-none" className="whitespace-nowrap max-sm:text-xs"
                   id="quality"
                   value={tier ?? ''}
                   disabled={loading !== null}
@@ -820,21 +818,38 @@ export default function PracticePage() {
                     ? `Saved on this device (${megabytes(offline.bytes)}); plays with no connection. Tap to remove.`
                     : `Download the whole song${tierBytes ? ` (${megabytes(tierBytes)})` : ''} to play it with no connection.`
                 }
-                className={`${small} whitespace-nowrap ${offlineDone ? 'border-teal-700 text-teal-200' : ''}`}
+                className={`${small} ${offlineDone ? 'border-highlight/50 text-highlight' : ''}`}
               >
                 {saving ? `Saving ${Math.round((download?.fraction ?? 0) * 100)}%` : offlineDone ? 'Offline ✓' : 'Save offline'}
               </button>
             )}
             {zipButton}
           </div>
-        </div>
+              </>
+            )
+          }
+        />
+        {notInChurch && wanted === '' && (
+          <Alert className="mt-3">That song is not in this church.</Alert>
+        )}
+        {/* nothing open yet: just the search, centred, with the zip as a quiet alternative */}
+        {blank && (
+          <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
+            <p className="text-lg font-medium text-slate-200">What are we practising?</p>
+            {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full" />}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {library.length > 0 && <span>or</span>}
+              {zipButton}
+            </div>
+          </div>
         )}
 
-        {loading && <p className="mt-2 rounded-lg bg-card p-2 text-sm text-slate-300">{loading}</p>}
+
+        {loading && <p role="status" className="mt-3 text-sm text-muted-foreground">{loading}</p>}
         {error && (
-          <p role="alert" className="mt-2 rounded-lg bg-red-950 p-3 text-sm text-red-200">
+          <Alert variant="destructive" className="mt-3">
             {error}
-          </p>
+          </Alert>
         )}
 
         {stems.length > 0 && (
@@ -879,12 +894,12 @@ export default function PracticePage() {
             )}
 
             {shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') && (
-              <div className="mt-2 rounded-xl border border-teal-800 bg-teal-950/40 p-2 text-sm">
+              <div className="mt-2 rounded-xl border border-primary/40 bg-primary/10 p-2 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-auto text-teal-200">
+                  <span className="mr-auto text-highlight">
                     {prefs.view === 'chords' ? 'Tap a beat to set its chord, a bar number for its section.' : 'Tap a line to fix its words.'}
                   </span>
-                  <button type="button" disabled={!draft} onClick={() => void saveDraft()} className="rounded-lg border border-teal-500 px-3 py-1 text-teal-100 disabled:opacity-40">
+                  <button type="button" disabled={!draft} onClick={() => void saveDraft()} className="rounded-lg border border-highlight/70 px-3 py-1 text-highlight disabled:opacity-40">
                     Save changes
                   </button>
                   <button type="button" disabled={!draft} onClick={() => (setDraft(null), setEditStatus(''))} className="rounded-lg border border-slate-600 px-3 py-1 disabled:opacity-40">
@@ -960,20 +975,26 @@ export default function PracticePage() {
             )}
             {heard && prefs.view === 'shapes' && <ShapesView analysis={heard} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}
 
-            <TransportBar
-              title={title}
-              facts={facts}
-              playing={playing}
-              buffering={buffering}
-              position={pos}
-              duration={duration}
-              onToggle={() => void togglePlay()}
-              onSeek={(t) => void seekTo(t)}
-              bar={barLabel}
-              view={analysis ? prefs.view : undefined}
-              onView={(view) => setPrefs((p) => ({ ...p, view }))}
-              tools={tools}
-            />
+            {playerSlot &&
+              createPortal(
+                <TransportBar
+                  title={title}
+                  facts={facts}
+                  playing={playing}
+                  buffering={buffering}
+                  position={pos}
+                  duration={duration}
+                  onToggle={() => void togglePlay()}
+                  onSeek={(t) => void seekTo(t)}
+                  bar={barLabel}
+                  view={analysis ? prefs.view : undefined}
+                  onView={(view) => setPrefs((p) => ({ ...p, view }))}
+                  tools={tools}
+                  // away from Practice: the views make no sense, and the title leads back
+                  onPracticePage={onPracticePage}
+                />,
+                playerSlot,
+              )}
           </>
         )}
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ROLE_NAMES, type Role } from '../../shared/permissions'
 import { Alert } from '@/components/ui/alert'
+import { PageHeader } from '../components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -65,9 +66,8 @@ export default function MembersPage() {
   const roleOptions = ROLE_NAMES.filter((r) => manageable.includes(r))
 
   return (
-    <div className="mx-auto max-w-3xl px-3 pb-24 pt-6">
-      <h1 className="text-xl font-semibold tracking-tight">Members</h1>
-      <p className="mt-1 text-sm text-muted-foreground">People in {church.name || 'this church'}. They sign in with a code sent to their email.</p>
+    <div className="mx-auto max-w-4xl px-4 pt-3 pb-24 md:px-6">
+      <PageHeader title="Members" description={<>People in {church.name || 'this church'}. They sign in with a code sent to their email.</>} />
 
       {error && (
         <Alert variant="destructive" className="mt-4">

@@ -23,7 +23,7 @@ export function EditPopover({ title, initial, placeholder, suggestions = [], act
     input.current?.select()
   }, [])
   return (
-    <div role="dialog" aria-label={title} className="mt-1 rounded-xl border border-teal-700/60 bg-card p-2 shadow-xl shadow-black/50">
+    <div role="dialog" aria-label={title} className="mt-1 rounded-xl border border-primary/40 bg-card p-2 shadow-xl shadow-black/50">
       <p className="mb-1 text-xs text-muted-foreground">{title}</p>
       <form
         className="flex flex-wrap items-center gap-1.5"

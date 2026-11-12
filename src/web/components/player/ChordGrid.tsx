@@ -86,7 +86,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                 type="button"
                 onClick={() => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' })}
                 aria-label={`Section at bar ${i + 1}`}
-                className="w-6 shrink-0 self-center rounded text-right text-xs tabular-nums text-teal-400 underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-6 shrink-0 self-center rounded text-right text-xs tabular-nums text-highlight underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {i + 1}
               </button>
@@ -107,7 +107,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                     }
                     aria-label={`Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`}
                     className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                      now ? 'border-teal-300 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
+                      now ? 'border-highlight/70 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
                     } ${b.held && !now ? 'text-muted-foreground' : ''}`}
                   >
                     {b.name}

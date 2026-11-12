@@ -23,7 +23,7 @@ interface Props {
 export function StemRow({ stem, mix, audible, waiting, note, part, combined, progress, onSeek, onPatch }: Props) {
   return (
     <li
-      className={`rounded-xl border p-2 ${part ? 'ml-4 border-border/80 bg-card/40' : combined ? 'border-teal-900 bg-card' : 'border-border bg-card/70'}`}
+      className={`rounded-xl border p-2 ${part ? 'ml-4 border-border/80 bg-card/40' : combined ? 'border-primary/40 bg-card' : 'border-border bg-card/70'}`}
     >
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">

@@ -4,6 +4,8 @@
  *   pnpm churches list
  *   pnpm churches add <slug> <name> [--owner <email>]
  *   pnpm churches rename <slug> <name>
+ *   pnpm churches theme <slug> [--brand #rrggbb] [--brand2 #rrggbb] [--app-name <name>] [--logo <https url>] [--reset]
+ *                                                     the church's branding (src/web/lib/theme.ts); no options shows it
  *   pnpm churches delete <slug>                       shows what deleting it would remove (nothing is deleted)
  *   pnpm churches delete <slug> --confirm <slug>      deletes its R2 files (only with --target prod), then its songs,
  *                                                     arrangements and member links; safe to run again if it stops
@@ -19,17 +21,18 @@ import { deleteChurch, describePlan, planChurchDelete } from './lib/church-delet
 import { loadTarget, splitTarget } from './lib/env.ts'
 import { WranglerStore } from './lib/r2.ts'
 import { churchBySlug } from './lib/songs-db.ts'
+import { isHexColour, themeFromMetadata } from '../shared/theme.ts'
 
 const BUCKET = 'worship-hub'
 const { target, rest } = splitTarget(process.argv.slice(2))
-const { positional, flags } = parseArgs(rest, ['owner', 'confirm'])
+const { positional, flags } = parseArgs(rest, ['owner', 'confirm', 'brand', 'brand2', 'app-name', 'logo'])
 const [command, ...args] = positional
 const fail = (message: string): never => {
   console.error(message)
   process.exit(1)
 }
-if (!['list', 'add', 'rename', 'delete'].includes(command ?? '')) {
-  fail('Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches delete <slug> [--confirm <slug>]\n(add --target prod for production)')
+if (!['list', 'add', 'rename', 'theme', 'delete'].includes(command ?? '')) {
+  fail('Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches theme <slug> [--brand #rrggbb] [--brand2 #rrggbb] [--app-name <name>] [--logo <https url>] [--reset]\n  pnpm churches delete <slug> [--confirm <slug>]\n(add --target prod for production)')
 }
 const { db, close } = openDb(loadTarget(target))
 try {
@@ -70,6 +73,33 @@ try {
     const name = args.slice(1).join(' ').trim() || fail('Give the new name.')
     await db.update(organizations).set({ name }).where(eq(organizations.id, church.id))
     console.log(`Renamed ${church.slug} to ${name}.`)
+  } else if (command === 'theme') {
+    const church = (await churchBySlug(db, parseSlug(args[0]))) ?? fail('No such church.')
+    const [row] = await db.select({ metadata: organizations.metadata, logo: organizations.logo }).from(organizations).where(eq(organizations.id, church.id))
+    let metadata: Record<string, unknown> = {}
+    try {
+      metadata = row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>) : {}
+    } catch {
+      // unreadable metadata is replaced
+    }
+    const colour = (name: string) => {
+      const v = flags[name]
+      if (v === undefined) return undefined
+      return isHexColour(v) ? v.toLowerCase() : fail(`--${name} must be a colour like #2563eb`)
+    }
+    const theme = rest.includes('--reset') ? {} : { ...themeFromMetadata(metadata) }
+    const brand = colour('brand')
+    const brand2 = colour('brand2')
+    if (brand) theme.brand = brand
+    if (brand2) theme.brand2 = brand2
+    if (typeof flags['app-name'] === 'string') theme.appName = flags['app-name'].trim().slice(0, 40) || undefined
+    let logo = rest.includes('--reset') ? null : row.logo
+    if (typeof flags.logo === 'string') logo = /^https:\/\/[^\s"'<>]+$/.test(flags.logo) ? flags.logo : fail('--logo must be an https:// address')
+    const changed = rest.includes('--reset') || brand || brand2 || flags['app-name'] !== undefined || flags.logo !== undefined
+    if (changed) {
+      await db.update(organizations).set({ metadata: JSON.stringify({ ...metadata, theme }), logo }).where(eq(organizations.id, church.id))
+    }
+    console.log(`${church.slug}: ${JSON.stringify({ ...theme, logo: logo ?? undefined })}${changed ? ' (saved; members see it on their next load)' : ''}`)
   } else if (command === 'delete') {
     const slug = parseSlug(args[0])
     const church = (await churchBySlug(db, slug)) ?? fail(`No church "${slug}" in the ${target} database (already deleted?).`)

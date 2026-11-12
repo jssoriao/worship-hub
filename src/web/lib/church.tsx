@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { can, isRole } from '../../shared/permissions'
 import { authClient } from './auth-client'
+import { applyTheme, themeFromMetadata } from './theme'
 import { ChurchContext, pickChurch, type ChurchInfo, type ChurchValue } from './church-context'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AuthScreen, SignOutButton } from '../components/AuthGate'
+
+/** A logo address the app will show: https only (or a same-origin path). */
+const safeLogo = (value: unknown): string | null => (typeof value === 'string' && /^(https:\/\/|\/)[^\s"'<>]+$/.test(value) ? value : null)
 
 /** The church last used on this device, so a person in several churches isn't asked again. */
 const LAST_KEY = 'worship-hub:church'
@@ -34,7 +38,7 @@ function Gate({ children }: { children: ReactNode }) {
   const [failed, setFailed] = useState(false)
 
   const churches: ChurchInfo[] = useMemo(
-    () => (orgs.data ?? []).map((o) => ({ id: o.id, name: o.name, slug: o.slug })),
+    () => (orgs.data ?? []).map((o) => ({ id: o.id, name: o.name, slug: o.slug, theme: themeFromMetadata(o.metadata), logo: safeLogo(o.logo) })),
     [orgs.data],
   )
   const activeId = (session?.session as { activeOrganizationId?: string | null } | undefined)?.activeOrganizationId ?? ''
@@ -65,11 +69,17 @@ function Gate({ children }: { children: ReactNode }) {
     [choose],
   )
 
+  // the active church's colours on the whole page (the default theme until one is active)
+  const activeTheme = active?.theme
+  useEffect(() => applyTheme(activeTheme ?? {}), [activeTheme])
+
   const role = member.data?.role
   const value: ChurchValue = useMemo(
     () => ({
       id: active?.id ?? '',
       name: active?.name ?? '',
+      theme: active?.theme ?? {},
+      logo: active?.logo ?? null,
       role: isRole(role) ? role : null,
       churches,
       can: (permission) => can(role, permission),
@@ -80,7 +90,7 @@ function Gate({ children }: { children: ReactNode }) {
 
   // installed app opened without a connection: songs saved on the device still open, under the church last used here
   if (orgs.error && !navigator.onLine) {
-    const offline: ChurchValue = { id: lastChurch(), name: '', role: null, churches: [], can: () => false, switchTo: async () => {} }
+    const offline: ChurchValue = { id: lastChurch(), name: '', theme: {}, logo: null, role: null, churches: [], can: () => false, switchTo: async () => {} }
     return <ChurchContext.Provider value={offline}>{children}</ChurchContext.Provider>
   }
   if (orgs.isPending) {

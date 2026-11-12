@@ -77,8 +77,8 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
   return (
     <div className={`relative ${className}`}>
       <div
-        className={`flex items-center gap-2 rounded-xl border bg-card px-3 transition-colors focus-within:border-teal-400/70 focus-within:ring-2 focus-within:ring-ring/30 ${
-          open ? 'border-teal-400/70' : 'border-border hover:border-input'
+        className={`flex items-center gap-2 rounded-xl border bg-card px-3 transition-colors focus-within:border-highlight/70 focus-within:ring-2 focus-within:ring-ring/30 ${
+          open ? 'border-highlight/70' : 'border-border hover:border-input'
         }`}
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-4 shrink-0 text-muted-foreground">
@@ -144,7 +144,7 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
                   <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs text-muted-foreground">Chart only</span>
                 )}
                 {isSelected && (
-                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 shrink-0 text-teal-400">
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 shrink-0 text-highlight">
                     <path d="m4 10 4 4 8-8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}

@@ -71,7 +71,7 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
         {arr.blocks.length === 0 && <p className="rounded-lg border border-dashed border-input p-4 text-sm text-muted-foreground">No blocks. Add a section.</p>}
         <ol className="space-y-2">
           {arr.blocks.map((b, i) => (
-            <li key={b.id} className={`rounded-xl border p-2 ${i === current ? 'border-teal-500/70 bg-teal-500/10' : 'border-border bg-card/70'}`}>
+            <li key={b.id} className={`rounded-xl border p-2 ${i === current ? 'border-highlight/70 bg-primary/10' : 'border-border bg-card/70'}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="w-6 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                 <button type="button" onClick={() => onPlayBlock(i)} className="min-w-0 flex-1 truncate text-left text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Play from ${label(b.section)}`}>

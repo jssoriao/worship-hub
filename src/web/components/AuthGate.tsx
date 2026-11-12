@@ -14,7 +14,7 @@ const CODE_MINUTES = 10
 /** The centered card the screens before the app use (sign-in, choosing a church). */
 export function AuthScreen({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4 text-foreground">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-foreground">
       <main className="w-full max-w-sm">
         <Card className="gap-0 p-5">
           <h1 className="mb-1 text-lg font-semibold tracking-tight">Worship Hub</h1>
