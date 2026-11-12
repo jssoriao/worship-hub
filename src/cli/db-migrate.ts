@@ -15,7 +15,8 @@ import { loadTarget, splitTarget } from './lib/env.ts'
 const { target } = splitTarget(process.argv.slice(2))
 const url = loadTarget(target)
 neonConfig.webSocketConstructor = WebSocket
-const pool = new Pool({ connectionString: url })
+// DDL goes over a direct session, not Neon's pooler (the pooler can lag behind a database created moments ago)
+const pool = new Pool({ connectionString: url.replace('-pooler.', '.') })
 try {
   await migrate(drizzle({ client: pool }), { migrationsFolder: fileURLToPath(new URL('../db/migrations', import.meta.url)) })
   console.log(`Migrations applied (${target}).`)

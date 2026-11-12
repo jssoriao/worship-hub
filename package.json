@@ -19,6 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/cli/db-migrate.ts",
     "db:app-role": "node src/cli/db-app-role.ts",
+    "db:move": "node src/cli/move-db.ts",
     "members": "node src/cli/members.ts",
     "churches": "node src/cli/churches.ts",
     "songs:analyse": "node src/cli/analyse.ts"
