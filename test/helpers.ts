@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
-import type { Db } from '../worker/data.ts'
+import type { Db } from '../src/api/data.ts'
 
 /** The Better Auth tables schema.sql depends on, as the Better Auth CLI creates them (trimmed). */
 const AUTH_TABLES = `
@@ -8,7 +8,7 @@ create table "user" (id text primary key, name text not null, email text not nul
 create table organization (id text primary key, name text not null, slug text unique, logo text, "createdAt" timestamptz not null default now(), metadata text);
 create table member (id text primary key, "organizationId" text not null references organization(id) on delete cascade, "userId" text not null references "user"(id) on delete cascade, role text not null, "createdAt" timestamptz not null default now());
 `
-export const SCHEMA_SQL = readFileSync('db/schema.sql', 'utf8')
+export const SCHEMA_SQL = readFileSync('src/db/schema.sql', 'utf8')
 
 export async function freshDb(): Promise<{ pg: PGlite; db: Db }> {
   const pg = new PGlite()

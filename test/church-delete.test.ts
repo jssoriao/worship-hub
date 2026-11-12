@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
-import type { Db } from '../worker/data.ts'
-import type { ObjectStore, R2Entry } from '../scripts/lib/r2.ts'
-import { churchPrefix, deleteChurch, describePlan, planChurchDelete, type ChurchRef } from '../scripts/lib/church-delete.ts'
+import type { Db } from '../src/api/data.ts'
+import type { ObjectStore, R2Entry } from '../src/cli/lib/r2.ts'
+import { churchPrefix, deleteChurch, describePlan, planChurchDelete, type ChurchRef } from '../src/cli/lib/church-delete.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
 /** An in-memory bucket; `failDeletesAfter` makes deletes start failing, like a dropped connection. */

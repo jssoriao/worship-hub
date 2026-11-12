@@ -16,22 +16,16 @@ Every external resource, with create and delete commands, is in `docs/infra.md`.
 
 ## Run
 
+Local development runs the real Worker (sign-in, roles, the church's database and files) next to
+Vite's hot reload, in two terminals:
+
 ```sh
 pnpm install
-pnpm dev            # http://localhost:5173, no login in dev
-pnpm dev --host     # also reachable from a phone on the same Wi-Fi
+pnpm dev:api        # the Worker on http://127.0.0.1:8787 (database from .dev.vars, files in a local R2)
+pnpm dev            # the app with hot reload on http://127.0.0.1:5173, forwarding /api and /songs to the Worker
 pnpm build          # type-check + production build
 pnpm lint
-```
-
-### Local development with the real backend
-
-`pnpm dev` has no backend, so no sign-in, roles or Members page. To run the real Worker (sign-in, roles,
-the church's database and files) next to hot reload, use two terminals:
-
-```sh
-pnpm cf:api         # the Worker on http://127.0.0.1:8787 (database from .dev.vars, files in a local R2)
-pnpm dev:app        # Vite with hot reload on http://127.0.0.1:5173, forwarding /api and /songs to the Worker
+pnpm test
 ```
 
 Open http://127.0.0.1:5173 (not `localhost`: sign-in only trusts the address in `APP_URL`). The
@@ -92,7 +86,7 @@ numbers, columns (auto: two while a column holds about 24 em), text size and pap
 Text size **Fit** (default) picks the largest text that shows the whole chart in the sheets on
 screen without wrapped lines, never below about 9 px; A−/A+ step from there and reflow the sheets.
 Key and capo are remembered per song, the rest per device. **Follow** turns to the sheet of the
-section being played. Layout: `src/lib/chart-layout.ts` (paginate), chords: `src/lib/chords.ts`.
+section being played. Layout: `src/web/lib/chart-layout.ts` (paginate), chords: `src/web/lib/chords.ts`.
 
 Editors edit charts in the app: **Edit** (or **Create one**) opens ChordPro text beside a live preview.
 Paste a chart in, **Mark cue** inserts `{cue: m:ss.s}` at the cursor from the playhead (the song must be
@@ -108,12 +102,12 @@ one edited in the app.
 
 Your own arrangement of a song (`/arrange`, its own player; playing pauses Practice, leaving the
 page stops it): sections from the chart's cues snapped to bars, else the ones `songs:publish`
-suggests from the stems (`dev/sections.ts`: lead vocal in/out, drums in/out, loudness steps on
+suggests from the stems (`src/cli/lib/sections.ts`: lead vocal in/out, drums in/out, loudness steps on
 4-bar phrases; labels Intro/Instrumental/Outro/Part n; `song.json` `sections` overrides), else the
 whole song. The strip shows the waveform and bars; tap to place the playhead, split at the
 playhead and joined back, then an order of blocks you can move, repeat and remove, with stems muted
 per block, a count-in and an optional click. Any member can save arrangements; only the owner or an
-editor can change one (the Neon `arrangement` table; the dev server keeps them in the song folder). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
+editor can change one (the Neon `arrangement` table). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
 
 ## Two ways to load a song
 
@@ -156,15 +150,15 @@ can be a folder too, with its own combined stem and parts.
 `worship-hub-analysis`: Chords, Beats, Sections, Musical stems → Lyrics with word alignment; about
 $0.46/min, pay as you go) and keeps every result in `songs/<song>/analysis/raw/`; the job is then
 deleted on their side. The key is read from the macOS Keychain item `musicai-worship-hub` (or
-`MUSICAI_API_KEY`); audio results are skipped unless `--with-audio`. `dev/analysis.ts` turns the
-raw files into `analysis.json` (about 20 KB), served by the dev server and uploaded by
+`MUSICAI_API_KEY`); audio results are skipped unless `--with-audio`. `src/cli/lib/analysis.ts` turns the
+raw files into `analysis.json` (about 20 KB), uploaded by
 `songs:publish` to the song's `analysis.json` in R2; its section labels also go into the manifest.
 Practice then shows **Stems · Lyrics · Chords · Shapes** (bottom bar, with play/pause). On wide
 screens Stems is one timeline (`StemTimeline`): a strip of the coming chords as beat boxes, lanes for
 bars, sections, chords and lyrics, a slim row per stem (parts of a combined stem fold out) and the
 click, under one playhead; phones keep the stacked list. The other views: chords over
 the lyrics with the sung line and words lit, bars of beat boxes with the current beat lit, and the
-current and next chords as guitar diagrams or piano keys (`src/lib/chord-shapes.ts`; a slash
+current and next chords as guitar diagrams or piano keys (`src/web/lib/chord-shapes.ts`; a slash
 chord shows the chord's own shape), at Basic, Simple or Full chord detail.
 
 Editors (and up) fix what the AI got wrong right there: **Edit** in the Chords view (tap a beat to
@@ -178,7 +172,7 @@ overwrites edits made in the app.
 ### Churches and roles
 
 A church is a Better Auth organization; songs (stems included) belong to one church. Roles per church
-are permission bundles in `shared/permissions.ts` (the Worker enforces them, the app shows or hides
+are permission bundles in `src/shared/permissions.ts` (the Worker enforces them, the app shows or hides
 controls with the same `can()`): `member` (plays, own arrangements), `editor` (+ chords, lyrics,
 sections, charts, song details, any arrangement), `admin` (+ adds and removes songs, manages members
 and editors), `owner` (+ church settings, grants admin/owner). The platform super admin
@@ -190,7 +184,7 @@ and editors), `owner` (+ church settings, grants admin/owner). The platform supe
 The **Members** page lists the church's people and lets an admin or owner add someone by email (with a
 role), change a role, or remove them. Added people sign in with the emailed code; nobody signs up
 themselves, and the sign-in still only emails people who are members. The rules are enforced by the
-Worker (`worker/members.ts`, `/api/church/members`), not just hidden in the page:
+Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the page:
 
 - An **owner** can give, change and remove any role. An **admin** can only manage members and editors.
 - Nobody can change their own role or remove themselves, so a church always keeps its owner.
@@ -277,14 +271,14 @@ pnpm churches list            # churches (tenants)
 pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner
 pnpm members remove a@b.com --church <slug>   # the same can be done in the app: Members page (admins and owners)
-pnpm db:migrate               # create/update the auth tables and db/schema.sql (add --target prod for production)
+pnpm db:migrate               # create/update the auth tables and src/db/schema.sql (add --target prod for production)
 pnpm db:app-role              # the app's database role (data access only); also rotates its password
 pnpm test                     # vitest
 pnpm cf:deploy                # build and deploy the Worker + app
 ```
 
 Local secrets live in `.dev.vars` (gitignored, template `.dev.vars.example`); it points at the Neon development branch. Production's are in `.prod.vars` (gitignored), used with `--target prod`. Each has two database logins: `DATABASE_URL`, the app's role with data access only (what the Worker uses), and `DATABASE_OWNER_URL`, the owner, which only scripts and migrations use.
-To try the real sign-in flow locally: see "Local development with the real backend" above, or `pnpm cf:dev`
+To run the app locally: see "Run" above
 (builds, then serves everything from the Worker) and open http://127.0.0.1:8787.
 
 ## How playback works

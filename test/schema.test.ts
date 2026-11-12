@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { freshDb, SCHEMA_SQL, seedChurch, seedUser } from './helpers.ts'
 
-describe('db/schema.sql', () => {
+describe('src/db/schema.sql', () => {
   it('is idempotent', async () => {
     const { pg } = await freshDb()
     await pg.exec(SCHEMA_SQL)

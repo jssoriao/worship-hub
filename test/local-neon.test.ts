@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { isLocalDb, localProxy, routeLocalDb } from '../shared/local-neon.ts'
+import { isLocalDb, localProxy, routeLocalDb } from '../src/shared/local-neon.ts'
 
 const fresh = () => ({ wsProxy: undefined as unknown, useSecureWebSocket: true, pipelineTLS: true, pipelineConnect: 'password' as false | 'password' })
 
