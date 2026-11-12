@@ -14,7 +14,7 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 | Worker `worship-hub-redirect` (`src/redirect/`): redirect only, no bindings or secrets. Owns the app's previous address (custom domain, set in `src/redirect/wrangler.jsonc`, which is gitignored; template `src/redirect/wrangler.example.jsonc`) and sends every request to the same path on `worshiphub.jssoriao.dev` (301) | Cloudflare Workers | `pnpm cf:deploy:redirect` | `pnpm exec wrangler delete --config src/redirect/wrangler.jsonc` (the previous address then stops working; check DNS afterwards) |
 | Custom domain `worshiphub.jssoriao.dev` | Declared in `wrangler.jsonc` (`routes`) | Created by `pnpm cf:deploy` | Removed by `wrangler delete` (check DNS afterwards) |
 | R2 bucket `worship-hub` (private; every church's files under `churches/<churchId>/songs/<songId>/`) | Cloudflare R2 | `pnpm exec wrangler r2 bucket create worship-hub` | Empty it, then `pnpm exec wrangler r2 bucket delete worship-hub` |
-| Neon project `worship-hub` (branch `production`), database `neondb` (production: people, churches, members, sessions, songs, arrangements). URLs in `.prod.vars` (gitignored): `DATABASE_OWNER_URL` (owner) and `DATABASE_URL` (app role, also the Worker secret) | Neon, standalone account | Dashboard: create project, copy the owner's pooled connection string; then `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod` | Dashboard: delete project |
+| Neon project `worship-hub` (branch `production`), database `worship_hub` (production: people, churches, members, sessions, songs, arrangements). URLs in `.prod.vars` (gitignored): `DATABASE_OWNER_URL` (owner) and `DATABASE_URL` (app role, also the Worker secret) | Neon, standalone account | Dashboard: create project; create database `worship_hub` (owner `neondb_owner`) and copy the owner's pooled connection string to it; then `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod` | Dashboard: delete project |
 | Postgres role `worship_hub_worker` on each branch: the app's login, data access only (select/insert/update/delete on the app's tables, also on tables added later; no DDL, no create database/role) | Neon (SQL, not the console: console roles join `neon_superuser`, which the owner cannot remove) | `pnpm db:app-role [--target prod]` (also rotates the password); for prod then `pnpm exec wrangler secret put DATABASE_URL` | `drop owned by worship_hub_worker; drop role worship_hub_worker;` as the owner (after pointing the Worker elsewhere) |
 | Neon branch `development` of project `worship-hub` (child of `production`, database `worship_hub`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; create database `worship_hub` (Dashboard > Databases, owner `neondb_owner`), then `pnpm db:migrate` and `pnpm db:app-role` | Dashboard > Branches > `development` > Delete |
 | Resend domain `mail.jssoriao.dev` + API key | Resend, DNS records in Cloudflare | Dashboard: Domains > Add domain, add the records it lists in Cloudflare DNS | Dashboard: delete domain and key, remove the DNS records |
@@ -32,9 +32,8 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
 
 ### Databases: dev and prod
 
-- `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (database `worship_hub`;
-  production still uses `neondb` until the stack cutover, #21), pooled URLs, gitignored, in the main repo and in
-  each worktree. Each has two logins:
+- `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (database `worship_hub` on
+  both), pooled URLs, gitignored, in the main repo and in each worktree. Each has two logins:
   - `DATABASE_URL`: the app role `worship_hub_worker` (data only). The Worker uses it, locally (`pnpm dev:api`)
     and deployed (as its secret), so local runs have exactly production's rights.
   - `DATABASE_OWNER_URL`: the owner `neondb_owner`. Only scripts use it (`db:migrate`, `members`, `churches`,
@@ -51,36 +50,6 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
   afterwards if dev had newer migrations, and `pnpm db:app-role` for dev's own password.
 - Local development runs the real Worker against the `development` branch (`pnpm dev:api` + `pnpm dev`);
   put songs into its local R2 with a dev publish (`pnpm songs:publish "Song Folder" --church <slug>`).
-
-### Cutover to the new stack (#21), once
-
-Production moves from `neondb` (old tables, 12-character ids) to `worship_hub` (Drizzle tables, prefixed
-ids), and its R2 files to the new ids. Dev went through the same steps (see History). Each step is
-safe to repeat, and nothing old is deleted until the end, so the previous Worker version keeps
-working throughout and is the rollback.
-
-1. Freeze edits for a few minutes: no `songs:publish`, chart or analysis edits, arrangement saves.
-2. Neon dashboard > `production` > Databases > New database `worship_hub`, owner `neondb_owner`. Point both
-   URLs in `.prod.vars` at `/worship_hub` (keep the old lines commented for the rollback), then
-   `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod --keep-password` (grants on the new
-   database, same password, so the live Worker is unaffected).
-3. `pnpm db:move --from neondb --target prod`: copies every row with a new id (row counts are checked) and
-   writes `.id-map.prod.json`.
-4. `pnpm r2:rekey --target prod`: copies the R2 files to their new keys inside Cloudflare (a temporary
-   Worker `worship-hub-rekey`, deleted when it finishes). Old keys stay.
-5. GitHub: `gh secret set DATABASE_OWNER_URL --env production` with the new owner URL.
-6. Deploy the new code with the new database in one step: `pnpm build`, `pnpm exec wrangler versions upload`,
-   `pnpm exec wrangler versions secret put DATABASE_URL` (the new app URL) on that version, then
-   `pnpm exec wrangler versions deploy <version>@100%`, then `pnpm smoke` and a real sign-in on a phone.
-7. Merge `refactor/stack` into `main` (the deploy workflow migrates and deploys again: no changes).
-8. Main checkout: point `.dev.vars` at `/worship_hub` and drop `DEV_CHURCH`.
-
-Rollback before step 7: `pnpm exec wrangler rollback` (the previous version still has the old
-`DATABASE_URL`, and the old database and R2 keys are untouched); put the old `DATABASE_OWNER_URL` back in
-GitHub. After a week or two of normal use: `pnpm r2:rekey --target prod --delete-old`, drop `neondb` on
-both branches, and delete `src/cli/move-db.ts`, `src/cli/r2-rekey.ts` and `src/cli/lib/rekey-worker.ts`
-(and their scripts in `package.json`). Old `?song=` links stop working; signed-in people stay signed in
-(the 5 minute cookie cache can deny them until it refreshes).
 
 ## Deploy (GitHub Actions)
 Every push to `main` runs `.github/workflows/deploy.yml`: the CI checks, then in the GitHub environment
@@ -153,6 +122,12 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 - 2026-11-12: development moved to a new database `worship_hub` (Drizzle migrations, plural snake_case
   tables): created, `pnpm db:migrate`, `pnpm db:app-role --keep-password`, then `pnpm db:move --from neondb`
   copied the data. The development branch's old `neondb` stays until the production cutover.
+- 2026-11-13: production cut over to the new stack (#21, #33): database `worship_hub` created and migrated, the
+  app role granted (`--keep-password`), every row copied from `neondb` with a new prefixed id and references
+  rewritten (counts checked), the 167 R2 files copied to their new keys inside Cloudflare by a temporary Worker,
+  then the new Worker version deployed with the new `DATABASE_URL`, and `refactor/stack` merged. The old R2 keys
+  and `neondb` were deleted the same day after checks. The one-off copy scripts (`db:move`, `r2:rekey`) were
+  removed afterwards; they are in git history (#24, #28).
 - 2026-11-13: prefixed ids (`<prefix>_<24 chars>`, every table). Dev re-copied with `pnpm db:move --from neondb
   --replace` (new ids, references rewritten), its local R2 files moved with `pnpm r2:rekey`, then `--delete-old`.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's

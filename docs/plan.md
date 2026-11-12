@@ -82,8 +82,7 @@ How the data got here from the single-church layout: docs/infra.md, History.
 3. CI: checks on PRs (`pnpm lint`, `pnpm build`, `pnpm test`) are live. Deploy on `main` (`.github/workflows/deploy.yml`): checks, `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`, rollback if the smoke test fails. See docs/infra.md, Deploy.
 3b. Multi-tenancy (churches, songs in Neon, id based R2 layout) and church-neutral names. Done and live (2026-11-12).
 3c. Stack refactor (#21): one `src/` tree, Hono + Zod, Drizzle, typed client, shadcn/ui, sidebar layout,
-    white label, prefixed ids. Done on `refactor/stack`; the production cutover (new database, ids, R2 keys)
-    is the last step (docs/infra.md, Cutover).
+    white label, prefixed ids. Done and live (2026-11-13; docs/infra.md, History).
 4. Admin: member management page, then song upload (presigned PUT to R2, peaks precomputed).
 5. Church features: chord and lyric charts (done: ChordPro charts, Music.AI analysis with in-app editing); services, lineups, volunteer assignments (not started).
 

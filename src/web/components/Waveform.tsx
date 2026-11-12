@@ -34,12 +34,15 @@ export function Waveform({ peaks, progress, height = 48, dim = false, onSeek }: 
     const g = canvas.getContext('2d')!
     g.scale(dpr, dpr)
     g.clearRect(0, 0, w, h)
+    // the played part in the church's brand colour (the --highlight token), the rest neutral
+    const brand = getComputedStyle(canvas).getPropertyValue('--highlight').trim() || '#93c5fd'
     const n = peaks.length
     const barW = w / n
     const mid = h / 2
     for (let i = 0; i < n; i++) {
       const played = (i + 0.5) / n <= progress
-      g.fillStyle = played ? (dim ? '#3b6f7a' : '#5eead4') : dim ? '#374651' : '#7b8a97'
+      g.fillStyle = played ? brand : dim ? '#374651' : '#7b8a97'
+      g.globalAlpha = played && dim ? 0.45 : 1
       const bh = Math.max(1, peaks[i] * h * 0.95)
       g.fillRect(i * barW, mid - bh / 2, Math.max(1, barW - 0.5), bh)
     }

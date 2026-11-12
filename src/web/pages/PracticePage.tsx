@@ -586,7 +586,8 @@ export default function PracticePage() {
   const tierBytes = tiers.find((t) => t.id === tier)?.bytes
   const stemsView = prefs.view === 'stems' || !analysis
   const facts = [
-    describeMusic(music && key !== 0 && music.key ? { ...music, key: shiftedKey(music.key, key) } : music),
+    // the key has its own button in the play bar (with the stems loaded), so it is not repeated here
+    describeMusic(music && key !== 0 && music.key ? { ...music, key: shiftedKey(music.key, key) } : music, { key: stems.length === 0 }),
     stems.length > 0 && `${stems.length} stems`,
     anySolo && 'solo active',
     playing && buffering && 'Buffering…',
