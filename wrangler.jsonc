@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "worship-hub",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-10",
+  // Better Auth needs AsyncLocalStorage and node:async_hooks
+  "compatibility_flags": ["nodejs_compat"],
+
+  // The built PWA is served as static assets. Only the auth API and the song library hit the
+  // Worker, everything else is answered by the assets layer (SPA fallback for client routes).
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/songs/*"]
+  },
+
+  // Private bucket for every church's files, under churches/<churchId>/songs/<songId>/.
+  // Create it once:
+  //   pnpm exec wrangler r2 bucket create worship-hub
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "worship-hub" }],
+
+  // Plain settings. Secrets (BETTER_AUTH_SECRET, DATABASE_URL, RESEND_API_KEY) are set with
+  // `wrangler secret put` and listed in docs/infra.md. Local runs override these in .dev.vars.
+  "vars": {
+    "APP_URL": "https://worshiphub.jssoriao.dev",
+    "MAIL_FROM": "Worship Hub <login@mail.jssoriao.dev>"
+  },
+
+  // Zone jssoriao.dev is on Cloudflare DNS, so this creates the DNS record and certificate.
+  "routes": [{ "pattern": "worshiphub.jssoriao.dev", "custom_domain": true }],
+
+  // Don't also publish on the *.workers.dev address.
+  "workers_dev": false,
+
+  "observability": { "enabled": true }
+}

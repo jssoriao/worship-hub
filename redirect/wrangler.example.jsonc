@@ -1,0 +1,11 @@
+// Copy to redirect/wrangler.jsonc (gitignored) and put the previous address in `pattern`.
+// The previous address of the app, kept so old links and bookmarks still work.
+// It only redirects: no bindings, no secrets. See docs/infra.md.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "worship-hub-redirect",
+  "main": "index.ts",
+  "compatibility_date": "2026-11-10",
+  "workers_dev": false,
+  "routes": [{ "pattern": "old-address.example.com", "custom_domain": true }]
+}

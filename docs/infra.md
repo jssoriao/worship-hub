@@ -1,0 +1,102 @@
+# Infrastructure runbook
+
+Everything that exists outside this repo, how it was created, and how to remove it.
+Wrangler has no state file, so this table is the source of truth. Update it whenever a resource is added.
+
+Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami` to confirm before touching anything.
+
+## Resources
+
+| Resource | Where | Create | Delete |
+|---|---|---|---|
+| DNS zone `jssoriao.dev` | Cloudflare (registrar stays GoDaddy) | Dashboard: Add a domain, then set the two Cloudflare nameservers at GoDaddy | Point nameservers back to GoDaddy, then remove the site in Cloudflare |
+| Worker `worship-hub` (app assets, `/api/auth/*`, `/songs/*`). Secrets: `DATABASE_URL` (prod, from `.prod.vars`), `BETTER_AUTH_SECRET` (random), `RESEND_API_KEY` | Cloudflare Workers | `pnpm cf:deploy`, then `pnpm exec wrangler secret put <NAME>` for each secret | `pnpm exec wrangler delete` |
+| Worker `worship-hub-redirect` (`redirect/`): redirect only, no bindings or secrets. Owns the app's previous address (custom domain, set in `redirect/wrangler.jsonc`, which is gitignored; template `redirect/wrangler.example.jsonc`) and sends every request to the same path on `worshiphub.jssoriao.dev` (301) | Cloudflare Workers | `pnpm cf:deploy:redirect` | `pnpm exec wrangler delete --config redirect/wrangler.jsonc` (the previous address then stops working; check DNS afterwards) |
+| Custom domain `worshiphub.jssoriao.dev` | Declared in `wrangler.jsonc` (`routes`) | Created by `pnpm cf:deploy` | Removed by `wrangler delete` (check DNS afterwards) |
+| R2 bucket `worship-hub` (private; every church's files under `churches/<churchId>/songs/<songId>/`) | Cloudflare R2 | `pnpm exec wrangler r2 bucket create worship-hub` | Empty it, then `pnpm exec wrangler r2 bucket delete worship-hub` |
+| Neon project `worship-hub` (branch `production`), database `neondb` (production: people, churches, members, sessions, songs, arrangements). URL in `.prod.vars` (gitignored) and the Worker secret | Neon, standalone account | Dashboard: create project, copy the pooled connection string | Dashboard: delete project |
+| Neon branch `development` of project `worship-hub` (child of `production`, database `neondb`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; then `pnpm db:migrate` | Dashboard > Branches > `development` > Delete |
+| Resend domain `mail.jssoriao.dev` + API key | Resend, DNS records in Cloudflare | Dashboard: Domains > Add domain, add the records it lists in Cloudflare DNS | Dashboard: delete domain and key, remove the DNS records |
+| Budget alert | Cloudflare dashboard: Billing, Billable usage | Dashboard: Add Budget Alert | Dashboard |
+
+### Worker secrets
+
+| Secret | Value | Set | Remove |
+|---|---|---|---|
+| `DATABASE_URL` | Neon pooled connection string | `pnpm exec wrangler secret put DATABASE_URL` | `pnpm exec wrangler secret delete DATABASE_URL` |
+| `BETTER_AUTH_SECRET` | Random string: `openssl rand -base64 32`. Changing it signs everyone out | `pnpm exec wrangler secret put BETTER_AUTH_SECRET` | same pattern |
+| `RESEND_API_KEY` | Resend API key with sending access | `pnpm exec wrangler secret put RESEND_API_KEY` | same pattern |
+
+Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `vars`.
+
+### Databases: dev and prod
+
+- `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (both database `neondb`,
+  both pooled URLs, gitignored, in the main repo and in each worktree). Scripts default to dev; anything that
+  should touch production needs `--target prod`. Scripts and the dev server refuse to run when `.dev.vars`
+  names the production database (same host and database name).
+- `development` is a copy-on-write branch of `production`: its own compute (scales to zero after 5 min idle),
+  storage only for what changes. Free plan: up to 10 branches per project, and the project's 100 CU-hours and
+  1 GB of storage a month are shared by its branches.
+- Fresh copy of production data (people, churches, songs): Dashboard > Branches > `development` > Reset from
+  parent. That replaces everything on the branch; run `pnpm db:migrate` afterwards if dev had newer migrations.
+- `pnpm dev` takes song ids from the `development` branch, in the church named by `DEV_CHURCH` in `.dev.vars`
+  (a slug; create one with `pnpm churches add <slug> <name> --owner <you>`). It creates missing rows by folder
+  name and caches the ids in `.dev-song-ids.json` (gitignored), so it keeps working offline. Delete that file
+  after resetting the branch or switching databases.
+
+## Everyday commands
+
+```sh
+pnpm cf:deploy                       # build the PWA and deploy the Worker + assets
+pnpm db:migrate [--target prod]      # Better Auth tables (incl. organization/member) + db/schema.sql (song, arrangement); idempotent
+pnpm test                            # vitest: permissions, tenancy (PGlite + fake R2), address rules
+pnpm cf:deploy:redirect              # the redirect Worker for the previous address (rarely needed)
+
+# churches (a church is a Better Auth organization; only this CLI makes them)
+pnpm churches list [--target prod]
+pnpm churches add <slug> <name> [--owner <email>] [--target prod]
+pnpm churches rename <slug> <name>
+pnpm churches delete <slug> --confirm <slug> [--target prod]   # its songs, arrangements and member links; with prod also its R2 files
+
+# people
+pnpm members list [--church <slug>]
+pnpm members add <email> [name] --church <slug> --role member|editor|admin|owner   # adds, or changes the role
+pnpm members remove <email> --church <slug>    # leaves that church; someone in no church is removed entirely
+pnpm members platform-admin <email> [--revoke] # the platform super admin (Music.AI, any church)
+
+# songs (per church; the folder name is the title; real publishes write prod R2, so they need --target prod)
+pnpm songs:publish --church <slug> --target prod                  # every song in ./songs (or $SONGS_DIR)
+pnpm songs:publish "Song Folder" --church <slug> --target prod    # one song: finds or creates its row, uploads under its id
+pnpm songs:publish --church <slug> --dry-run                      # list what would be uploaded (new layout keys)
+pnpm songs:publish ... --tiers=standard   # only some qualities: standard (q4), saver (q6), original; comma list; default all
+pnpm songs:publish ... --force            # upload audio again even if .publish-state.json says it is there
+pnpm songs:publish ... --manifest-only    # manifests only (regroup folders without re-uploading audio); needs ffmpeg for waveforms
+pnpm songs:analyse "Song Folder" --church <slug> --target prod    # Music.AI; only the platform admin (checked by git user.email)
+pnpm songs:pack "Song Folder"        # write packs/<slug>.zip: manifest.json + audio, for "Open zip"
+pnpm cf-typegen                      # regenerate worker/worker-configuration.d.ts after editing wrangler.jsonc
+```
+
+## History
+
+- 2026-11-12: moved to churches (multi-tenancy). A one-off migration created the first church, made every
+  person a member, gave each song a database row and id, copied `songs/<slug>/...` to
+  `churches/<churchId>/songs/<songId>/...`, then deleted the old keys and the legacy `user.role` column.
+  The one-off migration code was removed once it had run.
+- 2026-11-12: development moved from a second database (`neondb_dev`) on the production branch to its own
+  Neon branch `development`; `neondb_dev` was dropped.
+- 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
+  name: Worker `worship-hub`, bucket `worship-hub` (copied inside Cloudflare by a temporary Worker; the old bucket and that Worker were then deleted), address
+  `worshiphub.jssoriao.dev`. The previous address redirects (`redirect/`).
+
+## Notes
+
+- Sign-in is invite-only. People are rows in the Neon `user` table and belong to churches through `member` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members.
+- Removing a member deletes their sessions in that church. Song routes read the `member` row (memoised 30 s), so access to songs ends within 30 s; other session data may live up to 5 minutes (signed session cookie cache).
+- Audio is stored once in R2 and served by the Worker with Range support, only to signed-in members. There are no egress fees.
+- `wrangler r2 object put` rejects files over 300 MiB. Stems are far below that.
+- Each song is stored in three qualities: `stems/<file>` (original), `stems/standard/<file>` (VBR q4) and `stems/saver/<file>` (VBR q6), re-encoded with ffmpeg at publish time (about 141 + 61 + 43 MB for a 12-stem song). R2 charges for storage only (egress is free), so the extra copies cost cents. `.publish-state.json` (gitignored) records what was uploaded from which source, so publishing again skips unchanged files; a fresh clone without it uploads everything again.
+- Every file in a manifest has a fingerprint per quality (`v`, the first 16 hex characters of the SHA-256 of the uploaded bytes). It is written when the file is uploaded (and remembered in `.publish-state.json` as `<key>#v`) and kept when the manifest is rewritten, so a file's address never changes unless its content does. Songs published before this get theirs by running `pnpm songs:publish --manifest-only` (it uploads a few KB and no audio).
+- The Worker caches fingerprinted audio at the Cloudflare edge (Cache API, `caches.default`, key = file + fingerprint, after the session check). Nothing to set up or pay for; it needs the custom domain (it does not work on workers.dev). Browsers also keep the audio for a year (`immutable`). If a file ever has to be replaced, upload it and publish again: the new content gets a new fingerprint, so nothing stale is served.
+- Deleting a song: an admin's `DELETE /songs/<songId>` removes the row (and its arrangements) and every R2 object under its prefix. There is no button for it yet.
+- Local testing: copy `.dev.vars.example` to `.dev.vars` and fill it in (gitignored). Run `pnpm cf:dev` (builds, then `wrangler dev --infer-origin-from-routes=false`; without that flag the Worker sees `worshiphub.jssoriao.dev` as its origin and Better Auth rejects local requests with `INVALID_ORIGIN`), open http://127.0.0.1:8787. `.dev.vars` points at the dev database. Seed the local R2 emulator with `wrangler r2 object put worship-hub/churches/<churchId>/songs/<songId>/stems/<file> --file <path> --local` (ids from `pnpm churches list` and `.dev-song-ids.json`).
