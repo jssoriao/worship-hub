@@ -771,7 +771,7 @@ export default function PracticePage() {
   )
 
   return (
-    <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-24' : 'pb-48 md:pb-40'}`}>
+    <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-3' : 'pb-48 md:pb-40'}`}>
         {/* the title, and once a song is open: the song, its quality, offline, another zip */}
         <PageHeader
           title="Practice"

@@ -65,7 +65,7 @@ Apache-2.0); nothing of them is included in this repository.
 A sidebar on the left: the app name, the church you are in (a menu with search for someone in several
 churches), the pages, and at the bottom your account (name, email, Sign out). On desktop it folds to
 icons (Ctrl/Cmd+B); on phones it opens as a drawer. There is no top bar: each page starts with one row
-(the sidebar toggle, "Church / Page", the title and the page's controls). While a song is open, the
+(the sidebar toggle, the title and the page's controls). While a song is open, the
 compact play bar stays docked at the bottom on every page. Routes: `/` Home
 ("Playing now" card and links), `/practice` the stem player, `/charts` chord charts, `/arrange` your own
 arrangements, `/members` the church's people (admins and owners only, see below). Each takes the song in the address (`?song=<id>`, the id without its `song_` prefix), so a reload or a shared link opens the

@@ -38,21 +38,23 @@ const LANE_COLOURS = ['bg-primary/60', 'bg-sky-800/70', 'bg-indigo-800/70', 'bg-
 export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatch, analysis, level, click }: Props) {
   const [open, setOpen] = useState<Set<number>>(new Set())
 
-  // fill the window from where the box starts down to the play bar; the stems scroll inside it
+  // fill the window from where the box starts down to the play bar (the dock, App.tsx); the stems scroll inside it
   const box = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState<number>()
   useEffect(() => {
+    const dock = document.querySelector<HTMLElement>('[data-player-dock]')
     const fit = () => {
       const el = box.current
       if (!el) return
-      const r = el.getBoundingClientRect()
-      // whatever the page has under the box (the play bar, padding) must fit too
-      const below = document.documentElement.scrollHeight - (r.bottom + window.scrollY)
-      setHeight(Math.max(240, Math.floor(window.innerHeight - (r.top + window.scrollY) - below)))
+      const top = el.getBoundingClientRect().top + window.scrollY
+      // the dock holds the play bar and the views above it; keep a small gap over them
+      const reserve = (dock?.getBoundingClientRect().height ?? 0) + 12
+      setHeight(Math.max(240, Math.floor(window.innerHeight - top - reserve)))
     }
     fit()
     const watch = new ResizeObserver(fit)
-    watch.observe(document.body)
+    if (dock) watch.observe(dock)
+    if (box.current?.parentElement) watch.observe(box.current.parentElement)
     window.addEventListener('resize', fit)
     return () => {
       watch.disconnect()
