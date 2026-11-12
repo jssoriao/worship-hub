@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { can, ROLE_NAMES, statement, type Request } from '../shared/permissions.ts'
+import { can, ROLE_NAMES, statement, type Request } from '../src/shared/permissions.ts'
 
 const all = (): Request[] => {
   const out: Request[] = []
@@ -52,8 +52,8 @@ describe('permissions', () => {
 
 describe('auth options', () => {
   it('platformAdmin can never be set by a client, and no one can create a church', async () => {
-    const { authOptions } = await import('../worker/auth-options.ts')
-    const o = authOptions({ baseURL: 'http://x', secret: 's', dialect: {} as never, sendCode: () => {}, background: () => {} })
+    const { authOptions } = await import('../src/api/auth-options.ts')
+    const o = authOptions({ baseURL: 'http://x', secret: 's', db: {} as never, sendCode: () => {}, background: () => {} })
     expect(o.user.additionalFields.platformAdmin.input).toBe(false)
     const org = o.plugins.find((p) => p.id === 'organization') as unknown as { options: { allowUserToCreateOrganization: boolean } }
     expect(org.options.allowUserToCreateOrganization).toBe(false)

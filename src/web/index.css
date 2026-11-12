@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/*
+ * Design tokens. Components (src/web/components/ui, from shadcn/ui) and pages use these names
+ * (bg-background, bg-card, text-muted-foreground, bg-primary, ring-ring, text-highlight, ...) rather
+ * than raw colours, so the whole app changes together.
+ *
+ * Everything follows from the brand variables at the top, which a church can set (white label:
+ * src/web/lib/theme.ts puts them on <html> at run time). The page is always dark: a deep navy tinted
+ * with the brand's hue, glass cards, and the brand colour for action and focus.
+ */
+:root {
+  color-scheme: dark;
+  /* brand: the default theme; theme.ts overrides these four (and --highlight, --ring) per church */
+  --brand: #2563eb;
+  --brand-2: #7c3aed;
+  --brand-foreground: #ffffff;
+  --brand-hue: 262.9;
+
+  --radius: 0.875rem;
+  --background: oklch(0.15 0.035 var(--brand-hue));
+  --foreground: oklch(0.97 0.01 var(--brand-hue));
+  /* raised surfaces that must be solid: menus, popovers, fields; cards use the glass utility */
+  --card: oklch(0.21 0.045 var(--brand-hue));
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.21 0.045 var(--brand-hue));
+  --popover-foreground: var(--foreground);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --secondary: oklch(0.27 0.045 var(--brand-hue));
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.25 0.04 var(--brand-hue));
+  /* secondary text: readable on the page and on cards */
+  --muted-foreground: oklch(0.74 0.03 var(--brand-hue));
+  /* hover and highlighted items: a touch of the brand */
+  --accent: color-mix(in oklch, var(--brand) 22%, oklch(0.23 0.045 var(--brand-hue)));
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.6 0.21 25);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(1 0 0 / 0.16);
+  --ring: oklch(0.7 0.16 var(--brand-hue));
+  /* brand-coloured text on the dark page (links, active items, toggles that are on) */
+  --highlight: oklch(0.8 0.12 var(--brand-hue));
+
+  /* solid: on phones it opens as a drawer over the page */
+  --sidebar: oklch(0.14 0.035 var(--brand-hue));
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: oklch(1 0 0 / 0.07);
+  --sidebar-accent-foreground: oklch(0.99 0 0);
+  --sidebar-border: oklch(1 0 0 / 0.08);
+  --sidebar-ring: var(--ring);
+}
+
+/* the page: deep navy with soft glows of the two brand colours */
+@utility bg-app {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(70rem 40rem at 0% -10%, color-mix(in oklch, var(--brand) 38%, transparent), transparent 60%),
+    radial-gradient(60rem 36rem at 100% 0%, color-mix(in oklch, var(--brand-2) 26%, transparent), transparent 60%),
+    linear-gradient(180deg, oklch(0.18 0.05 var(--brand-hue)) 0%, var(--background) 60%);
+  background-attachment: fixed;
+}
+
+/* cards and panels: translucent, lit from the top edge */
+@utility surface-glass {
+  background-color: oklch(0.22 0.05 var(--brand-hue) / 0.55);
+  background-image: linear-gradient(160deg, oklch(1 0 0 / 0.07), oklch(1 0 0 / 0) 45%);
+  border-color: oklch(1 0 0 / 0.1);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 10px 30px oklch(0.08 0.04 var(--brand-hue) / 0.45),
+    inset 0 1px 0 oklch(1 0 0 / 0.06);
+}
+
+/* the main action: the brand colour into the second one */
+@utility bg-brand-gradient {
+  background-color: var(--brand);
+  background-image: linear-gradient(135deg, var(--brand), color-mix(in oklch, var(--brand) 45%, var(--brand-2)));
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-highlight: var(--highlight);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* the shadcn components are written for light and dark; this app is always dark */
+@custom-variant dark (&:is(:root *));
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body {
+    @apply bg-app text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/*
+ * iPhone Safari zooms the page in when you tap a text box or dropdown whose text is under 16px,
+ * and leaves it zoomed. On touch screens these fields get at least 16px, so it never does.
+ */
+@media (pointer: coarse) {
+  input:not([type='range'], [type='checkbox'], [type='radio'], [type='file']),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}

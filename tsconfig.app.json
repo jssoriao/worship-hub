@@ -20,7 +20,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    /* `@/` is src/web (also in vite.config.ts and tsconfig.json, which the shadcn CLI reads) */
+    "paths": { "@/*": ["./src/web/*"] }
   },
-  "include": ["src", "shared"]
+  "include": ["src/web", "src/shared"],
+  "references": [{ "path": "./tsconfig.worker.json" }]
 }

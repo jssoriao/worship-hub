@@ -4,6 +4,7 @@ This source code is published for viewing only. No license is granted to use, co
 merge, publish, distribute, sublicense or sell it, or to run it, in whole or in part, without
 the prior written permission of the copyright holder.
 
-Third-party packages listed in package.json keep their own licenses.
+Third-party packages listed in package.json, and third-party code included in this repository as
+listed in THIRD_PARTY_NOTICES.md, keep their own licenses; this notice does not apply to them.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.

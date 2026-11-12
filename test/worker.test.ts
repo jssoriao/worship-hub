@@ -1,32 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Db } from '../worker/data.ts'
-import { Memo } from '../worker/data.ts'
-import { songKey, songPrefix, parseSongPath } from '../worker/keys.ts'
-import { routeSongs } from '../worker/router.ts'
-import { authPathAllowed, type SessionSource } from '../worker/tenant.ts'
+import type { Db } from '../src/db/client.ts'
+import { Memo } from '../src/api/data.ts'
+import { songKey, songPrefix, parseSongPath } from '../src/api/keys.ts'
+import { authPathAllowed } from '../src/api/tenant.ts'
+import { testApp } from './app.ts'
 import { FakeR2 } from './fake-r2.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
 // ids are 12 chars of [a-z0-9]
-const A = 'churchaaaaaa'
-const B = 'churchbbbbbb'
-const SONG_A = 'songaaaaaaaa'
-const SONG_B = 'songbbbbbbbb'
-const noWait = { waitUntil: () => {} }
-
-/** Sessions are faked: the "cookie" header is `user=<id>; church=<id|none>`. */
-const auth: SessionSource = {
-  api: {
-    async getSession({ headers }) {
-      const m = /user=([^;]+); church=(\S+)/.exec(headers.get('cookie') ?? '')
-      if (!m) return { headers: new Headers(), response: null }
-      return {
-        headers: new Headers(),
-        response: { session: { activeOrganizationId: m[2] === 'none' ? null : m[2] }, user: { id: m[1], name: m[1], email: `${m[1]}@example.com` } },
-      }
-    },
-  },
-}
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const B = 'org_bbbbbbbbbbbbbbbbbbbbbbbb'
+const SONG_A = 'song_aaaaaaaaaaaaaaaaaaaaaaaa'
+const SONG_B = 'song_bbbbbbbbbbbbbbbbbbbbbbbb'
 
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
@@ -34,15 +19,7 @@ let r2: FakeR2
 let cache: Memo
 let now: number
 
-const call = (path: string, who: string | null, init: RequestInit = {}) =>
-  routeSongs(
-    new Request(`https://x.test${path}`, { ...init, headers: { ...(who ? { cookie: who } : {}), ...(init.headers as Record<string, string>) } }),
-    { FILES: r2 as never },
-    noWait,
-    auth,
-    db,
-    cache,
-  )
+const { call } = testApp(() => ({ db, memo: cache, files: r2 }))
 const asA = (role: string) => `user=${role}-a; church=${A}`
 
 beforeEach(async () => {
@@ -58,7 +35,7 @@ beforeEach(async () => {
   }
   await seedUser(pg, 'bob-b')
   await seedMember(pg, B, 'bob-b', 'owner')
-  await pg.query(`insert into song (id, "organizationId", title, "hasStems") values ($1, $2, 'Song A', true), ($3, $4, 'Song B', true)`, [SONG_A, A, SONG_B, B])
+  await pg.query(`insert into songs (id, organization_id, title, has_stems) values ($1, $2, 'Song A', true), ($3, $4, 'Song B', true)`, [SONG_A, A, SONG_B, B])
   await r2.put(`churches/${A}/songs/${SONG_A}/stems/manifest.json`, '{"title":"A"}', { httpMetadata: { contentType: 'application/json' } })
   await r2.put(`churches/${A}/songs/${SONG_A}/stems/a.mp3`, new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
   await r2.put(`churches/${B}/songs/${SONG_B}/stems/manifest.json`, '{"title":"B"}')
@@ -71,7 +48,7 @@ describe('keys', () => {
     for (const bad of [['..', 'x'], ['.'], [''], ['a/b'], ['a\\b'], ['x\0']]) expect(songKey(A, SONG_A, bad)).toBeNull()
     expect(songKey('short', SONG_A, ['x'])).toBeNull()
     expect(songKey(A, '../other', ['x'])).toBeNull()
-    expect(songPrefix(A, 'UPPERCASE123')).toBeNull()
+    expect(songPrefix(A, 'song_'+'A'.repeat(24))).toBeNull()
   })
   it('parses paths and rejects traversal', () => {
     expect(parseSongPath('/songs/index.json')).toEqual({ kind: 'index' })
@@ -108,7 +85,7 @@ describe('session and church', () => {
   })
   it('a removed member is denied once the memo expires', async () => {
     expect((await call('/songs/index.json', asA('member'))).status).toBe(200)
-    await pg.query(`delete from member where "userId" = 'member-a'`)
+    await pg.query(`delete from members where user_id = 'member-a'`)
     expect((await call('/songs/index.json', asA('member'))).status).toBe(200) // inside the 30 s window
     now = 31_000
     expect((await call('/songs/index.json', asA('member'))).status).toBe(403)
@@ -131,19 +108,19 @@ describe('tenancy: church A cannot touch church B song', () => {
     expect(res.status).toBe(404)
     // nothing of A changed
     expect(r2.objects.has(`churches/${A}/songs/${SONG_A}/stems/manifest.json`)).toBe(true)
-    expect((await pg.query('select 1 from song where id = $1', [SONG_A])).rows).toHaveLength(1)
+    expect((await pg.query('select 1 from songs where id = $1', [SONG_A])).rows).toHaveLength(1)
   })
   it('an active church the person is not in is refused', async () => {
     expect((await call(`/songs/${SONG_A}/stems/manifest.json`, `user=bob-b; church=${A}`)).status).toBe(403)
   })
   it('arrangements of A are invisible to B', async () => {
     const body = JSON.stringify({ name: 'mine', sections: [], blocks: [] })
-    expect((await call(`/songs/${SONG_A}/arrangements/arr123456.json`, asA('member'), { method: 'PUT', body })).status).toBe(200)
-    expect((await call(`/songs/${SONG_A}/arrangements/arr123456.json`, asBob)).status).toBe(404)
+    expect((await call(`/songs/${SONG_A}/arrangements/arr_111111111111111111111111.json`, asA('member'), { method: 'PUT', body })).status).toBe(200)
+    expect((await call(`/songs/${SONG_A}/arrangements/arr_111111111111111111111111.json`, asBob)).status).toBe(404)
     // B cannot overwrite A's arrangement id by saving to its own song
-    const res = await call(`/songs/${SONG_B}/arrangements/arr123456.json`, asBob, { method: 'PUT', body })
+    const res = await call(`/songs/${SONG_B}/arrangements/arr_111111111111111111111111.json`, asBob, { method: 'PUT', body })
     expect([404, 403, 200]).toContain(res.status)
-    const { rows } = await pg.query<{ songId: string; owner: string }>('select "songId", owner from arrangement where id = $1', ['arr123456'])
+    const { rows } = await pg.query<{ songId: string; owner: string }>('select song_id as "songId", owner_id as owner from arrangements where id = $1', ['arr_111111111111111111111111'])
     expect(rows).toEqual([{ songId: SONG_A, owner: 'member-a' }])
   })
 })
@@ -169,7 +146,7 @@ describe('permissions per route', () => {
     const res = await post('/songs/new', asA('admin'), { title: 'New' })
     expect(res.status).toBe(201)
     const song = (await res.json()) as { id: string; stems: boolean }
-    expect(song.id).toMatch(/^[a-z0-9]{12}$/)
+    expect(song.id).toMatch(/^song_[0-9a-z]{24}$/)
     expect(song.stems).toBe(false)
     expect((await post('/songs/new', asA('owner'), { title: 'New' })).status).toBe(409)
   })
@@ -193,7 +170,7 @@ describe('permissions per route', () => {
   })
   it('arrangements: members make their own; only the owner or a manager changes them', async () => {
     const body = JSON.stringify({ name: 'Sunday', sections: [], blocks: [] })
-    const url = `/songs/${SONG_A}/arrangements/sunday01.json`
+    const url = `/songs/${SONG_A}/arrangements/arr_ssssssssssssssssssssssss.json`
     expect((await call(url, asA('member'), { method: 'PUT', body })).status).toBe(200)
     // another member (a second member user)
     await seedUser(pg, 'member2-a')

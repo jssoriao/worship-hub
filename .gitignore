@@ -30,14 +30,14 @@ packs/
 .playwright-mcp/
 # what `pnpm songs:publish` has already uploaded, so it never uploads the same file twice
 .publish-state.json
+# old -> new ids from pnpm db:move (one-off, for pnpm r2:rekey)
+.id-map.*.json
 .env.local
 .dev.vars*
 !.dev.vars.example
 .wrangler
-# production database URL (only used with --target prod), and the dev server's song id cache
 .prod.vars
-.dev-song-ids.json
-# the redirect Worker's real config (names the app's previous address); template: redirect/wrangler.example.jsonc
-redirect/wrangler.jsonc
+# the redirect Worker's real config (names the app's previous address); template: src/redirect/wrangler.example.jsonc
+src/redirect/wrangler.jsonc
 # personal steering notes (accounts, remotes, private context); the public one is .kiro/steering/project.md
 .kiro/steering/local.md

@@ -8,11 +8,26 @@ It is multi-tenant: one site serves every church; a church is a tenant (a Better
 Naming: everything is church-neutral. Repo and package `worship-hub`, Worker `worship-hub`, R2 bucket
 `worship-hub`, Neon project `worship-hub`, domain `worshiphub.jssoriao.dev`. Church names appear only
 as tenant data in the database, never in code, docs or resource names. The in-app name is
-"Worship Hub". The app's previous address only redirects (Worker `worship-hub-redirect`, `redirect/`).
+"Worship Hub". The app's previous address only redirects (Worker `worship-hub-redirect`, `src/redirect/`).
 
 ## Stack
-- Vite 8 + React 19 + TypeScript 7, Tailwind v4, react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
-- Cloudflare: Workers (static assets + API), R2 (files), wrangler 4 pinned. Neon Postgres.
+- Vite 8 + React 19 + TypeScript 7, Tailwind v4, shadcn/ui (Radix, lucide icons), react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
+- Design system: tokens in `src/web/index.css` (`bg-background`, `bg-card`, `text-muted-foreground`,
+  `bg-primary`, `ring-ring`, `text-highlight`, ...) all derived from four brand variables (`--brand`, `--brand-2`,
+  `--brand-foreground`, `--brand-hue`); utilities `bg-app` (navy page with brand glows), `surface-glass` (cards),
+  `bg-brand-gradient` (main action). Dark only. White label: a church's colours, app name and logo live in
+  `organizations.metadata` (`{ theme: { brand, brand2, appName } }`) and `organizations.logo`, set with
+  `pnpm churches theme <slug> ...`; `src/shared/theme.ts` validates them and fixes contrast, `src/web/lib/theme.ts`
+  applies them. shadcn components in `src/web/components/ui/` (`components.json`, alias `@/` = `src/web`; the
+  registry now imports `cn` from shadcn's own `cn` package: we keep `@/lib/utils`, so fetch sources with
+  `pnpm dlx shadcn@<pinned> view <name>` and point the import there). Local changes to ui/ files are marked
+  "adapted" (pill buttons with the brand gradient, `type="button"` by default, glass cards, readable destructive
+  alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
+- Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts`, account with sign-out;
+  folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
+  title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom
+  (`src/web/lib/player-slot.ts`, App.tsx), so the compact player stays on every page while a song is open.
+- Cloudflare: Workers (static assets + a Hono API), R2 (files), wrangler 4 pinned. Neon Postgres, Drizzle.
   Better Auth (email OTP + organization plugins) + Resend (emailed 6-digit code, invite only).
   See `docs/plan.md` (decisions) and `docs/infra.md` (every external resource with create/delete
   commands and the history of migrations; keep it current).
@@ -20,42 +35,44 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   fake R2 in `test/`).
 
 ## Tenancy and data
-- Neon (`db/schema.sql` plus Better Auth's tables): `organization` (church), `member` (person, church,
-  role), `user` (`platformAdmin` flag), `song` (per church: title unique per church, artist, key, bpm,
-  meter, hasStems), `arrangement` (per song, owner, `data` jsonb). Ids are 12 random `[a-z0-9]`
-  (`shared/ids.ts`); `?song=<id>` in the address is the song's id.
+- Neon, through **Drizzle** (`src/db/schema/`, migrations in `src/db/migrations`, made by `pnpm db:generate`,
+  applied by `pnpm db:migrate`). snake_case columns, plural tables: Better Auth's `users` (`platform_admin`),
+  `sessions`, `accounts`, `verifications`, `organizations` (church), `members` (person, church, role),
+  `invitations`, `rate_limits`; the app's `songs` (per church: title unique per church, artist, key, bpm,
+  meter, has_stems) and `arrangements` (per song, owner, `data` jsonb). Better Auth uses its Drizzle adapter
+  (`usePlural`); `test/auth-schema.test.ts` checks the tables match its options. Ids are `<prefix>_<24 random [0-9a-z]>` for every table, Better Auth's included (`src/shared/ids.ts`: nanoid; `user_`, `sess_`, `org_`, `mem_`, `song_`, `arr_`, ...; Drizzle `$defaultFn` and Better Auth `generateId`). The address bar shows them without the prefix (`?song=<24 chars>`, `src/web/lib/address.ts`).
 - R2: every file of a song under `churches/<churchId>/songs/<songId>/`: `stems/manifest.json`,
   `stems/<file>` (original), `stems/standard|saver/<file>`, `chart.pro`, `analysis.json`,
   `analysis/history/<time>.json`. URLs are `/songs/<songId>/...`; the church always comes from the
   session, never the URL.
-- Isolation lives in the Worker: `worker/tenant.ts` `requireChurch` (session -> active church ->
-  `member` row read from the database, memoised 30 s), then `data.songBelongs(orgId, songId)` before
-  any handler or key, then `worker/keys.ts` builds keys only from validated ids (no path can leave the
-  song's prefix). `worker/data.ts` is the only SQL for church data; every function takes `orgId` first.
+- Isolation lives in the Worker (a Hono app, `src/api/app.ts`): the `church` middleware in
+  `src/api/tenant.ts` (session -> active church -> `members` row read from the database, memoised 30 s),
+  then `songOwned` (`data.songBelongs(orgId, songId)`) before any handler or key, then `src/api/keys.ts` builds keys only from validated ids (no path can leave the
+  song's prefix). `src/api/data.ts` is the only SQL for church data; every function takes `orgId` first.
 - Songs, stems included, are never shared between churches (per-church edits and stem licences).
 
 ## Roles
-- Per church, permission bundles in `shared/permissions.ts` (`createAccessControl`), shared by the
+- Per church, permission bundles in `src/shared/permissions.ts` (`createAccessControl`), shared by the
   Worker (enforces) and the app (shows/hides): member (play, own arrangements), editor (+ chords,
   lyrics, sections, charts, song details, any arrangement), admin (+ add/remove songs, members and
   editors), owner (+ church settings, admins/owners). Code checks permissions (`can`), never role names.
-- Platform super admin: `user.platformAdmin`, outside churches. Only they run Music.AI (credits) and
+- Platform super admin: `users.platform_admin`, outside churches. Only they run Music.AI (credits) and
   manage any church from the CLI. It does not bypass church membership in the Worker.
 - Churches and people are added only by the CLI: `pnpm churches add <slug> <name> [--owner <email>]`,
   `pnpm members add <email> [name] --church <slug> --role <role>`, `pnpm members platform-admin`.
   No sign-up and no church creation in the app; the Worker closes every organization endpoint except
   set-active, list, get-active-member(-role) and has-permission.
-- Admins and owners also manage people in the app (`/api/church/members`, `worker/members.ts`): owners any
+- Admins and owners also manage people in the app (`/api/church/members`, `src/api/members.ts`): owners any
   role, admins only member and editor; nobody changes or removes themselves; removal ends the person's
   sessions in that church and deletes an account left in no church (not the platform admin).
 
 ## Layout
-- `src/lib/bytestream.ts` (`ByteStream`, `download`): a file that arrives over time; consumers
-  wait for bytes, downloads resume with Range and cancel via AbortSignal. `src/lib/audio-cache.ts`
+- `src/web/lib/bytestream.ts` (`ByteStream`, `download`): a file that arrives over time; consumers
+  wait for bytes, downloads resume with Range and cancel via AbortSignal. `src/web/lib/audio-cache.ts`
   (`openStem`, `audioCache`): complete fingerprinted files go to Cache Storage, registry in
   localStorage, LRU of unpinned songs (300 MB), pin = "Save offline", cleared on sign-out.
   `Mp3Indexer`/`Mp3Feed` in `decoders.ts` index MP3 frames as bytes arrive (length from the Xing tag).
-- `src/lib/engine.ts`: `StemEngine`. Chunked playback: decodes 8 s chunks around the
+- `src/web/lib/engine.ts`: `StemEngine`. Chunked playback: decodes 8 s chunks around the
   playhead, keeps about 20 s ahead, and schedules `AudioBufferSourceNode`s at exact sample
   frames. One `GainNode` per stem. Solo rule: any solo means non-soloed stems are silent,
   and mute always wins. Recreates the AudioContext at the stems' native sample rate.
@@ -63,74 +80,80 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Streaming: playback starts after the first seconds of every heard stem; if a download falls
   within 1 s of the playhead it stalls ("Buffering…") and resumes at 6 s ahead. `unload()` aborts
   all downloads. `setBeats/setClick` schedule the click on the stems' clock.
-- `src/lib/key-shift.ts` (`KeyBus`): key change for the Practice player (±6 semitones, same tempo). Stems and
+- `src/web/lib/key-shift.ts` (`KeyBus`): key change for the Practice player (±6 semitones, same tempo). Stems and
   click play into the bus; at the original key it is a straight wire, otherwise one Signalsmith Stretch
   AudioWorklet (npm `signalsmith-stretch`, lazy chunk) shifts the summed stems and the click is delayed by its
   latency. `StemEngine.setKey`. Key is stored per song as the chart's `transpose` (`chart-view.ts`), so Charts
   and Practice agree; `transposeAnalysis` moves the chords shown in Practice.
-- `src/lib/mix.ts`: pure mix rules (`computeMix`, `families`, `lazyFlags`), shared by the engine
+- `src/web/lib/mix.ts`: pure mix rules (`computeMix`, `families`, `lazyFlags`), shared by the engine
   and the UI. A group can have a combined stem (`mix: true`, a file named like its folder) plus
   parts; they never play together. Parts are fetched after the first load (`preloadParts`, skipped
-  under Save-Data). Display order is `sortStems` in `src/lib/sources.ts`.
-- `src/lib/decoders.ts`: MP3 frame indexer (Xing/LAME gapless delay and padding) and WAV
+  under Save-Data). Display order is `sortStems` in `src/web/lib/sources.ts`.
+- `src/web/lib/decoders.ts`: MP3 frame indexer (Xing/LAME gapless delay and padding) and WAV
   slicer, each decoding byte-range slices. Other formats fall back to a full decode.
-- `src/lib/sources.ts`: `StemSource` (zip, library manifest), `fetchLibrary` (the active church's
+- `src/web/lib/sources.ts`: `StemSource` (zip, library manifest), `fetchLibrary` (the active church's
   songs, `?church=<id>` so the offline copy is per church). Manifests list `tiers` (standard VBR q4,
   saver VBR q6, original), per-stem fingerprints `v` (`file.mp3?v=<hash>`) and waveform `peaks`.
-- `src/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/lib/address.ts`:
+- `src/web/lib/api.ts`: the typed API client (`hc<AppType>`, Hono RPC): `songsApi`, `membersApi`, and `call()`
+  (typed ok body, else `ApiError` with the server's `{ error }`). Every JSON call goes through it, so an API
+  change the app does not follow fails `pnpm build` (`tsconfig.app.json` references `tsconfig.worker.json`
+  for the API's types). Song files (audio, manifests, `chart.pro`, `analysis.json`) stay plain URLs (`songFile`)
+  for Range streaming and the offline cache. `test/client.test.ts` runs the client against the real app.
+- `src/web/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/web/lib/address.ts`:
   the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open).
-- `src/config.ts`: `SONGS_BASE_URL` and `AUTH_REQUIRED` (always in prod; `pnpm dev` skips login unless
-  `VITE_REQUIRE_AUTH=1`).
-- Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `worker/members.ts`,
-  `src/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
-  playing; the nav bar links back with `?song=` of the open song), `/charts`, `/arrange`.
-  `src/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
-- Practice player: docked `TransportBar` (song + facts, skip/play/seek, click and view-settings
-  popovers, Edit), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
-  Chords, Shapes (`src/components/player/`). Shared `Select` (styled native select) and `Popover`.
-- Charts: `src/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
+- Songs always come from the Worker at `/songs` (same origin). Sign-in is always on, also in development.
+- Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `src/api/members.ts`,
+  `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
+  playing; the sidebar links back with `?song=` of the open song), `/charts`, `/arrange`.
+  `src/web/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
+- Practice player: `TransportBar`, drawn into the bottom dock (song + facts, skip/play/seek, click, key
+  (the key letter) and view-settings popovers, Edit), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
+  Chords, Shapes (`src/web/components/player/`). `Popover` (play-bar panels, on the shadcn popover).
+- Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are
-  `song` rows with `hasStems` false.
-- Arrange (`src/pages/ArrangePage.tsx`, own `StemEngine`): `src/lib/arrangement.ts`,
+  `songs` rows with `has_stems` false.
+- Arrange (`src/web/pages/ArrangePage.tsx`, own `StemEngine`): `src/web/lib/arrangement.ts`,
   `StemEngine.setTimeline(...)`. Arrangements are rows in Neon. Plan: `docs/arrangements.md`.
-- Analysis: `scripts/analyse.ts` (`pnpm songs:analyse <song> --church <slug>`, Music.AI REST, no SDK;
+- Analysis: `src/cli/analyse.ts` (`pnpm songs:analyse <song> --church <slug>`, Music.AI REST, no SDK;
   platform admin only; key in Keychain `musicai-worship-hub`) -> `songs/<song>/analysis/raw/`;
-  `dev/analysis.ts` -> `analysis.json`. `src/lib/analysis.ts`, `src/lib/chord-shapes.ts`.
-  Editing in Practice (`src/lib/analysis-edit.ts`; a changed word keeps the time of the word it
+  `src/cli/lib/analysis.ts` -> `analysis.json`. `src/web/lib/analysis.ts`, `src/web/lib/chord-shapes.ts`.
+  Editing in Practice (`src/web/lib/analysis-edit.ts`; a changed word keeps the time of the word it
   replaces); the Worker keeps each replaced version in `analysis/history/`.
-- `src/components/AuthGate.tsx`, `src/lib/auth-client.ts`: login form (email, then 6-digit code),
-  sign-out. `src/components/NavBar.tsx` is the top bar (church switcher left, account menu with sign-out
-  right, `AccountMenu.tsx`).
-- Local backend: `pnpm cf:api` (Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
-  shared by worktrees) + `pnpm dev:app` (Vite forwarding `/api` and `/songs`, sign-in on; `vite.config.ts`).
+- `src/web/components/AuthGate.tsx`, `src/web/lib/auth-client.ts`: login form (email, then 6-digit code),
+  sign-out. `AuthScreen` is the card the screens before the app share (sign-in, choosing a church).
+- Local dev: `pnpm dev:api` (the Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
+  shared by worktrees) + `pnpm dev` (Vite with hot reload, forwarding `/api` and `/songs`; `vite.config.ts`).
   `pnpm songs:publish` without `--target prod` writes the dev database and that local R2 (dev ids; its upload
   record is kept apart in `.publish-state.json`). `pnpm db:local` (`docker-compose.local.yml`) is an optional
-  Postgres on this machine: `shared/local-neon.ts` sends the Neon driver through a WebSocket proxy when a
+  Postgres on this machine: `src/shared/local-neon.ts` sends the Neon driver through a WebSocket proxy when a
   database URL is localhost (both URLs local or both hosted).
-- `dev/songs-plugin.ts`: dev-only Vite middleware serving `./songs` (or `SONGS_DIR`) at `/songs` with
-  the production URL layout; song ids come from the Neon dev database (`dev/dev-ids.ts`, church
-  `DEV_CHURCH` from `.dev.vars`). Its helpers are reused by `scripts/publish-songs.ts`.
-- `worker/`: `index.ts` (routing; `/api/auth/*` to Better Auth behind an allowlist, `/songs/*` to
-  `router.ts`), `tenant.ts`, `router.ts`, `data.ts`, `keys.ts`, `songs.ts` (R2 serving with
-  Range/HEAD/304 and edge cache, chart/analysis/arrangement handlers), `auth.ts` (Better Auth per
-  isolate, a Neon pool per request), `auth-options.ts` (shared with the CLI), `mail.ts` (Resend).
+- `src/cli/lib/song-files.ts`: reads a local folder of songs (`./songs` or `SONGS_DIR`): stems, groups,
+  manifests, qualities and their re-encoding. Used by `songs:publish`, `songs:analyse` and `songs:pack`.
+- `src/api/` (Hono, Zod via `@hono/zod-validator`): `app.ts` (`createApp(provide)`: `/api/auth/*` to Better
+  Auth behind an allowlist, `/api/church/members` to `members.ts`, `/songs/*` to `songs.ts`; exports
+  `AppType` for the typed client), `index.ts` (Worker entry: a pool and Better Auth per request),
+  `tenant.ts` (`church`, `sameOrigin`, `need(permission)`, `songOwned` middleware), `validate.ts`,
+  `songs.ts` (song, chart, analysis, arrangement routes), `files.ts` (R2 serving with Range/HEAD/304
+  and edge cache), `data.ts`, `keys.ts`, `auth.ts` (Better Auth per isolate, a Neon pool per request),
+  `auth-options.ts` (shared with the CLI), `mail.ts` (Resend). Tests drive the real app with
+  `app.request()` over PGlite and a fake bucket (`test/app.ts`).
   Regenerate types with `pnpm cf-typegen`.
-- `scripts/`: `publish-songs.ts` (`pnpm songs:publish --church <slug> --target prod`), `churches.ts`,
-  `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts`/`auth-cli.ts` (`pnpm db:migrate`).
+- `src/cli/`: `publish-songs.ts` (`pnpm songs:publish --church <slug> --target prod`), `churches.ts`,
+  `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts` (`pnpm db:migrate`).
   Scripts default to the dev database; `--target prod` uses `.prod.vars`. Scripts use the owner login
   (`DATABASE_OWNER_URL`); `pnpm db:app-role` manages the app's role.
-- `redirect/`: the redirect Worker for the previous address (`pnpm cf:deploy:redirect`).
+- `src/redirect/`: the redirect Worker for the previous address (`pnpm cf:deploy:redirect`).
 - `songs/` is gitignored. Song folders or symlinks go there for local testing.
 
 ## Auth model
-- Invite only, no passwords. People are `user` rows linked to churches by `member` rows.
+- Invite only, no passwords. People are `users` rows linked to churches by `members` rows.
 - The sign-in endpoint answers the same for members and strangers and only emails members.
-- Sessions last 30 days with a 5-minute signed cookie cache, but song routes read the `member` row
+- Sessions last 30 days with a 5-minute signed cookie cache, but song routes read the `members` row
   (memoised 30 s), so removing a member or changing a role applies within 30 s.
 - After sign-in the person lands in their earliest church (`session.activeOrganizationId`).
 - Secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`) live in Worker secrets; locally
   `.dev.vars` (development branch) and `.prod.vars` (production), both gitignored. Two database logins:
-  `DATABASE_URL` is the app role `worship_hub_worker` (data only, no DDL; the Worker and dev server) and
+  `DATABASE_URL` is the app role `worship_hub_worker` (data only, no DDL; the Worker, locally and deployed) and
   `DATABASE_OWNER_URL` the owner (scripts and migrations only). Never put
   them in `VITE_*`.
 

@@ -7,7 +7,8 @@ Charts, services, lineups and volunteer assignments are planned.
 The app runs at `worshiphub.jssoriao.dev`. One site serves every church
 (tenant); each church has its own songs, members and roles. Access is invite only: people sign in
 with a 6-digit code emailed to the address on the team list, and land in their church (several
-churches: a switcher in the nav bar).
+churches: a switcher at the top of the sidebar). Each church can have its own colours, app name and
+logo (see Churches and roles).
 
 All rights reserved: the code is published for viewing only (see `LICENSE`).
 
@@ -16,22 +17,16 @@ Every external resource, with create and delete commands, is in `docs/infra.md`.
 
 ## Run
 
+Local development runs the real Worker (sign-in, roles, the church's database and files) next to
+Vite's hot reload, in two terminals:
+
 ```sh
 pnpm install
-pnpm dev            # http://localhost:5173, no login in dev
-pnpm dev --host     # also reachable from a phone on the same Wi-Fi
+pnpm dev:api        # the Worker on http://127.0.0.1:8787 (database from .dev.vars, files in a local R2)
+pnpm dev            # the app with hot reload on http://127.0.0.1:5173, forwarding /api and /songs to the Worker
 pnpm build          # type-check + production build
 pnpm lint
-```
-
-### Local development with the real backend
-
-`pnpm dev` has no backend, so no sign-in, roles or Members page. To run the real Worker (sign-in, roles,
-the church's database and files) next to hot reload, use two terminals:
-
-```sh
-pnpm cf:api         # the Worker on http://127.0.0.1:8787 (database from .dev.vars, files in a local R2)
-pnpm dev:app        # Vite with hot reload on http://127.0.0.1:5173, forwarding /api and /songs to the Worker
+pnpm test
 ```
 
 Open http://127.0.0.1:5173 (not `localhost`: sign-in only trusts the address in `APP_URL`). The
@@ -67,12 +62,15 @@ Apache-2.0); nothing of them is included in this repository.
 
 ## Pages
 
-Top bar: the app name, then the church you are in (a dropdown for someone in several churches), the
-page links, and on the right your account menu (name, email, role, Sign out). Routes: `/` Home
+A sidebar on the left: the app name, the church you are in (a menu with search for someone in several
+churches), the pages, and at the bottom your account (name, email, Sign out). On desktop it folds to
+icons (Ctrl/Cmd+B); on phones it opens as a drawer. There is no top bar: each page starts with one row
+(the sidebar toggle, the title and the page's controls). While a song is open, the
+compact play bar stays docked at the bottom on every page. Routes: `/` Home
 ("Playing now" card and links), `/practice` the stem player, `/charts` chord charts, `/arrange` your own
-arrangements, `/members` the church's people (admins and owners only, see below). Each takes the song in the address (`?song=<id>`), so a reload or a shared link opens the
+arrangements, `/members` the church's people (admins and owners only, see below). Each takes the song in the address (`?song=<id>`, the id without its `song_` prefix), so a reload or a shared link opens the
 same song; on Practice the address alone chooses the song. The Practice page stays mounted (hidden) on
-other routes, so audio keeps playing while you browse, and the nav bar links back with the open song.
+other routes, so audio keeps playing while you browse, and the sidebar links back with the open song.
 
 ### Charts
 
@@ -92,14 +90,14 @@ numbers, columns (auto: two while a column holds about 24 em), text size and pap
 Text size **Fit** (default) picks the largest text that shows the whole chart in the sheets on
 screen without wrapped lines, never below about 9 px; A−/A+ step from there and reflow the sheets.
 Key and capo are remembered per song, the rest per device. **Follow** turns to the sheet of the
-section being played. Layout: `src/lib/chart-layout.ts` (paginate), chords: `src/lib/chords.ts`.
+section being played. Layout: `src/web/lib/chart-layout.ts` (paginate), chords: `src/web/lib/chords.ts`.
 
 Editors edit charts in the app: **Edit** (or **Create one**) opens ChordPro text beside a live preview.
 Paste a chart in, **Mark cue** inserts `{cue: m:ss.s}` at the cursor from the playhead (the song must be
-loaded on Practice), **Save** writes the song's `chart.pro` to R2 (`PUT`, editors and up, 200 KB max).
-`pnpm dev` has no sign-in, so it saves into the local song folder instead.
+loaded on Practice), **Save** writes the song's `chart.pro` to R2 (`PUT`, editors and up, 200 KB max). In development
+that is the local R2.
 
-A chart doesn't need stems: **+ New song** (admins) adds a chart-only song by title: a `song` row with
+A chart doesn't need stems: **+ New song** (admins) adds a chart-only song by title: a `songs` row with
 `hasStems` false (Practice hides it). Publishing stems later from a folder with the same name (the
 title) attaches them. Note: `songs:publish` uploads a local `chart.pro` if there is one, replacing the
 one edited in the app.
@@ -108,18 +106,18 @@ one edited in the app.
 
 Your own arrangement of a song (`/arrange`, its own player; playing pauses Practice, leaving the
 page stops it): sections from the chart's cues snapped to bars, else the ones `songs:publish`
-suggests from the stems (`dev/sections.ts`: lead vocal in/out, drums in/out, loudness steps on
+suggests from the stems (`src/cli/lib/sections.ts`: lead vocal in/out, drums in/out, loudness steps on
 4-bar phrases; labels Intro/Instrumental/Outro/Part n; `song.json` `sections` overrides), else the
 whole song. The strip shows the waveform and bars; tap to place the playhead, split at the
 playhead and joined back, then an order of blocks you can move, repeat and remove, with stems muted
 per block, a count-in and an optional click. Any member can save arrangements; only the owner or an
-editor can change one (the Neon `arrangement` table; the dev server keeps them in the song folder). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
+editor can change one (the Neon `arrangements` table). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
 
 ## Two ways to load a song
 
 1. **Open zip**: a zip of mp3/wav files. Flat, one wrapping folder, or subfolders (shown as plain
    group labels) all work. A zip with a `manifest.json` also gets combined stems (see below).
-2. **Library**: songs served from `VITE_SONGS_BASE_URL` (`/songs`).
+2. **Library**: the active church's songs, served by the Worker at `/songs`.
 
 ### Groups and combined stems
 
@@ -156,15 +154,15 @@ can be a folder too, with its own combined stem and parts.
 `worship-hub-analysis`: Chords, Beats, Sections, Musical stems → Lyrics with word alignment; about
 $0.46/min, pay as you go) and keeps every result in `songs/<song>/analysis/raw/`; the job is then
 deleted on their side. The key is read from the macOS Keychain item `musicai-worship-hub` (or
-`MUSICAI_API_KEY`); audio results are skipped unless `--with-audio`. `dev/analysis.ts` turns the
-raw files into `analysis.json` (about 20 KB), served by the dev server and uploaded by
+`MUSICAI_API_KEY`); audio results are skipped unless `--with-audio`. `src/cli/lib/analysis.ts` turns the
+raw files into `analysis.json` (about 20 KB), uploaded by
 `songs:publish` to the song's `analysis.json` in R2; its section labels also go into the manifest.
 Practice then shows **Stems · Lyrics · Chords · Shapes** (bottom bar, with play/pause). On wide
 screens Stems is one timeline (`StemTimeline`): a strip of the coming chords as beat boxes, lanes for
 bars, sections, chords and lyrics, a slim row per stem (parts of a combined stem fold out) and the
 click, under one playhead; phones keep the stacked list. The other views: chords over
 the lyrics with the sung line and words lit, bars of beat boxes with the current beat lit, and the
-current and next chords as guitar diagrams or piano keys (`src/lib/chord-shapes.ts`; a slash
+current and next chords as guitar diagrams or piano keys (`src/web/lib/chord-shapes.ts`; a slash
 chord shows the chord's own shape), at Basic, Simple or Full chord detail.
 
 Editors (and up) fix what the AI got wrong right there: **Edit** in the Chords view (tap a beat to
@@ -178,19 +176,25 @@ overwrites edits made in the app.
 ### Churches and roles
 
 A church is a Better Auth organization; songs (stems included) belong to one church. Roles per church
-are permission bundles in `shared/permissions.ts` (the Worker enforces them, the app shows or hides
+are permission bundles in `src/shared/permissions.ts` (the Worker enforces them, the app shows or hides
 controls with the same `can()`): `member` (plays, own arrangements), `editor` (+ chords, lyrics,
 sections, charts, song details, any arrangement), `admin` (+ adds and removes songs, manages members
 and editors), `owner` (+ church settings, grants admin/owner). The platform super admin
-(`user.platformAdmin`) is outside churches and is the only one who runs Music.AI.
+(`users.platform_admin`) is outside churches and is the only one who runs Music.AI.
 `pnpm churches add <slug> <name>`, `pnpm members add <email> --church <slug> --role <role>`.
+
+Branding (white label): `pnpm churches theme <slug> --brand #2563eb --brand2 #7c3aed --app-name "Our Hub"
+--logo https://...` (`--reset` goes back to the default; no options shows the current one). Every colour
+in the app is derived from the two brand colours (`src/web/index.css`); text on the brand colour and
+brand-coloured text on the dark page are kept readable (`src/shared/theme.ts`). Members see a change on
+their next load. Ids are `<prefix>_<24 random [0-9a-z]>` for every table (`org_`, `song_`, `user_`, ...).
 
 ### Members (admins and owners)
 
 The **Members** page lists the church's people and lets an admin or owner add someone by email (with a
 role), change a role, or remove them. Added people sign in with the emailed code; nobody signs up
 themselves, and the sign-in still only emails people who are members. The rules are enforced by the
-Worker (`worker/members.ts`, `/api/church/members`), not just hidden in the page:
+Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the page:
 
 - An **owner** can give, change and remove any role. An **admin** can only manage members and editors.
 - Nobody can change their own role or remove themselves, so a church always keeps its owner.
@@ -204,8 +208,8 @@ Worker (`worker/members.ts`, `/api/church/members`), not just hidden in the page
 
 ### Key, tempo and click
 
-Put Loop Mastering's `key_analysis.json` and `beat_grid.json` (the `keyAnalysis` and `beatGrid`
-links of a stem-separation job; they expire after about a day) in the song's folder. The manifest
+Put the stem-separation job's `key_analysis.json` and `beat_grid.json` (its `keyAnalysis` and `beatGrid`
+links; they expire after about a day) in the song's folder. The manifest
 then carries `music: { key, bpm, meter, beats, downbeats }` (beats in ms, a few KB). Practice shows
 key and BPM and offers a **Click** (on/off, volume, remembered per device) that plays on every beat,
 higher on the first beat of each bar, scheduled on the same clock as the stems. Charts shows the
@@ -215,9 +219,11 @@ Republish with `pnpm songs:publish <song> --manifest-only`.
 
 ### Local library (dev)
 
-Put song folders (or symlinks) in `./songs` (gitignored), or set `SONGS_DIR` in `.env.local`.
-`pnpm dev` serves them at `/songs`, with song ids from the Neon dev database (see `docs/infra.md`).
-Production serves the same URLs from a private R2 bucket, under `churches/<churchId>/songs/<songId>/`:
+Put song folders (or symlinks) in `./songs` (gitignored), or point `SONGS_DIR` at another folder
+(`SONGS_DIR=~/Music/Stems pnpm songs:publish ...`).
+`pnpm songs:publish --church <slug>` uploads them to the local R2 (and the dev database), which
+`pnpm dev:api` serves at `/songs`. Production serves the same URLs from the private R2 bucket. Either way
+the files are under `churches/<churchId>/songs/<songId>/`:
 
 | URL | Content |
 | --- | --- |
@@ -225,7 +231,7 @@ Production serves the same URLs from a private R2 bucket, under `churches/<churc
 | `/songs/<id>/stems/manifest.json` | `{ "title", "stems": [{ "file", "name", "group", "mix" }] }` |
 | `/songs/<id>/stems/<file name>` | audio (Range supported) |
 
-The `<id>` is the song's row id (12 random `[a-z0-9]`), also used in `?song=`. The folder name is the
+The `<id>` is the song's row id (`song_<24 random [0-9a-z]>`); `?song=` shows it without the `song_` prefix. The folder name is the
 song's title and how `songs:publish` finds its row. `mix: true` marks a group's
 combined stem. The manifest is generated from the folders when you publish, so it is the one place
 that declares groups.
@@ -253,9 +259,7 @@ The song's manifest in R2 keeps the running record of which qualities are online
 exactly those: a switcher for two or three, and none when there is only one. Publishing one quality
 never hides another that is already there (qualities are not removed by publishing).
 
-The re-encoding uses `ffmpeg` and happens when you publish; on
-`pnpm dev` the server makes the same files on first use and caches them in the temp folder
-(`worship-hub-variants`). The files are re-encoded from your originals, so encoding from lossless
+The re-encoding uses `ffmpeg` and happens when you publish. The files are re-encoded from your originals, so encoding from lossless
 WAVs gives slightly better results. Songs published before qualities existed simply have one.
 
 `pnpm songs:pack "Song Folder"` writes `packs/<slug>.zip` with that manifest next to the audio, so
@@ -277,15 +281,17 @@ pnpm churches list            # churches (tenants)
 pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner
 pnpm members remove a@b.com --church <slug>   # the same can be done in the app: Members page (admins and owners)
-pnpm db:migrate               # create/update the auth tables and db/schema.sql (add --target prod for production)
-pnpm db:app-role              # the app's database role (data access only); also rotates its password
+pnpm db:generate              # write a migration for changes to src/db/schema (Drizzle)
+pnpm db:migrate               # apply pending migrations (add --target prod for production)
+pnpm db:app-role              # the app's database role (data access only); also rotates its password (--keep-password: grant only)
+pnpm churches theme <slug> --brand #hex --brand2 #hex --app-name "..." --logo https://...   # a church's branding
 pnpm test                     # vitest
 pnpm cf:deploy                # build and deploy the Worker + app
 ```
 
 Local secrets live in `.dev.vars` (gitignored, template `.dev.vars.example`); it points at the Neon development branch. Production's are in `.prod.vars` (gitignored), used with `--target prod`. Each has two database logins: `DATABASE_URL`, the app's role with data access only (what the Worker uses), and `DATABASE_OWNER_URL`, the owner, which only scripts and migrations use.
-To try the real sign-in flow locally: see "Local development with the real backend" above, or `pnpm cf:dev`
-(builds, then serves everything from the Worker) and open http://127.0.0.1:8787.
+To try a production build locally: `pnpm build`, then `pnpm dev:api` serves the built app and the API
+together at http://127.0.0.1:8787.
 
 ## How playback works
 

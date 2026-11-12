@@ -1,29 +1,31 @@
-import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
-import type { Db } from '../worker/data.ts'
+import { drizzle } from 'drizzle-orm/pglite'
+import { migrate } from 'drizzle-orm/pglite/migrator'
+import { schema, type Db } from '../src/db/client.ts'
 
-/** The Better Auth tables schema.sql depends on, as the Better Auth CLI creates them (trimmed). */
-const AUTH_TABLES = `
-create table "user" (id text primary key, name text not null, email text not null unique, "emailVerified" boolean not null default false, "createdAt" timestamptz not null default now(), "updatedAt" timestamptz not null default now(), role text default 'member');
-create table organization (id text primary key, name text not null, slug text unique, logo text, "createdAt" timestamptz not null default now(), metadata text);
-create table member (id text primary key, "organizationId" text not null references organization(id) on delete cascade, "userId" text not null references "user"(id) on delete cascade, role text not null, "createdAt" timestamptz not null default now());
-`
-export const SCHEMA_SQL = readFileSync('db/schema.sql', 'utf8')
+export const MIGRATIONS = 'src/db/migrations'
 
+/** A fresh in-memory Postgres with the app's migrations applied, as Drizzle and as raw PGlite. */
 export async function freshDb(): Promise<{ pg: PGlite; db: Db }> {
   const pg = new PGlite()
-  await pg.exec(AUTH_TABLES)
-  await pg.exec(SCHEMA_SQL)
-  const db: Db = { query: async (text, params) => ({ rows: (await pg.query(text, params as unknown[])).rows as never }) }
-  return { pg, db }
+  const db = drizzle({ client: pg, schema })
+  await migrate(db, { migrationsFolder: MIGRATIONS })
+  return { pg, db: db as unknown as Db }
 }
 
 export async function seedChurch(pg: PGlite, id: string, slug = id) {
-  await pg.query('insert into organization (id, name, slug) values ($1, $2, $3)', [id, slug.toUpperCase(), slug])
+  await pg.query('insert into organizations (id, name, slug) values ($1, $2, $3)', [id, slug.toUpperCase(), slug])
 }
+
 export async function seedUser(pg: PGlite, id: string, email = `${id}@example.com`) {
-  await pg.query('insert into "user" (id, name, email) values ($1, $2, $3)', [id, id, email])
+  await pg.query('insert into users (id, name, email) values ($1, $2, $3)', [id, id, email])
 }
+
 export async function seedMember(pg: PGlite, orgId: string, userId: string, role: string) {
-  await pg.query('insert into member (id, "organizationId", "userId", role) values ($1, $2, $3, $4)', [`${orgId}-${userId}`, orgId, userId, role])
+  await pg.query('insert into members (id, organization_id, user_id, role) values ($1, $2, $3, $4)', [`${orgId}-${userId}`, orgId, userId, role])
+}
+
+/** A session row (Better Auth's columns), optionally with an active church. */
+export async function seedSession(pg: PGlite, id: string, userId: string, activeOrgId: string | null = null) {
+  await pg.query(`insert into sessions (id, token, user_id, active_organization_id, expires_at) values ($1, $2, $3, $4, now() + interval '1 day')`, [id, `token-${id}`, userId, activeOrgId])
 }
