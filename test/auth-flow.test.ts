@@ -8,7 +8,7 @@ import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
  * Better Auth end to end on the real migrations (snake_case columns, plural tables): an emailed code
  * signs a member in, the session lands in their church, and the session is found again by its cookie.
  */
-const CHURCH = 'churchaaaaaa'
+const CHURCH = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
 const EMAIL = 'singer@example.com'
 
 let db: Db
@@ -54,6 +54,10 @@ describe('sign-in with an emailed code', () => {
     expect((session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId).toBe(CHURCH)
     const stored = await pg.query<{ user_id: string; active_organization_id: string }>('select user_id, active_organization_id from sessions')
     expect(stored.rows).toEqual([{ user_id: 'singer', active_organization_id: CHURCH }])
+    // Better Auth's rows get the app's ids (src/shared/ids.ts)
+    const ids = await pg.query<{ id: string }>('select id from sessions union all select id from verifications')
+    expect(ids.rows.length).toBeGreaterThan(0)
+    for (const { id } of ids.rows) expect(id).toMatch(/^(sess|vrf)_[0-9a-z]{24}$/)
     // the code is stored hashed, never as sent
     const codes = await pg.query<{ value: string }>('select value from verifications')
     for (const row of codes.rows) expect(row.value).not.toContain(sent[0].code)

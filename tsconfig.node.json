@@ -19,5 +19,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "src/cli", "src/shared", "src/db"]
+  "include": ["vite.config.ts", "src/cli", "src/shared", "src/db"],
+  // runs in Workers, so it is checked with the Worker types (tsconfig.worker.json)
+  "exclude": ["src/cli/lib/rekey-worker.ts"]
 }

@@ -61,7 +61,7 @@ lyrics, chords and sections. Neon holds the relational data:
 - `song(id, organizationId, title, artist, musicKey, bpm, meter, hasStems, createdBy, createdAt, updatedAt)`,
   title unique per church. The song list (`GET /songs/index.json`) is a query, scoped to the active church.
 - `arrangement(id, songId, owner, name, data jsonb, ...)`, scoped to the church through its song.
-- Ids are 12 random chars of `[a-z0-9]` (`src/shared/ids.ts`). `?song=` in the address is the song's id.
+- Ids are `<prefix>_<24 random [0-9a-z]>` (nanoid, about 124 bits) for every table, Better Auth's included (`src/shared/ids.ts`). `?song=` in the address is the song's id without its prefix.
 R2 holds the files, under one prefix per song: `churches/<churchId>/songs/<songId>/` with
 `stems/manifest.json`, `stems/<file>` (original), `stems/standard/<file>`, `stems/saver/<file>`,
 `chart.pro`, `analysis.json`, `analysis/history/<time>.json`. URLs stay `/songs/<songId>/...`: the

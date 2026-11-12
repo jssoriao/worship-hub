@@ -6,11 +6,12 @@
  * plugin changes its schema, `test/auth-schema.test.ts` fails and points at the difference.
  */
 import { bigint, boolean, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { pk } from './ids.ts'
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
 
 export const users = pgTable('users', {
-  id: text('id').primaryKey(),
+  id: pk('user'),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
@@ -24,7 +25,7 @@ export const users = pgTable('users', {
 export const sessions = pgTable(
   'sessions',
   {
-    id: text('id').primaryKey(),
+    id: pk('session'),
     expiresAt: at('expires_at').notNull(),
     token: text('token').notNull().unique(),
     createdAt: at('created_at').notNull().defaultNow(),
@@ -43,7 +44,7 @@ export const sessions = pgTable(
 export const accounts = pgTable(
   'accounts',
   {
-    id: text('id').primaryKey(),
+    id: pk('account'),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     userId: text('user_id')
@@ -65,7 +66,7 @@ export const accounts = pgTable(
 export const verifications = pgTable(
   'verifications',
   {
-    id: text('id').primaryKey(),
+    id: pk('verification'),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
     expiresAt: at('expires_at').notNull(),
@@ -77,7 +78,7 @@ export const verifications = pgTable(
 
 /** A church. */
 export const organizations = pgTable('organizations', {
-  id: text('id').primaryKey(),
+  id: pk('organization'),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   logo: text('logo'),
@@ -89,7 +90,7 @@ export const organizations = pgTable('organizations', {
 export const members = pgTable(
   'members',
   {
-    id: text('id').primaryKey(),
+    id: pk('member'),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
@@ -106,7 +107,7 @@ export const members = pgTable(
 export const invitations = pgTable(
   'invitations',
   {
-    id: text('id').primaryKey(),
+    id: pk('invitation'),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
@@ -124,7 +125,7 @@ export const invitations = pgTable(
 
 /** Better Auth's request counters (database storage: in-memory counters would be per isolate). */
 export const rateLimits = pgTable('rate_limits', {
-  id: text('id').primaryKey(),
+  id: pk('rateLimit'),
   key: text('key').notNull().unique(),
   count: integer('count').notNull(),
   lastRequest: bigint('last_request', { mode: 'number' }).notNull(),

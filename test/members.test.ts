@@ -5,8 +5,8 @@ import { manageableRoles } from '../src/api/members.ts'
 import { testApp } from './app.ts'
 import { freshDb, seedChurch, seedMember, seedSession, seedUser } from './helpers.ts'
 
-const A = 'churchaaaaaa'
-const B = 'churchbbbbbb'
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const B = 'org_bbbbbbbbbbbbbbbbbbbbbbbb'
 
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']

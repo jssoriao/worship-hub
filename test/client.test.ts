@@ -7,8 +7,8 @@ import type { Db } from '../src/db/client.ts'
 import { testApp } from './app.ts'
 import { FakeR2 } from './fake-r2.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
-const A = 'churchaaaaaa'
-const SONG = 'songaaaaaaaa'
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const SONG = 'song_aaaaaaaaaaaaaaaaaaaaaaaa'
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
 let r2: FakeR2
@@ -54,11 +54,11 @@ describe('typed client', () => {
   })
   it('arrangements: save, list, load, delete', async () => {
     const arr = as('member').songs[':songId'].arrangements
-    const param = { songId: SONG, arrangementId: 'sunday01' }
+    const param = { songId: SONG, arrangementId: 'arr_ssssssssssssssssssssssss' }
     const saved = await arr[':arrangementId'].$put({ param, json: { name: 'Sunday', sections: [], blocks: [] } })
     expect(saved.status).toBe(200)
-    expect((await (await arr.$get({ param: { songId: SONG } })).json()).map((a) => a.id)).toEqual(['sunday01'])
-    expect(await (await arr[':arrangementId'].$get({ param })).json()).toMatchObject({ id: 'sunday01', name: 'Sunday', owner: 'member' })
+    expect((await (await arr.$get({ param: { songId: SONG } })).json()).map((a) => a.id)).toEqual(['arr_ssssssssssssssssssssssss'])
+    expect(await (await arr[':arrangementId'].$get({ param })).json()).toMatchObject({ id: 'arr_ssssssssssssssssssssssss', name: 'Sunday', owner: 'member' })
     expect((await arr[':arrangementId'].$delete({ param })).status).toBe(200)
   })
   it('members: list, add, change role, remove', async () => {

@@ -21,7 +21,7 @@ import { StemTimeline, type TimelineStem } from '../components/player/StemTimeli
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
-import { resolveSongParam } from '../lib/address'
+import { practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 
 const defaultMix = (): MixState => ({ muted: false, solo: false, volume: 1 })
@@ -362,7 +362,7 @@ export default function PracticePage() {
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const onPracticePage = pathname === '/practice' || pathname.startsWith('/practice/')
-  const wanted = new URLSearchParams(search).get('song') ?? ''
+  const wanted = songFromAddress(new URLSearchParams(search).get('song'))
   const onFile = (file: File | undefined) => {
     if (!file) return
     // a zip is not a library song: the address has none (setSongId first, so that is not a "close")
@@ -427,7 +427,7 @@ export default function PracticePage() {
   }
 
   const pickSong = (id: string) => {
-    if (id !== wanted) navigate(`/practice?song=${encodeURIComponent(id)}`)
+    if (id !== wanted) navigate(practicePath(id))
   }
   useEffect(() => {
     if (!onPracticePage) {

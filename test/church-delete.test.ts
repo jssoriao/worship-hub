@@ -28,8 +28,8 @@ class MemoryStore implements ObjectStore {
   }
 }
 
-const A = 'churchaaaaaa'
-const B = 'churchbbbbbb'
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const B = 'org_bbbbbbbbbbbbbbbbbbbbbbbb'
 const church: ChurchRef = { id: A, slug: 'church-a', name: 'Church A' }
 const rows = async (db: Db, query: string) => Number(((await db.execute(sql.raw(query))) as unknown as { rows: { n: number }[] }).rows[0].n)
 

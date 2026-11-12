@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/ui/native-select'
 import { useState } from 'react'
-import { barsIn, joinWithNext, newId, type Arrangement } from '../lib/arrangement'
+import { barsIn, joinWithNext, partId, type Arrangement } from '../lib/arrangement'
 import { formatTime } from '../lib/chart'
 import type { SongMusic } from '../lib/sources'
 
@@ -62,7 +62,7 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
                   </option>
                 ))}
               </NativeSelect>
-              <Button variant="outline" size="xs" disabled={!adding} onClick={() => setBlocks([...arr.blocks, { id: newId(), section: adding, muted: [] }])}>
+              <Button variant="outline" size="xs" disabled={!adding} onClick={() => setBlocks([...arr.blocks, { id: partId(), section: adding, muted: [] }])}>
                 + Add
               </Button>
             </>
@@ -87,7 +87,7 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
                     </Button>
                     <Button variant="outline" size="xs"
                      
-                      onClick={() => setBlocks([...arr.blocks.slice(0, i + 1), { ...b, id: newId(), muted: [...b.muted] }, ...arr.blocks.slice(i + 1)])}
+                      onClick={() => setBlocks([...arr.blocks.slice(0, i + 1), { ...b, id: partId(), muted: [...b.muted] }, ...arr.blocks.slice(i + 1)])}
                       aria-label={`Repeat ${label(b.section)}`}
                     >
                       Repeat

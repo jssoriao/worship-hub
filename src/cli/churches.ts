@@ -51,7 +51,7 @@ try {
     const slug = parseSlug(args[0])
     const name = args.slice(1).join(' ').trim() || fail('Give the church a name: pnpm churches add <slug> <name>')
     if (await churchBySlug(db, slug)) fail(`There is a church "${slug}" already.`)
-    const id = newId()
+    const id = newId('organization')
     const owner = typeof flags.owner === 'string' ? normalizeEmail(flags.owner) : null
     await db.transaction(async (tx) => {
       await tx.insert(organizations).values({ id, name, slug })
@@ -59,10 +59,10 @@ try {
       // emailVerified is true because only invited people exist here
       const [user] = await tx
         .insert(users)
-        .values({ id: crypto.randomUUID(), name: owner.split('@')[0], email: owner, emailVerified: true })
+        .values({ name: owner.split('@')[0], email: owner, emailVerified: true })
         .onConflictDoUpdate({ target: users.email, set: { updatedAt: sql`now()` } })
         .returning({ id: users.id })
-      await tx.insert(members).values({ id: crypto.randomUUID(), organizationId: id, userId: user.id, role: 'owner' })
+      await tx.insert(members).values({ organizationId: id, userId: user.id, role: 'owner' })
     })
     console.log(`Added church ${slug} (${name}), id ${id}.${owner ? ` ${owner} is the owner.` : ''}`)
   } else if (command === 'rename') {

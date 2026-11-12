@@ -19,6 +19,7 @@
 import { Hono, type Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import * as z from 'zod'
+import { isId } from '../shared/ids.ts'
 import * as data from './data.ts'
 import { serveFile } from './files.ts'
 import { parseSongPath, songKey, songPrefix } from './keys.ts'
@@ -28,7 +29,10 @@ import { body, maxBody, only } from './validate.ts'
 const SONG = '/:songId'
 const ARRANGEMENT = `${SONG}/arrangements/:arrangementId`
 /** An arrangement id; `.json` on the end is accepted too (earlier versions of the app asked with it). */
-const ARRANGEMENT_ID = /^([A-Za-z0-9_-]{6,32})(?:\.json)?$/
+const arrangementIdOf = (param: string | undefined) => {
+  const id = param?.replace(/\.json$/, '')
+  return isId('arrangement', id) ? id : undefined
+}
 const TITLE_MAX = 120
 const CHART_MAX_BYTES = 200 * 1024
 const ARRANGEMENT_MAX_BYTES = 100 * 1024
@@ -72,7 +76,7 @@ const executionCtx = (c: Context) => {
 }
 const methodNotAllowed = (c: Context) => c.json({ error: 'method not allowed' }, 405)
 const stored = (row: data.ArrangementRow, songId: string) => ({ ...row.data, id: row.id, song: songId, name: row.name, owner: row.owner ?? '', updated: row.updated })
-const arrangementId = (c: Context) => ARRANGEMENT_ID.exec(c.req.param('arrangementId') ?? '')?.[1]
+const arrangementId = (c: Context) => arrangementIdOf(c.req.param('arrangementId'))
 type ArrangementEnv = AppEnv & { Variables: { arrangement: data.ArrangementRow | null } }
 /** Loads the arrangement; once made, only its owner or someone who may manage arrangements changes it. */
 const arrangementWrite = createMiddleware<ArrangementEnv>(async (c, next) => {

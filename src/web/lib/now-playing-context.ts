@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import { practicePath } from './address'
 /** What the Practice page is playing, shared so the nav bar and the charts can follow it. */
 export interface NowPlaying {
   title: string
@@ -36,5 +37,5 @@ export function useNowPlaying() {
 
 /** The Practice address for the open song, only when it belongs to the active church. */
 export function practiceLink(now: Pick<NowPlaying, 'songId' | 'churchId'>, activeChurchId: string): string {
-  return now.songId && now.churchId === activeChurchId ? `/practice?song=${encodeURIComponent(now.songId)}` : '/practice'
+  return now.songId && now.churchId === activeChurchId ? practicePath(now.songId) : '/practice'
 }

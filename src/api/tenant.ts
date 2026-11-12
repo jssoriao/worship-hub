@@ -6,7 +6,7 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { ID_PATTERN } from '../shared/ids.ts'
+import { isId } from '../shared/ids.ts'
 import { can, type Request as Permission, type Role } from '../shared/permissions.ts'
 import { memberRole, songBelongs, type Db, type Memo } from './data.ts'
 import type { Bindings } from './env.ts'
@@ -74,7 +74,7 @@ export const need = (permission: Permission) =>
 export const songOwned = createMiddleware<AppEnv>(async (c, next) => {
   const songId = c.req.param('songId')
   const { db, memo } = c.get('deps')
-  if (!songId || !ID_PATTERN.test(songId) || !(await songBelongs(db, c.get('tenant').orgId, songId, memo))) return fail(c, 404, 'not found')
+  if (!isId('song', songId) || !(await songBelongs(db, c.get('tenant').orgId, songId, memo))) return fail(c, 404, 'not found')
   await next()
 })
 /** Paths of the Better Auth organization plugin the app uses. The plugin has more (create, invite, ...) which stay closed. */

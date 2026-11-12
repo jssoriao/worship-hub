@@ -59,7 +59,7 @@ try {
       // Better Auth looks people up by email; emailVerified is true because only invited people exist here
       const [user] = await tx
         .insert(users)
-        .values({ id: crypto.randomUUID(), name, email, emailVerified: true })
+        .values({ name, email, emailVerified: true })
         .onConflictDoUpdate({ target: users.email, set: { updatedAt: sql`now()` } })
         .returning({ id: users.id })
       const changed = await tx
@@ -67,7 +67,7 @@ try {
         .set({ role })
         .where(and(eq(members.organizationId, church.id), eq(members.userId, user.id)))
         .returning({ id: members.id })
-      if (changed.length === 0) await tx.insert(members).values({ id: crypto.randomUUID(), organizationId: church.id, userId: user.id, role })
+      if (changed.length === 0) await tx.insert(members).values({ organizationId: church.id, userId: user.id, role })
       return changed.length > 0
     })
     console.log(`${updated ? 'Updated' : 'Added'} ${email} in ${church.slug} as ${role}.`)

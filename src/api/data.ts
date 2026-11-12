@@ -7,7 +7,6 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { accounts, arrangements, members, sessions, songs, users } from '../db/schema/index.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
-import { newId } from '../shared/ids.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
 
 export type { Db }
@@ -99,12 +98,12 @@ export async function addMember(db: Db, orgId: string, email: string, name: stri
     // Better Auth looks people up by email; emailVerified is true because only invited people exist here
     const [user] = await tx
       .insert(users)
-      .values({ id: crypto.randomUUID(), name, email, emailVerified: true })
+      .values({ name, email, emailVerified: true })
       .onConflictDoUpdate({ target: users.email, set: { updatedAt: sql`now()` } })
       .returning({ id: users.id })
     const [member] = await tx
       .insert(members)
-      .values({ id: crypto.randomUUID(), organizationId: orgId, userId: user.id, role })
+      .values({ organizationId: orgId, userId: user.id, role })
       .onConflictDoNothing({ target: [members.organizationId, members.userId] })
       .returning({ id: members.id })
     return member?.id ?? null
@@ -203,30 +202,25 @@ export async function getSong(db: Db, orgId: string, songId: string): Promise<So
 
 /** 'exists' when the church already has a song with that title. */
 export async function createSong(db: Db, orgId: string, userId: string | null, title: string, extra: Partial<Omit<SongRow, 'id' | 'title'>> = {}): Promise<SongRow | 'exists'> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      const [row] = await db
-        .insert(songs)
-        .values({
-          id: newId(),
-          organizationId: orgId,
-          title,
-          artist: extra.artist ?? null,
-          musicKey: extra.key ?? null,
-          bpm: extra.bpm ?? null,
-          meter: extra.meter ?? null,
-          hasStems: extra.stems ?? false,
-          createdBy: userId,
-        })
-        .returning(songColumns)
-      return row
-    } catch (error) {
-      if (isUniqueViolation(error, 'songs_pkey')) continue // id clash: draw another
-      if (isUniqueViolation(error)) return 'exists'
-      throw error
-    }
+  try {
+    const [row] = await db
+      .insert(songs)
+      .values({
+        organizationId: orgId,
+        title,
+        artist: extra.artist ?? null,
+        musicKey: extra.key ?? null,
+        bpm: extra.bpm ?? null,
+        meter: extra.meter ?? null,
+        hasStems: extra.stems ?? false,
+        createdBy: userId,
+      })
+      .returning(songColumns)
+    return row
+  } catch (error) {
+    if (isUniqueViolation(error)) return 'exists'
+    throw error
   }
-  throw new Error('could not find a free song id')
 }
 
 export type SongPatch = Partial<Pick<SongRow, 'title' | 'artist' | 'key' | 'bpm' | 'meter' | 'stems'>>

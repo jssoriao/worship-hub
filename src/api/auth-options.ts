@@ -11,6 +11,13 @@ import { emailOTP, organization } from 'better-auth/plugins'
 import type { Db } from '../db/client.ts'
 import * as schema from '../db/schema/index.ts'
 import { ac, roles } from '../shared/permissions.ts'
+import { ID_PREFIX, newId, type IdKind } from '../shared/ids.ts'
+
+/** The id kind of a Better Auth model; a model without one (a new plugin table) needs a prefix in ID_PREFIX first. */
+function idKindOf(model: string): IdKind {
+  if (Object.hasOwn(ID_PREFIX, model)) return model as IdKind
+  throw new Error(`No id prefix for the Better Auth model "${model}": add one to ID_PREFIX in src/shared/ids.ts`)
+}
 
 export const CODE_MINUTES = 10
 
@@ -87,8 +94,12 @@ export function authOptions(deps: AuthDeps) {
       cookiePrefix: 'worship-hub',
       useSecureCookies: deps.baseURL.startsWith('https://'),
       ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] },
-      // A fresh auth instance per isolate would otherwise re-inspect the schema on every request
-      database: { validateSchema: false },
+      database: {
+        // A fresh auth instance per isolate would otherwise re-inspect the schema on every request
+        validateSchema: false,
+        // every id is `<prefix>_<24 chars>` (src/shared/ids.ts), the same as the app's own tables
+        generateId: ({ model }: { model: string }) => newId(idKindOf(model)),
+      },
       backgroundTasks: { handler: deps.background },
     },
 

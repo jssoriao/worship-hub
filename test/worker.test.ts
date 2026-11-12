@@ -8,10 +8,10 @@ import { FakeR2 } from './fake-r2.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
 // ids are 12 chars of [a-z0-9]
-const A = 'churchaaaaaa'
-const B = 'churchbbbbbb'
-const SONG_A = 'songaaaaaaaa'
-const SONG_B = 'songbbbbbbbb'
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const B = 'org_bbbbbbbbbbbbbbbbbbbbbbbb'
+const SONG_A = 'song_aaaaaaaaaaaaaaaaaaaaaaaa'
+const SONG_B = 'song_bbbbbbbbbbbbbbbbbbbbbbbb'
 
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
@@ -48,7 +48,7 @@ describe('keys', () => {
     for (const bad of [['..', 'x'], ['.'], [''], ['a/b'], ['a\\b'], ['x\0']]) expect(songKey(A, SONG_A, bad)).toBeNull()
     expect(songKey('short', SONG_A, ['x'])).toBeNull()
     expect(songKey(A, '../other', ['x'])).toBeNull()
-    expect(songPrefix(A, 'UPPERCASE123')).toBeNull()
+    expect(songPrefix(A, 'song_'+'A'.repeat(24))).toBeNull()
   })
   it('parses paths and rejects traversal', () => {
     expect(parseSongPath('/songs/index.json')).toEqual({ kind: 'index' })
@@ -115,12 +115,12 @@ describe('tenancy: church A cannot touch church B song', () => {
   })
   it('arrangements of A are invisible to B', async () => {
     const body = JSON.stringify({ name: 'mine', sections: [], blocks: [] })
-    expect((await call(`/songs/${SONG_A}/arrangements/arr123456.json`, asA('member'), { method: 'PUT', body })).status).toBe(200)
-    expect((await call(`/songs/${SONG_A}/arrangements/arr123456.json`, asBob)).status).toBe(404)
+    expect((await call(`/songs/${SONG_A}/arrangements/arr_111111111111111111111111.json`, asA('member'), { method: 'PUT', body })).status).toBe(200)
+    expect((await call(`/songs/${SONG_A}/arrangements/arr_111111111111111111111111.json`, asBob)).status).toBe(404)
     // B cannot overwrite A's arrangement id by saving to its own song
-    const res = await call(`/songs/${SONG_B}/arrangements/arr123456.json`, asBob, { method: 'PUT', body })
+    const res = await call(`/songs/${SONG_B}/arrangements/arr_111111111111111111111111.json`, asBob, { method: 'PUT', body })
     expect([404, 403, 200]).toContain(res.status)
-    const { rows } = await pg.query<{ songId: string; owner: string }>('select song_id as "songId", owner_id as owner from arrangements where id = $1', ['arr123456'])
+    const { rows } = await pg.query<{ songId: string; owner: string }>('select song_id as "songId", owner_id as owner from arrangements where id = $1', ['arr_111111111111111111111111'])
     expect(rows).toEqual([{ songId: SONG_A, owner: 'member-a' }])
   })
 })
@@ -146,7 +146,7 @@ describe('permissions per route', () => {
     const res = await post('/songs/new', asA('admin'), { title: 'New' })
     expect(res.status).toBe(201)
     const song = (await res.json()) as { id: string; stems: boolean }
-    expect(song.id).toMatch(/^[a-z0-9]{12}$/)
+    expect(song.id).toMatch(/^song_[0-9a-z]{24}$/)
     expect(song.stems).toBe(false)
     expect((await post('/songs/new', asA('owner'), { title: 'New' })).status).toBe(409)
   })
@@ -170,7 +170,7 @@ describe('permissions per route', () => {
   })
   it('arrangements: members make their own; only the owner or a manager changes them', async () => {
     const body = JSON.stringify({ name: 'Sunday', sections: [], blocks: [] })
-    const url = `/songs/${SONG_A}/arrangements/sunday01.json`
+    const url = `/songs/${SONG_A}/arrangements/arr_ssssssssssssssssssssssss.json`
     expect((await call(url, asA('member'), { method: 'PUT', body })).status).toBe(200)
     // another member (a second member user)
     await seedUser(pg, 'member2-a')

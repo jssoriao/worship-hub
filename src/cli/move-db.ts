@@ -10,9 +10,16 @@
  * its migrations applied and be empty, unless --replace (which empties it first). Everything is written
  * in one transaction, then every table's row count is compared. Sign-in codes and rate-limit counters
  * are not copied (they expire within minutes); sessions are, so people stay signed in.
+ *
+ * Every row gets a new id (`<prefix>_<24 chars>`, src/shared/ids.ts) and every reference to it is
+ * rewritten; ids already in that form are kept. The old -> new ids of churches and songs (whose ids
+ * are in R2 keys) go to .id-map.<target>.json for `pnpm r2:rekey`. Session tokens are kept, so people
+ * stay signed in (the 5 minute cookie cache may hold the old ids until it refreshes).
  */
 import { Client, neonConfig } from '@neondatabase/serverless'
 import { loadTarget, splitTarget } from './lib/env.ts'
+import { writeFileSync } from 'node:fs'
+import { isId, newId, type IdKind } from '../shared/ids.ts'
 import { parseArgs } from './lib/cli.ts'
 
 const { target, rest } = splitTarget(process.argv.slice(2))
@@ -35,6 +42,25 @@ const TABLES: [string, string][] = [
   ['song', 'songs'],
   ['arrangement', 'arrangements'],
 ]
+/** The id kind of each old table, and which old columns point at which kind. */
+const KIND: Record<string, IdKind> = { user: 'user', organization: 'organization', account: 'account', session: 'session', member: 'member', invitation: 'invitation', song: 'song', arrangement: 'arrangement' }
+const REFS: Record<string, Record<string, IdKind>> = {
+  account: { userId: 'user', accountId: 'user' },
+  session: { userId: 'user', activeOrganizationId: 'organization' },
+  member: { organizationId: 'organization', userId: 'user' },
+  invitation: { organizationId: 'organization', inviterId: 'user' },
+  song: { organizationId: 'organization', createdBy: 'user' },
+  arrangement: { songId: 'song', owner: 'user' },
+}
+/** old id -> new id, per kind */
+const ids: Partial<Record<IdKind, Map<string, string>>> = {}
+const mapOf = (kind: IdKind) => (ids[kind] ??= new Map())
+/** The new id for an old one: kept when it is in the new form already. */
+const renew = (kind: IdKind, old: string) => {
+  const map = mapOf(kind)
+  if (!map.has(old)) map.set(old, isId(kind, old) ? old : newId(kind))
+  return map.get(old)!
+}
 /** Columns whose new name is not just snake_case of the old one. */
 const RENAMED: Record<string, Record<string, string>> = { arrangement: { owner: 'owner_id' } }
 const snake = (name: string) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
@@ -79,6 +105,18 @@ try {
       else fail(`${fromTable}.${c} has no place in ${to} (looked for ${mapped}); nothing was written`)
     }
     const { rows } = await source.query<Record<string, unknown>>(`select * from "${fromTable}"`)
+    for (const row of rows) {
+      row.id = renew(KIND[fromTable], String(row.id))
+      for (const [column, kind] of Object.entries(REFS[fromTable] ?? {})) {
+        const old = row[column]
+        if (typeof old !== 'string') continue
+        // account_id is the user's id for email sign-in, something else for other providers
+        if (column === 'accountId' && !mapOf('user').has(old)) continue
+        const mapped = mapOf(kind).get(old)
+        // a reference to a row that does not exist (no foreign key, as for the active church) is cleared
+        row[column] = mapped ?? (column === 'activeOrganizationId' ? null : fail(`${fromTable}.${column} points at ${kind} ${old}, which is not in the old database`))
+      }
+    }
     plan.push({ from: fromTable, to, columns, rows })
   }
   await source.query('commit')
@@ -109,7 +147,11 @@ try {
     console.log(`  ${f} -> ${to}: ${rows.length} row(s) copied, ${n} in the new database${same ? '' : '  <-- MISMATCH'}`)
   }
   if (!ok) fail('Row counts differ. The old database is untouched; run again with --replace after fixing the cause.')
+  const mapFile = `.id-map.${target}.json`
+  const asObject = (kind: IdKind) => Object.fromEntries([...mapOf(kind)].filter(([a, b]) => a !== b))
+  writeFileSync(mapFile, JSON.stringify({ organization: asObject('organization'), song: asObject('song') }, null, 1) + '\n')
   console.log(`Copied ${from} into ${new URL(newUrl).pathname.slice(1)} (${target}). The old database was only read.`)
+  console.log(`New ids of churches and songs: ${mapFile} (next: pnpm r2:rekey${target === 'prod' ? ' --target prod' : ''})`)
 } finally {
   await source.end().catch(() => {})
   await dest.end().catch(() => {})

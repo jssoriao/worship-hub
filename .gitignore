@@ -30,6 +30,8 @@ packs/
 .playwright-mcp/
 # what `pnpm songs:publish` has already uploaded, so it never uploads the same file twice
 .publish-state.json
+# old -> new ids from pnpm db:move (one-off, for pnpm r2:rekey)
+.id-map.*.json
 .env.local
 .dev.vars*
 !.dev.vars.example
