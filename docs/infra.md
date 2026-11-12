@@ -16,7 +16,7 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 | R2 bucket `worship-hub` (private; every church's files under `churches/<churchId>/songs/<songId>/`) | Cloudflare R2 | `pnpm exec wrangler r2 bucket create worship-hub` | Empty it, then `pnpm exec wrangler r2 bucket delete worship-hub` |
 | Neon project `worship-hub` (branch `production`), database `neondb` (production: people, churches, members, sessions, songs, arrangements). URLs in `.prod.vars` (gitignored): `DATABASE_OWNER_URL` (owner) and `DATABASE_URL` (app role, also the Worker secret) | Neon, standalone account | Dashboard: create project, copy the owner's pooled connection string; then `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod` | Dashboard: delete project |
 | Postgres role `worship_hub_worker` on each branch: the app's login, data access only (select/insert/update/delete on the app's tables, also on tables added later; no DDL, no create database/role) | Neon (SQL, not the console: console roles join `neon_superuser`, which the owner cannot remove) | `pnpm db:app-role [--target prod]` (also rotates the password); for prod then `pnpm exec wrangler secret put DATABASE_URL` | `drop owned by worship_hub_worker; drop role worship_hub_worker;` as the owner (after pointing the Worker elsewhere) |
-| Neon branch `development` of project `worship-hub` (child of `production`, database `neondb`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; then `pnpm db:migrate` | Dashboard > Branches > `development` > Delete |
+| Neon branch `development` of project `worship-hub` (child of `production`, database `worship_hub`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; create database `worship_hub` (Dashboard > Databases, owner `neondb_owner`), then `pnpm db:migrate` and `pnpm db:app-role` | Dashboard > Branches > `development` > Delete |
 | Resend domain `mail.jssoriao.dev` + API key | Resend, DNS records in Cloudflare | Dashboard: Domains > Add domain, add the records it lists in Cloudflare DNS | Dashboard: delete domain and key, remove the DNS records |
 | Budget alert | Cloudflare dashboard: Billing, Billable usage | Dashboard: Add Budget Alert | Dashboard |
 
@@ -32,8 +32,9 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
 
 ### Databases: dev and prod
 
-- `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (both database `neondb`,
-  pooled URLs, gitignored, in the main repo and in each worktree). Each has two logins:
+- `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (database `worship_hub`;
+  production still uses `neondb` until the stack cutover, #21), pooled URLs, gitignored, in the main repo and in
+  each worktree. Each has two logins:
   - `DATABASE_URL`: the app role `worship_hub_worker` (data only). The Worker uses it, locally (`pnpm dev:api`)
     and deployed (as its secret), so local runs have exactly production's rights.
   - `DATABASE_OWNER_URL`: the owner `neondb_owner`. Only scripts use it (`db:migrate`, `members`, `churches`,
@@ -116,6 +117,9 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
   The one-off migration code was removed once it had run.
 - 2026-11-12: development moved from a second database (`neondb_dev`) on the production branch to its own
   Neon branch `development`; `neondb_dev` was dropped.
+- 2026-11-12: development moved to a new database `worship_hub` (Drizzle migrations, plural snake_case
+  tables): created, `pnpm db:migrate`, `pnpm db:app-role --keep-password`, then `pnpm db:move --from neondb`
+  copied the data. The development branch's old `neondb` stays until the production cutover.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
   name: Worker `worship-hub`, bucket `worship-hub` (copied inside Cloudflare by a temporary Worker; the old bucket and that Worker were then deleted), address
   `worshiphub.jssoriao.dev`. The previous address redirects (`src/redirect/`).

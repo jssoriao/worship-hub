@@ -39,8 +39,9 @@ try {
         slug: organizations.slug,
         name: organizations.name,
         id: organizations.id,
-        members: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${organizations.id})::int`,
-        songs: sql<number>`(select count(*) from ${songs} where ${songs.organizationId} = ${organizations.id})::int`,
+        // Drizzle renders single-table columns unqualified, so "id" would bind to the subquery's table: qualify by hand
+        members: sql<number>`(select count(*) from ${members} m where m.organization_id = "organizations"."id")::int`,
+        songs: sql<number>`(select count(*) from ${songs} s where s.organization_id = "organizations"."id")::int`,
       })
       .from(organizations)
       .orderBy(asc(organizations.createdAt))
