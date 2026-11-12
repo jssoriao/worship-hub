@@ -65,7 +65,8 @@ pnpm cf:deploy:redirect              # the redirect Worker for the previous addr
 pnpm churches list [--target prod]
 pnpm churches add <slug> <name> [--owner <email>] [--target prod]
 pnpm churches rename <slug> <name>
-pnpm churches delete <slug> --confirm <slug> [--target prod]   # its songs, arrangements and member links; with prod also its R2 files
+pnpm churches delete <slug> [--target prod]                    # dry run: what would go (members, songs, arrangements, sessions, R2 files)
+pnpm churches delete <slug> --confirm <slug> [--target prod]   # R2 files first (prod only), checked gone, then the rows in one transaction; rerun if it stops
 
 # people
 pnpm members list [--church <slug>]
