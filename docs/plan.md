@@ -77,7 +77,7 @@ How the data got here from the single-church layout: docs/infra.md, History.
 
 1. Host the PWA and stems (R2 + Worker), custom domain. Done and live. Real-phone testing: iPhone Safari partly checked; Android not yet.
 2. Auth: Better Auth + Neon + Resend, gate song routes, seed members. Done and live.
-3. CI (not started): GitHub Actions run checks on PRs (`pnpm build`, `pnpm lint`, `pnpm test`), and on `main` run `pnpm db:migrate --target prod` then deploy.
+3. CI: checks on PRs (`pnpm lint`, `pnpm build`, `pnpm test`) are live. Deploy on `main` (`.github/workflows/deploy.yml`): checks, `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`, rollback if the smoke test fails. See docs/infra.md, Deploy.
 3b. Multi-tenancy (churches, songs in Neon, id based R2 layout) and church-neutral names. Done and live (2026-11-12).
 4. Admin: member management page, then song upload (presigned PUT to R2, peaks precomputed).
 5. Church features: chord and lyric charts (done: ChordPro charts, Music.AI analysis with in-app editing); services, lineups, volunteer assignments (not started).

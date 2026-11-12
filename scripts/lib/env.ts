@@ -44,14 +44,18 @@ export function parseVars(text: string): Record<string, string> {
   return out
 }
 
-/** Loads the variables for a target into process.env (overriding what is there) and returns DATABASE_OWNER_URL. */
+/**
+ * Loads the variables for a target into process.env (overriding what is there) and returns DATABASE_OWNER_URL.
+ * Without the file, DATABASE_OWNER_URL must already be in the environment (how CI runs `--target prod`).
+ */
 export function loadTarget(target: Target): string {
   const file = target === 'prod' ? '.prod.vars' : '.dev.vars'
   let vars: Record<string, string> = {}
   try {
     vars = parseVars(readFileSync(file, 'utf8'))
   } catch {
-    if (!process.env.DATABASE_OWNER_URL || target === 'prod') {
+    // no file: CI (the deploy workflow) passes DATABASE_OWNER_URL in the environment instead
+    if (!process.env.DATABASE_OWNER_URL) {
       console.error(`${file} not found. See .dev.vars.example and docs/infra.md.`)
       process.exit(1)
     }
