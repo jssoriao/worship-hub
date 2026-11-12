@@ -4,10 +4,11 @@ import { NavBar } from './components/NavBar'
 import ArrangePage from './pages/ArrangePage'
 import ChartsPage from './pages/ChartsPage'
 import HomePage from './pages/HomePage'
+import MembersPage from './pages/MembersPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 
-const TITLES: Record<string, string> = { '/': 'Worship Hub', '/practice': 'Practice', '/charts': 'Charts', '/arrange': 'Arrange' }
+const TITLES: Record<string, string> = { '/': 'Worship Hub', '/practice': 'Practice', '/charts': 'Charts', '/arrange': 'Arrange', '/members': 'Members' }
 
 /**
  * The shell: the nav bar and the page for the address.
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/charts" element={<ChartsPage />} />
           <Route path="/arrange" element={<ArrangePage />} />
+          <Route path="/members" element={<MembersPage />} />
           {/* shown by the PracticePage above */}
           <Route path="/practice/*" element={null} />
           <Route path="*" element={<NotFoundPage />} />

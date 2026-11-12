@@ -26,9 +26,10 @@ pnpm lint
 
 ## Pages
 
-Nav bar at the top (with a church switcher for someone in several churches). Routes: `/` Home
+Top bar: the app name, then the church you are in (a dropdown for someone in several churches), the
+page links, and on the right your account menu (name, email, role, Sign out). Routes: `/` Home
 ("Playing now" card and links), `/practice` the stem player, `/charts` chord charts, `/arrange` your own
-arrangements. Each takes the song in the address (`?song=<id>`), so a reload or a shared link opens the
+arrangements, `/members` the church's people (admins and owners only, see below). Each takes the song in the address (`?song=<id>`), so a reload or a shared link opens the
 same song; on Practice the address alone chooses the song. The Practice page stays mounted (hidden) on
 other routes, so audio keeps playing while you browse, and the nav bar links back with the open song.
 
@@ -143,6 +144,23 @@ and editors), `owner` (+ church settings, grants admin/owner). The platform supe
 (`user.platformAdmin`) is outside churches and is the only one who runs Music.AI.
 `pnpm churches add <slug> <name>`, `pnpm members add <email> --church <slug> --role <role>`.
 
+### Members (admins and owners)
+
+The **Members** page lists the church's people and lets an admin or owner add someone by email (with a
+role), change a role, or remove them. Added people sign in with the emailed code; nobody signs up
+themselves, and the sign-in still only emails people who are members. The rules are enforced by the
+Worker (`worker/members.ts`, `/api/church/members`), not just hidden in the page:
+
+- An **owner** can give, change and remove any role. An **admin** can only manage members and editors.
+- Nobody can change their own role or remove themselves, so a church always keeps its owner.
+- Removing someone ends their sessions in that church. A person left in no church is deleted, unless
+  they are the platform admin. The change applies within about 30 seconds (the Worker's membership
+  cache) on every server, at once on the one that handled the request.
+- Writes are refused when they come from another origin, and every query is restricted to the
+  church of the signed-in session. A member id from another church answers 404.
+- Adding an email that already has an account in another church links that account; it does not
+  change their name or their other memberships.
+
 ### Key, tempo and click
 
 Put Loop Mastering's `key_analysis.json` and `beat_grid.json` (the `keyAnalysis` and `beatGrid`
@@ -216,7 +234,7 @@ pnpm songs:publish ... --manifest-only    # regroup, or add fingerprints, withou
 pnpm churches list            # churches (tenants)
 pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner
-pnpm members remove a@b.com --church <slug>
+pnpm members remove a@b.com --church <slug>   # the same can be done in the app: Members page (admins and owners)
 pnpm db:migrate               # create/update the auth tables and db/schema.sql (add --target prod for production)
 pnpm db:app-role              # the app's database role (data access only); also rotates its password
 pnpm test                     # vitest

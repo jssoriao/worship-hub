@@ -52,6 +52,76 @@ export function memberRole(db: Db, userId: string, orgId: string, cache: Memo = 
   })
 }
 
+export interface MemberRow {
+  id: string
+  userId: string
+  name: string
+  email: string
+  role: string
+  joined: string
+}
+
+const MEMBER_SELECT = `select m.id, m."userId", u.name, u.email, m.role,
+       to_char(m."createdAt" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as joined
+  from member m join "user" u on u.id = m."userId"`
+
+export async function listMembers(db: Db, orgId: string): Promise<MemberRow[]> {
+  const { rows } = await db.query<MemberRow>(`${MEMBER_SELECT} where m."organizationId" = $1 order by m."createdAt", u.email`, [orgId])
+  return rows
+}
+
+export async function getMember(db: Db, orgId: string, memberId: string): Promise<MemberRow | null> {
+  const { rows } = await db.query<MemberRow>(`${MEMBER_SELECT} where m."organizationId" = $1 and m.id = $2`, [orgId, memberId])
+  return rows[0] ?? null
+}
+
+/**
+ * Adds a person to the church (creating their sign-in record when the email is new). Same effect as
+ * `pnpm members add`. 'exists' when they are already in this church. One statement, so it is all or nothing.
+ */
+export async function addMember(db: Db, orgId: string, email: string, name: string, role: Role): Promise<MemberRow | 'exists'> {
+  const { rows } = await db.query<{ id: string }>(
+    `with u as (
+       insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       values ($1, $2, $3, true, now(), now())
+       on conflict (email) do update set "updatedAt" = now() returning id
+     )
+     insert into member (id, "organizationId", "userId", role, "createdAt")
+     select $4, $5, u.id, $6, now() from u
+      where not exists (select 1 from member x where x."organizationId" = $5 and x."userId" = u.id)
+     returning id`,
+    [crypto.randomUUID(), name, email, crypto.randomUUID(), orgId, role],
+  )
+  if (!rows[0]) return 'exists'
+  return (await getMember(db, orgId, rows[0].id))!
+}
+
+/** null when the church has no such member. */
+export async function setMemberRole(db: Db, orgId: string, memberId: string, role: Role, cache: Memo = memo): Promise<MemberRow | null> {
+  const { rows } = await db.query('update member set role = $3 where "organizationId" = $1 and id = $2 returning id', [orgId, memberId, role])
+  cache.clear()
+  return rows[0] ? getMember(db, orgId, memberId) : null
+}
+
+/**
+ * Takes the person out of the church and ends their sessions there. Someone left in no church (and not
+ * the platform admin) is removed entirely, as `pnpm members remove` does. False when there is no such member.
+ */
+export async function removeMember(db: Db, orgId: string, memberId: string, cache: Memo = memo): Promise<boolean> {
+  const { rows } = await db.query<{ userId: string }>('delete from member where "organizationId" = $1 and id = $2 returning "userId"', [orgId, memberId])
+  cache.clear()
+  const userId = rows[0]?.userId
+  if (!userId) return false
+  await db.query('delete from session where "userId" = $1 and "activeOrganizationId" = $2', [userId, orgId])
+  const left = await db.query('select 1 from member where "userId" = $1', [userId])
+  if (left.rows.length === 0) {
+    await db.query('delete from session where "userId" = $1', [userId])
+    await db.query('delete from account where "userId" = $1', [userId])
+    await db.query('delete from "user" where id = $1 and coalesce("platformAdmin", false) = false', [userId])
+  }
+  return true
+}
+
 // ---------------------------------------------------------------- songs
 
 export interface SongRow {
