@@ -68,7 +68,7 @@ pnpm churches rename <slug> <name>
 pnpm churches delete <slug> [--target prod]                    # dry run: what would go (members, songs, arrangements, sessions, R2 files)
 pnpm churches delete <slug> --confirm <slug> [--target prod]   # R2 files first (prod only), checked gone, then the rows in one transaction; rerun if it stops
 
-# people
+# people (admins and owners can also add, re-role and remove people in the app: Members page, /api/church/members)
 pnpm members list [--church <slug>]
 pnpm members add <email> [name] --church <slug> --role member|editor|admin|owner   # adds, or changes the role
 pnpm members remove <email> --church <slug>    # leaves that church; someone in no church is removed entirely

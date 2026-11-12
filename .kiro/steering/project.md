@@ -45,6 +45,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `pnpm members add <email> [name] --church <slug> --role <role>`, `pnpm members platform-admin`.
   No sign-up and no church creation in the app; the Worker closes every organization endpoint except
   set-active, list, get-active-member(-role) and has-permission.
+- Admins and owners also manage people in the app (`/api/church/members`, `worker/members.ts`): owners any
+  role, admins only member and editor; nobody changes or removes themselves; removal ends the person's
+  sessions in that church and deletes an account left in no church (not the platform admin).
 
 ## Layout
 - `src/lib/bytestream.ts` (`ByteStream`, `download`): a file that arrives over time; consumers
@@ -78,7 +81,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open).
 - `src/config.ts`: `SONGS_BASE_URL` and `AUTH_REQUIRED` (always in prod; `pnpm dev` skips login unless
   `VITE_REQUIRE_AUTH=1`).
-- Pages (react-router): `/` Home, `/practice` (stays mounted/hidden on other routes so audio keeps
+- Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `worker/members.ts`,
+  `src/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
   playing; the nav bar links back with `?song=` of the open song), `/charts`, `/arrange`.
   `src/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
 - Practice player: docked `TransportBar` (song + facts, skip/play/seek, click and view-settings
@@ -95,7 +99,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Editing in Practice (`src/lib/analysis-edit.ts`; a changed word keeps the time of the word it
   replaces); the Worker keeps each replaced version in `analysis/history/`.
 - `src/components/AuthGate.tsx`, `src/lib/auth-client.ts`: login form (email, then 6-digit code),
-  sign-out.
+  sign-out. `src/components/NavBar.tsx` is the top bar (church switcher left, account menu with sign-out
+  right, `AccountMenu.tsx`).
 - Local backend: `pnpm cf:api` (Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
   shared by worktrees) + `pnpm dev:app` (Vite forwarding `/api` and `/songs`, sign-in on; `vite.config.ts`).
   `pnpm songs:publish` without `--target prod` writes the dev database and that local R2 (dev ids; its upload

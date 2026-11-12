@@ -12,6 +12,7 @@ import { withAuth } from './auth.ts'
 import * as data from './data.ts'
 import type { Bindings } from './env.ts'
 import { parseSongPath } from './keys.ts'
+import { isMembersPath, routeMembers } from './members.ts'
 import { routeSongs } from './router.ts'
 import { authPathAllowed } from './tenant.ts'
 
@@ -30,6 +31,11 @@ export default {
       // churches and members are made with the CLI; the plugin's other endpoints stay closed
       if (!authPathAllowed(pathname)) return json({ error: 'not found' }, 404)
       return withAuth(env, ctx, (auth) => auth.handler(request))
+    }
+    if (isMembersPath(pathname)) {
+      return withAuth(env, ctx, (auth, pool) =>
+        routeMembers(request, { api: { getSession: (args) => auth.api.getSession(args) as never } }, pool, data.memo),
+      )
     }
     if (pathname.startsWith('/songs/')) {
       const path = parseSongPath(pathname)

@@ -208,6 +208,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return AUTH_REQUIRED ? <Gate>{children}</Gate> : children
 }
 
+/** For screens outside the app shell (no church yet); inside the app, sign-out is in the account menu. */
 export function SignOutButton() {
   if (!AUTH_REQUIRED) return null
   return (
