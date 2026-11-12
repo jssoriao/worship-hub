@@ -219,7 +219,7 @@ Production serves the same URLs from a private R2 bucket, under `churches/<churc
 | `/songs/<id>/stems/manifest.json` | `{ "title", "stems": [{ "file", "name", "group", "mix" }] }` |
 | `/songs/<id>/stems/<file name>` | audio (Range supported) |
 
-The `<id>` is the song's row id (12 random `[a-z0-9]`), also used in `?song=`. The folder name is the
+The `<id>` is the song's row id (`song_<24 random [0-9a-z]>`); `?song=` shows it without the `song_` prefix. The folder name is the
 song's title and how `songs:publish` finds its row. `mix: true` marks a group's
 combined stem. The manifest is generated from the folders when you publish, so it is the one place
 that declares groups.

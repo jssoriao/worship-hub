@@ -13,12 +13,12 @@ import {
   checkArrangement,
   countIn,
   freshArrangement,
-  newId,
   sectionsFrom,
   splitSection,
   timelineOf,
   type Arrangement,
 } from '../lib/arrangement'
+import { newId } from '../../shared/ids'
 import { songFile } from '../lib/api'
 import { deleteArrangement, listArrangements, loadArrangement, saveArrangement, type ArrangementInfo } from '../lib/arrangements-api'
 import { authClient } from '../lib/auth-client'
@@ -28,6 +28,7 @@ import { StemEngine, SupersededError, type ClickBeat, type StemInfo } from '../l
 import { families } from '../lib/mix'
 import { useNowPlaying } from '../lib/now-playing-context'
 import { fetchLibrary, sourcesFromSong, type LibrarySong, type SongMusic } from '../lib/sources'
+import { songForAddress, songFromAddress } from '../lib/address'
 
 type ClickMode = 'off' | 'count' | 'on'
 
@@ -54,7 +55,7 @@ export default function ArrangePage() {
   const [songId, setSongId] = useState('')
   // the song lives in the address (?song=), so a refresh or a shared link keeps it
   const [params, setParams] = useSearchParams()
-  const wanted = params.get('song') ?? ''
+  const wanted = songFromAddress(params.get('song'))
   const [stems, setStems] = useState<StemInfo[]>([])
   const [music, setMusic] = useState<SongMusic | undefined>(undefined)
   const [arr, setArr] = useState<Arrangement | null>(null)
@@ -110,7 +111,7 @@ export default function ArrangePage() {
   const openSong = async (id: string) => {
     const token = ++loadToken.current
     setSongId(id)
-    if (id !== wanted) setParams({ song: id }, { replace: true })
+    if (id !== wanted) setParams({ song: songForAddress(id) }, { replace: true })
     setError('')
     setStatus('')
     setArr(null)
@@ -237,7 +238,7 @@ export default function ArrangePage() {
     setStatus('Saving…')
     setError('')
     try {
-      const toSave = asNew ? { ...arr, id: newId(), owner: me, name: asNew && readOnly ? `${arr.name} (copy)` : arr.name } : arr
+      const toSave = asNew ? { ...arr, id: newId('arrangement'), owner: me, name: asNew && readOnly ? `${arr.name} (copy)` : arr.name } : arr
       const stored = await saveArrangement(toSave)
       setArr(stored)
       setDirty(false)

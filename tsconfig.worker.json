@@ -26,5 +26,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/api", "src/db", "src/shared"]
+  "include": ["src/api", "src/db", "src/shared", "src/cli/lib/rekey-worker.ts"]
 }

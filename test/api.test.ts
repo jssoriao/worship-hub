@@ -5,8 +5,8 @@ import type { Db } from '../src/db/client.ts'
 import { testApp } from './app.ts'
 import { FakeR2 } from './fake-r2.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
-const A = 'churchaaaaaa'
-const SONG = 'songaaaaaaaa'
+const A = 'org_aaaaaaaaaaaaaaaaaaaaaaaa'
+const SONG = 'song_aaaaaaaaaaaaaaaaaaaaaaaa'
 let db: Db
 let pg: Awaited<ReturnType<typeof freshDb>>['pg']
 let r2: FakeR2

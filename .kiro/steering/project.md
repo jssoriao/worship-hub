@@ -32,8 +32,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `sessions`, `accounts`, `verifications`, `organizations` (church), `members` (person, church, role),
   `invitations`, `rate_limits`; the app's `songs` (per church: title unique per church, artist, key, bpm,
   meter, has_stems) and `arrangements` (per song, owner, `data` jsonb). Better Auth uses its Drizzle adapter
-  (`usePlural`); `test/auth-schema.test.ts` checks the tables match its options. Ids are 12 random `[a-z0-9]`
-  (`src/shared/ids.ts`); `?song=<id>` in the address is the song's id.
+  (`usePlural`); `test/auth-schema.test.ts` checks the tables match its options. Ids are `<prefix>_<24 random [0-9a-z]>` for every table, Better Auth's included (`src/shared/ids.ts`: nanoid; `user_`, `sess_`, `org_`, `mem_`, `song_`, `arr_`, ...; Drizzle `$defaultFn` and Better Auth `generateId`). The address bar shows them without the prefix (`?song=<24 chars>`, `src/web/lib/address.ts`).
 - R2: every file of a song under `churches/<churchId>/songs/<songId>/`: `stems/manifest.json`,
   `stems/<file>` (original), `stems/standard|saver/<file>`, `chart.pro`, `analysis.json`,
   `analysis/history/<time>.json`. URLs are `/songs/<songId>/...`; the church always comes from the

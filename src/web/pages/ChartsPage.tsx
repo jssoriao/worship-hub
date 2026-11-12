@@ -9,7 +9,7 @@ import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
 import { SONGS_BASE_URL } from '../config'
-import { resolveSongParam } from '../lib/address'
+import { resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
 import { call, songFile, songsApi } from '../lib/api'
 import { useChurch } from '../lib/church-context'
 import { activeSection, parseChart } from '../lib/chart'
@@ -25,8 +25,8 @@ export default function ChartsPage() {
   const [library, setLibrary] = useState<LibrarySong[] | null>(null)
   // the picked song lives in the address (?song=), so a refresh or a shared link keeps it
   const [params, setParams] = useSearchParams()
-  const picked = params.get('song') ?? ''
-  const setPicked = (id: string) => setParams(id ? { song: id } : {}, { replace: true })
+  const picked = songFromAddress(params.get('song'))
+  const setPicked = (id: string) => setParams(id ? { song: songForAddress(id) } : {}, { replace: true })
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [follow, setFollow] = useState(true)
   const [editing, setEditing] = useState(false)

@@ -8,10 +8,10 @@
  * session, never from the URL. A key can only be built for ids of the right shape, and <rest> can
  * never climb out of the song's prefix.
  */
-import { ID_PATTERN } from '../shared/ids.ts'
+import { isId } from '../shared/ids.ts'
 
 export function songPrefix(orgId: string, songId: string): string | null {
-  if (!ID_PATTERN.test(orgId) || !ID_PATTERN.test(songId)) return null
+  if (!isId('organization', orgId) || !isId('song', songId)) return null
   return `churches/${orgId}/songs/${songId}/`
 }
 
@@ -49,6 +49,6 @@ export function parseSongPath(pathname: string): SongPath | null {
     segments.push(value)
   }
   const [songId, ...rest] = segments
-  if (!songId || !ID_PATTERN.test(songId)) return null
+  if (!songId || !isId('song', songId)) return null
   return { kind: 'song', songId, rest, trailingSlash }
 }

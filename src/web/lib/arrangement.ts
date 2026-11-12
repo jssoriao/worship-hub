@@ -4,6 +4,7 @@
 import type { ClickBeat, TimelineSegment } from './engine'
 import type { ChartSection } from './chart'
 import type { SongMusic } from './sources'
+import { newId } from '../../shared/ids'
 
 export interface ArrSection {
   id: string
@@ -32,12 +33,11 @@ export interface Arrangement {
   countIn: number
 }
 
-/** A short random id for URLs and keys. */
-export function newId(): string {
+/** A short random id for a section or block inside one arrangement (not a database id). */
+export function partId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(9))
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_')
 }
-export const ID = /^[A-Za-z0-9_-]{6,32}$/
 
 /** The downbeat nearest to `t` (seconds), or `t` when the song has no beat grid. */
 export function snapToBar(t: number, music: SongMusic | undefined): number {
@@ -61,7 +61,7 @@ export function sectionsFrom(chartSections: ChartSection[] | null, music: SongMu
     .sort((a, b) => a.start - b.start)
     // two cues that snap to the same bar: keep the first
     .filter((s, i, all) => i === 0 || s.start > all[i - 1].start + 0.05)
-  if (cued.length === 0) return [{ id: newId(), label: 'Whole song', start: 0, end: duration }]
+  if (cued.length === 0) return [{ id: partId(), label: 'Whole song', start: 0, end: duration }]
   // anything before the first cue is its own section
   if (cued[0].start > 0.5) cued.unshift({ label: 'Start', start: 0 })
   else cued[0].start = 0
@@ -71,20 +71,20 @@ export function sectionsFrom(chartSections: ChartSection[] | null, music: SongMu
     const n = (seen.get(s.label) ?? 0) + 1
     seen.set(s.label, n)
     const label = n > 1 ? `${s.label} ${n}` : s.label
-    return { id: newId(), label, start: s.start, end: i + 1 < cued.length ? cued[i + 1].start : duration }
+    return { id: partId(), label, start: s.start, end: i + 1 < cued.length ? cued[i + 1].start : duration }
   })
 }
 
 /** A new arrangement: every section once, in the recording's order. */
 export function freshArrangement(song: string, owner: string, sections: ArrSection[]): Arrangement {
   return {
-    id: newId(),
+    id: newId('arrangement'),
     song,
     name: 'My arrangement',
     owner,
     updated: new Date().toISOString(),
     sections,
-    blocks: sections.map((s) => ({ id: newId(), section: s.id, muted: [] })),
+    blocks: sections.map((s) => ({ id: partId(), section: s.id, muted: [] })),
     countIn: 1,
   }
 }
@@ -95,11 +95,11 @@ export function splitSection(arr: Arrangement, id: string, t: number, music: Son
   if (!s) return arr
   const at = snapToBar(t, music)
   if (at <= s.start + 0.5 || at >= s.end - 0.5) return arr
-  const second: ArrSection = { id: newId(), label: `${s.label} (b)`, start: at, end: s.end }
+  const second: ArrSection = { id: partId(), label: `${s.label} (b)`, start: at, end: s.end }
   return {
     ...arr,
     sections: arr.sections.flatMap((x) => (x.id === id ? [{ ...x, end: at }, second] : [x])),
-    blocks: arr.blocks.flatMap((b) => (b.section === id ? [b, { id: newId(), section: second.id, muted: [...b.muted] }] : [b])),
+    blocks: arr.blocks.flatMap((b) => (b.section === id ? [b, { id: partId(), section: second.id, muted: [...b.muted] }] : [b])),
   }
 }
 

@@ -4,13 +4,14 @@
  */
 import { boolean, index, jsonb, numeric, pgTable, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { organizations, users } from './auth.ts'
+import { pk } from './ids.ts'
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
 
 export const songs = pgTable(
   'songs',
   {
-    id: text('id').primaryKey(),
+    id: pk('song'),
     organizationId: text('organization_id')
       .notNull()
       .references(() => organizations.id, { onDelete: 'cascade' }),
@@ -31,7 +32,7 @@ export const songs = pgTable(
 export const arrangements = pgTable(
   'arrangements',
   {
-    id: text('id').primaryKey(),
+    id: pk('arrangement'),
     songId: text('song_id')
       .notNull()
       .references(() => songs.id, { onDelete: 'cascade' }),
