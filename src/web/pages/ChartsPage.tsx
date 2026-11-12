@@ -1,4 +1,9 @@
+import { PlusIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Link, useSearchParams } from 'react-router'
 import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
@@ -149,39 +154,38 @@ export default function ChartsPage() {
         <div className={adding ? 'w-full' : ''}>
           {adding ? (
             <form onSubmit={(e) => void addSong(e)} className="flex flex-wrap items-center gap-2">
-              <label className="sr-only" htmlFor="new-song">
+              <Label className="sr-only" htmlFor="new-song">
                 Song title
-              </label>
-              <input
+              </Label>
+              <Input
                 id="new-song"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="Song title"
                 maxLength={120}
                 autoFocus
-                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                className="w-auto flex-1"
               />
-              <button type="submit" disabled={newTitle.trim() === ''} className="rounded-full border border-teal-400/70 px-4 py-1.5 text-sm text-teal-200 outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50">
+              <Button type="submit" disabled={newTitle.trim() === ''}>
                 Add
-              </button>
-              <button type="button" onClick={() => { setAdding(false); setAddError('') }} className="rounded-full border border-slate-700 px-4 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400">
+              </Button>
+              <Button variant="outline" onClick={() => { setAdding(false); setAddError('') }}>
                 Cancel
-              </button>
+              </Button>
               {addError && <p role="alert" className="w-full text-sm text-red-300">{addError}</p>}
             </form>
           ) : (
-            <button type="button" onClick={() => setAdding(true)} className="rounded-full border border-slate-700 px-4 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400">
-              + New song
-            </button>
+            <Button variant="outline" onClick={() => setAdding(true)}>
+              <PlusIcon aria-hidden="true" />
+              New song
+            </Button>
           )}
         </div>
       )}
       </div>
 
       {unknownSong && (
-        <p role="alert" className="mt-4 rounded-lg bg-slate-900 p-3 text-sm text-slate-300">
-          That song is not in this church.
-        </p>
+        <Alert className="mt-4">That song is not in this church.</Alert>
       )}
       {songId === '' && (
         <Empty>
@@ -191,7 +195,7 @@ export default function ChartsPage() {
           </Link>
         </Empty>
       )}
-      {songId !== '' && loaded?.id !== songId && <p className="mt-6 text-sm text-slate-400">Loading…</p>}
+      {songId !== '' && loaded?.id !== songId && <p className="mt-6 text-sm text-muted-foreground">Loading…</p>}
       {loaded?.id === songId && loaded.error !== '' && <Empty>Could not load the chart ({loaded.error}).</Empty>}
       {loaded?.id === songId && loaded.error === '' && text === null && !editing && (
         <Empty>
@@ -199,9 +203,9 @@ export default function ChartsPage() {
           {mayEdit && (
             <>
               {' '}
-              <button type="button" onClick={() => setEditing(true)} className="underline underline-offset-2">
+              <Button variant="link" className="h-auto p-0 text-highlight" onClick={() => setEditing(true)}>
                 Create one
-              </button>
+              </Button>
             </>
           )}
         </Empty>
@@ -228,13 +232,9 @@ export default function ChartsPage() {
             playing={playing}
             actions={
               mayEdit && (
-                <button
-                  type="button"
-                  onClick={() => setEditing(true)}
-                  className="rounded-full border border-slate-700 px-3 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400"
-                >
+                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
                   Edit
-                </button>
+                </Button>
               )
             }
           />
@@ -245,5 +245,5 @@ export default function ChartsPage() {
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="mt-6 rounded-2xl border border-dashed border-slate-700 p-6 text-center text-sm text-slate-400">{children}</p>
+  return <p className="mt-6 rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">{children}</p>
 }

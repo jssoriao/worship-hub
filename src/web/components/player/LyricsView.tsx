@@ -94,20 +94,20 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
     rowRefs.current[activeRow]?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
   }, [activeRow, follow])
 
-  if (analysis.lines.length === 0) return <p className="mt-6 text-center text-sm text-slate-400">No lyrics for this song.</p>
+  if (analysis.lines.length === 0) return <p className="mt-6 text-center text-sm text-muted-foreground">No lyrics for this song.</p>
 
   return (
     <div className="mx-auto mt-3 max-w-4xl space-y-1 pb-32">
       {rows.map((r, i) => {
         if (r.kind === 'section')
           return (
-            <h3 key={i} className="pt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <h3 key={i} className="pt-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               {r.label}
             </h3>
           )
         if (r.kind === 'chords')
           return (
-            <button key={i} type="button" onClick={() => onSeek(r.t)} className="flex flex-wrap gap-x-4 text-left text-sm font-semibold text-teal-300/80 outline-none hover:text-teal-200 focus-visible:ring-2 focus-visible:ring-teal-400">
+            <button key={i} type="button" onClick={() => onSeek(r.t)} className="flex flex-wrap gap-x-4 text-left text-sm font-semibold text-highlight/80 outline-none hover:text-teal-200 focus-visible:ring-2 focus-visible:ring-ring">
               {r.chords.map((c, k) => (
                 <span key={k}>{c}</span>
               ))}
@@ -126,13 +126,13 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
             onClick={() => (editing ? setOpen(r.index) : onSeek(r.t))}
             aria-label={editing ? `Edit line: ${text}` : undefined}
             aria-current={current ? 'true' : undefined}
-            className={`flex w-full flex-wrap gap-x-[0.35em] py-1 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 ${current ? 'text-white' : past ? 'text-slate-500' : 'text-slate-400'}`}
+            className={`flex w-full flex-wrap gap-x-[0.35em] py-1 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${current ? 'text-white' : past ? 'text-muted-foreground' : 'text-muted-foreground'}`}
           >
             {r.tokens.map((tk, k) => {
               const sung = current && position >= tk.t
               return (
                 <span key={k} className="inline-flex flex-col">
-                  <span className={`h-5 whitespace-nowrap pr-1 text-sm font-semibold leading-5 lg:h-6 lg:text-base lg:leading-6 ${current ? 'text-teal-300' : 'text-teal-400/60'}`}>{tk.chords.join(' ')}</span>
+                  <span className={`h-5 whitespace-nowrap pr-1 text-sm font-semibold leading-5 lg:h-6 lg:text-base lg:leading-6 ${current ? 'text-highlight' : 'text-teal-400/60'}`}>{tk.chords.join(' ')}</span>
                   <span className={`text-xl leading-snug sm:text-2xl lg:text-3xl ${sung ? 'text-teal-100' : ''}`}>{tk.w}</span>
                 </span>
               )

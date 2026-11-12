@@ -1,4 +1,4 @@
-import { Select } from './Select'
+import { NativeSelect } from '@/components/ui/native-select'
 import { useEffect, useRef, useState } from 'react'
 import { keyName, shiftKey, type Key } from '../lib/chords'
 import { SCALES, type SongSettings, type ViewSettings } from '../lib/chart-view'
@@ -17,14 +17,14 @@ const row = 'flex items-center justify-between gap-3 px-3 py-2'
 
 function Segmented<T extends string | number | boolean>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
-    <div role="group" aria-label={label} className="flex rounded-lg border border-slate-700 p-0.5">
+    <div role="group" aria-label={label} className="flex rounded-lg border border-input p-0.5">
       {options.map(([v, text]) => (
         <button
           key={String(v)}
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`rounded-md px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${value === v ? 'bg-teal-600 text-white' : 'text-slate-300'}`}
+          className={`rounded-md px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === v ? 'bg-primary text-white' : 'text-slate-300'}`}
         >
           {text}
         </button>
@@ -74,32 +74,32 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
         aria-expanded={open}
         aria-haspopup="true"
         onClick={() => setOpen((o) => !o)}
-        className="rounded-full border border-slate-700 px-3 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400"
+        className="rounded-full border border-input px-3 py-1.5 text-sm outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring"
       >
         View
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-72 divide-y divide-slate-800 rounded-xl border border-slate-700 bg-slate-900 text-sm shadow-xl shadow-black/50">
+        <div className="absolute right-0 top-full z-50 mt-1 w-72 divide-y divide-border rounded-xl border border-input bg-card text-sm shadow-xl shadow-black/50">
           <label className={row}>
             <span>Key</span>
-            <Select value={song.transpose} onChange={(e) => onSong({ ...song, transpose: Number(e.target.value) })}>
+            <NativeSelect value={song.transpose} onChange={(e) => onSong({ ...song, transpose: Number(e.target.value) })}>
               {shifts.map((n) => (
                 <option key={n} value={n}>
                   {label(n)}
                   {n === 0 ? ' (original)' : ''}
                 </option>
               ))}
-            </Select>
+            </NativeSelect>
           </label>
           <label className={row}>
             <span>Capo</span>
-            <Select value={song.capo} onChange={(e) => onSong({ ...song, capo: Number(e.target.value) })}>
+            <NativeSelect value={song.capo} onChange={(e) => onSong({ ...song, capo: Number(e.target.value) })}>
               {Array.from({ length: 8 }, (_, c) => (
                 <option key={c} value={c}>
                   {c === 0 ? 'None' : original ? `${c} (${keyName(shiftKey(original, song.transpose - c))} shapes)` : String(c)}
                 </option>
               ))}
-            </Select>
+            </NativeSelect>
           </label>
           <div className={row}>
             <span>Chords</span>
@@ -122,17 +122,17 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
                 aria-label="Smaller text"
                 disabled={smaller === undefined}
                 onClick={() => smaller !== undefined && onView({ ...view, scale: smaller })}
-                className="h-8 w-8 rounded-lg border border-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40"
+                className="h-8 w-8 rounded-lg border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
                 A−
               </button>
-              <span className="w-12 text-center tabular-nums text-slate-400">{Math.round(current * 100)}%</span>
+              <span className="w-12 text-center tabular-nums text-muted-foreground">{Math.round(current * 100)}%</span>
               <button
                 type="button"
                 aria-label="Larger text"
                 disabled={larger === undefined}
                 onClick={() => larger !== undefined && onView({ ...view, scale: larger })}
-                className="h-8 w-8 rounded-lg border border-slate-700 outline-none focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40"
+                className="h-8 w-8 rounded-lg border border-input outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
                 A+
               </button>
@@ -140,7 +140,7 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
                 type="button"
                 aria-pressed={view.scale === 'fit'}
                 onClick={() => onView({ ...view, scale: 'fit' })}
-                className={`ml-1 h-8 rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${view.scale === 'fit' ? 'bg-teal-600 text-white' : 'border border-slate-700'}`}
+                className={`ml-1 h-8 rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring ${view.scale === 'fit' ? 'bg-primary text-white' : 'border border-input'}`}
                 title="The largest text that shows the whole chart at once"
               >
                 Fit
@@ -153,7 +153,7 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
           </div>
           {(song.transpose !== 0 || song.capo !== 0) && (
             <div className="px-3 py-2">
-              <button type="button" onClick={() => onSong({ transpose: 0, capo: 0 })} className="text-teal-300 underline underline-offset-2">
+              <button type="button" onClick={() => onSong({ transpose: 0, capo: 0 })} className="text-highlight underline underline-offset-2">
                 Back to the original key, no capo
               </button>
             </div>

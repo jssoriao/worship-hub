@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
   type ProxyEvents = { on: (event: 'proxyReq', handler: (req: { setHeader: (k: string, v: string) => void; getHeader: (k: string) => unknown }) => void) => void }
   return {
     root: 'src/web',
+    resolve: { alias: { '@': fileURLToPath(new URL('./src/web', import.meta.url)) } },
     envDir: repo,
     build: { outDir: '../../dist', emptyOutDir: true },
     server: {

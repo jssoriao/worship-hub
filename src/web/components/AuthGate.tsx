@@ -1,32 +1,36 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
 
 const CODE_LENGTH = 6
-// Must match CODE_MINUTES in worker/auth-options.ts
+// Must match CODE_MINUTES in src/api/auth-options.ts
 const CODE_MINUTES = 10
 
-function Shell({ children }: { children: ReactNode }) {
+/** The centered card the screens before the app use (sign-in, choosing a church). */
+export function AuthScreen({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 text-slate-100">
-      <main className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <h1 className="mb-1 text-lg font-semibold tracking-tight">Worship Hub</h1>
-        {children}
+    <div className="flex min-h-dvh items-center justify-center bg-background px-4 text-foreground">
+      <main className="w-full max-w-sm">
+        <Card className="gap-0 p-5">
+          <h1 className="mb-1 text-lg font-semibold tracking-tight">Worship Hub</h1>
+          {children}
+        </Card>
       </main>
     </div>
   )
 }
 
-const inputClass =
-  'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-500'
-const primaryButtonClass =
-  'mt-3 w-full rounded-full bg-teal-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50'
 
 function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <p role="alert" className="mt-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">
+    <Alert variant="destructive" className="mt-3">
       {children}
-    </p>
+    </Alert>
   )
 }
 
@@ -109,16 +113,16 @@ function LoginScreen() {
 
   if (codeSent) {
     return (
-      <Shell>
+      <AuthScreen>
         <p role="status" className="mb-4 text-sm text-slate-300">
-          If <span className="font-medium text-slate-100">{email.trim()}</span> is on the team list, a {CODE_LENGTH}-digit code is on its
+          If <span className="font-medium text-foreground">{email.trim()}</span> is on the team list, a {CODE_LENGTH}-digit code is on its
           way. It works once and expires in {CODE_MINUTES} minutes. Check your spam folder if you don't see it.
         </p>
         <form onSubmit={submitCode}>
-          <label htmlFor="code" className="mb-1 block text-sm font-medium">
+          <Label htmlFor="code" className="mb-1.5">
             Sign-in code
-          </label>
-          <input
+          </Label>
+          <Input
             id="code"
             required
             autoFocus
@@ -128,19 +132,20 @@ function LoginScreen() {
             maxLength={CODE_LENGTH}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))}
-            className={`${inputClass} text-center font-mono text-lg tracking-[0.5em]`}
+            className="h-11 text-center font-mono text-lg tracking-[0.5em] md:text-lg"
           />
-          <button type="submit" disabled={busy || code.length !== CODE_LENGTH} className={primaryButtonClass}>
+          <Button type="submit" size="lg" disabled={busy || code.length !== CODE_LENGTH} className="mt-3 w-full">
             {busy ? 'Signing in…' : 'Sign in'}
-          </button>
+          </Button>
           {error && <ErrorNote>{error}</ErrorNote>}
         </form>
         <div className="mt-4 flex justify-between text-sm">
-          <button className="text-teal-400 underline disabled:opacity-50" disabled={busy} onClick={() => void requestCode()}>
+          <Button variant="link" className="h-auto p-0 text-highlight" disabled={busy} onClick={() => void requestCode()}>
             Send a new code
-          </button>
-          <button
-            className="text-teal-400 underline"
+          </Button>
+          <Button
+            variant="link"
+            className="h-auto p-0 text-highlight"
             onClick={() => {
               savePending(null)
               setCodeSent(false)
@@ -148,20 +153,20 @@ function LoginScreen() {
             }}
           >
             Use a different email
-          </button>
+          </Button>
         </div>
-      </Shell>
+      </AuthScreen>
     )
   }
 
   return (
-    <Shell>
-      <p className="mb-4 text-sm text-slate-400">Sign in with the email address the team list has for you.</p>
+    <AuthScreen>
+      <p className="mb-4 text-sm text-muted-foreground">Sign in with the email address the team list has for you.</p>
       <form onSubmit={submitEmail}>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium">
+        <Label htmlFor="email" className="mb-1.5">
           Email
-        </label>
-        <input
+        </Label>
+        <Input
           id="email"
           type="email"
           required
@@ -170,14 +175,14 @@ function LoginScreen() {
           autoFocus
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className={inputClass}
+          className="h-11"
         />
-        <button type="submit" disabled={busy || email.trim() === ''} className={primaryButtonClass}>
+        <Button type="submit" size="lg" disabled={busy || email.trim() === ''} className="mt-3 w-full">
           {busy ? 'Sending…' : 'Email me a code'}
-        </button>
+        </Button>
         {error && <ErrorNote>{error}</ErrorNote>}
       </form>
-    </Shell>
+    </AuthScreen>
   )
 }
 
@@ -190,11 +195,11 @@ function Gate({ children }: { children: ReactNode }) {
 
   if (!checked) {
     return (
-      <Shell>
-        <p role="status" className="mt-3 text-sm text-slate-400">
+      <AuthScreen>
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
           Loading…
         </p>
-      </Shell>
+      </AuthScreen>
     )
   }
   if (session) return children
@@ -210,12 +215,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
 /** For screens outside the app shell (no church yet); inside the app, sign-out is in the account menu. */
 export function SignOutButton() {
   return (
-    <button
-      className="rounded-full border border-slate-700 px-3 py-1.5 text-sm"
+    <Button
+      variant="outline"
       // songs saved on this device are for members: they go when the person signs out
       onClick={() => void Promise.allSettled([authClient.signOut(), audioCache.clearAll()]).finally(() => window.location.replace('/'))}
     >
       Sign out
-    </button>
+    </Button>
   )
 }

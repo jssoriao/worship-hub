@@ -71,7 +71,7 @@ export function SectionHeading({ section, continued, onJump }: { section: ChartS
           <button
             type="button"
             onClick={() => onJump(section.t!)}
-            className="rounded-full border border-(--line) px-[0.6em] font-mono font-normal normal-case tracking-normal outline-none hover:bg-(--hover) focus-visible:ring-2 focus-visible:ring-teal-400"
+            className="rounded-full border border-(--line) px-[0.6em] font-mono font-normal normal-case tracking-normal outline-none hover:bg-(--hover) focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`Play from ${section.label || 'here'} at ${formatTime(section.t)}`}
           >
             ▶ {formatTime(section.t)}

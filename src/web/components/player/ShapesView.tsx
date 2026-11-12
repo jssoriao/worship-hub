@@ -27,7 +27,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
   const line = li >= 0 && position < lines[li].end + 2 ? lines[li] : undefined
   const next = lines[li + 1]
 
-  if (changes.length === 0) return <p className="mt-6 text-center text-sm text-slate-400">No chords for this song.</p>
+  if (changes.length === 0) return <p className="mt-6 text-center text-sm text-muted-foreground">No chords for this song.</p>
 
   return (
     <div className="mt-6 flex flex-col items-center gap-6 pb-32">
@@ -35,7 +35,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
         {shown.map((c) => {
           const current = changes.indexOf(c) === at
           return (
-            <button key={c.t} type="button" onClick={() => onSeek(c.t)} className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-teal-400" aria-label={`Play from ${c.name}`}>
+            <button key={c.t} type="button" onClick={() => onSeek(c.t)} className="rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Play from ${c.name}`}>
               <ChordShape name={c.name} instrument={instrument} size={current ? 'md' : 'sm'} dim={!current} />
             </button>
           )
@@ -48,7 +48,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
           const progress = i < at ? 1 : i > at ? 0 : Math.min(1, Math.max(0, (position - c.t) / Math.max(0.1, c.end - c.t)))
           return (
             <div key={c.t} className="min-w-0 flex-1">
-              <p className={`truncate text-center text-xs ${i === at ? 'text-slate-100' : 'text-slate-500'}`}>{c.name}</p>
+              <p className={`truncate text-center text-xs ${i === at ? 'text-foreground' : 'text-muted-foreground'}`}>{c.name}</p>
               <div className="mt-1 h-1 overflow-hidden rounded bg-slate-700">
                 <div className="h-full bg-teal-300" style={{ width: `${progress * 100}%` }} />
               </div>
@@ -65,7 +65,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
             </span>
           ))}
         </p>
-        {next && <p className="mt-2 text-lg text-slate-500">{next.words.map((w) => w.w).join(' ')}</p>}
+        {next && <p className="mt-2 text-lg text-muted-foreground">{next.words.map((w) => w.w).join(' ')}</p>}
       </div>
     </div>
   )

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { can, isRole } from '../../shared/permissions'
 import { authClient } from './auth-client'
 import { ChurchContext, pickChurch, type ChurchInfo, type ChurchValue } from './church-context'
-import { SignOutButton } from '../components/AuthGate'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { AuthScreen, SignOutButton } from '../components/AuthGate'
 
 /** The church last used on this device, so a person in several churches isn't asked again. */
 const LAST_KEY = 'worship-hub:church'
@@ -19,17 +21,6 @@ const rememberChurch = (id: string) => {
   } catch {
     // storage blocked: just asked again next time
   }
-}
-
-function Screen({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 text-slate-100">
-      <main className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <h1 className="mb-2 text-lg font-semibold tracking-tight">Worship Hub</h1>
-        {children}
-      </main>
-    </div>
-  )
 }
 
 /**
@@ -94,54 +85,51 @@ function Gate({ children }: { children: ReactNode }) {
   }
   if (orgs.isPending) {
     return (
-      <Screen>
-        <p role="status" className="text-sm text-slate-400">
+      <AuthScreen>
+        <p role="status" className="text-sm text-muted-foreground">
           Loading…
         </p>
-      </Screen>
+      </AuthScreen>
     )
   }
   if (churches.length === 0) {
     return (
-      <Screen>
+      <AuthScreen>
         <p role="status" className="mb-4 text-sm text-slate-300">
           You are not in a church yet. Ask your church admin to add you.
         </p>
         <SignOutButton />
-      </Screen>
+      </AuthScreen>
     )
   }
   if (!active && !auto) {
     return (
-      <Screen>
+      <AuthScreen>
         <p className="mb-3 text-sm text-slate-300">Which church?</p>
         <ul className="flex flex-col gap-2">
           {churches.map((c) => (
             <li key={c.id}>
-              <button
-                className="w-full rounded-xl border border-slate-700 px-3 py-2.5 text-left text-sm outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-500"
-                onClick={() => void choose(c.id)}
-              >
+              <Button variant="outline" size="lg" className="w-full justify-start" onClick={() => void choose(c.id)}>
                 {c.name}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
         {failed && (
-          <p role="alert" className="mt-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">
+          <Alert variant="destructive" className="mt-3">
             Could not open that church. Try again.
-          </p>
+          </Alert>
         )}
-      </Screen>
+      </AuthScreen>
     )
   }
   if (!active) {
     return (
-      <Screen>
-        <p role="status" className="text-sm text-slate-400">
+      <AuthScreen>
+        <p role="status" className="text-sm text-muted-foreground">
           Opening your church…
         </p>
-      </Screen>
+      </AuthScreen>
     )
   }
   return <ChurchContext.Provider value={value}>{children}</ChurchContext.Provider>

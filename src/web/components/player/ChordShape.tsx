@@ -7,7 +7,7 @@ export function ChordShape({ name, instrument, size = 'md', dim = false }: { nam
   const w = size === 'sm' ? 'w-24' : 'w-32 sm:w-36'
   return (
     <figure className={`flex flex-col items-center gap-1 ${dim ? 'opacity-60' : ''}`}>
-      <figcaption className={`font-semibold tracking-tight text-slate-100 ${size === 'sm' ? 'text-lg' : 'text-2xl sm:text-3xl'}`}>{name}</figcaption>
+      <figcaption className={`font-semibold tracking-tight text-foreground ${size === 'sm' ? 'text-lg' : 'text-2xl sm:text-3xl'}`}>{name}</figcaption>
       <div className={`${w} rounded-xl bg-slate-100 p-2 text-slate-900 shadow-lg shadow-black/40`}>
         {instrument === 'guitar' ? <Guitar name={name} /> : <Piano name={name} />}
       </div>
@@ -17,7 +17,7 @@ export function ChordShape({ name, instrument, size = 'md', dim = false }: { nam
 
 function Guitar({ name }: { name: string }) {
   const shape = guitarShape(name)
-  if (!shape) return <p className="py-8 text-center text-xs text-slate-500">No shape</p>
+  if (!shape) return <p className="py-8 text-center text-xs text-muted-foreground">No shape</p>
   const W = 100
   const H = 120
   const x0 = 14
@@ -81,7 +81,7 @@ function Guitar({ name }: { name: string }) {
 /** Two octaves: the bass note in the left one, the chord in the right one. */
 function Piano({ name }: { name: string }) {
   const chord = parseChord(name)
-  if (!chord) return <p className="py-8 text-center text-xs text-slate-500">No notes</p>
+  if (!chord) return <p className="py-8 text-center text-xs text-muted-foreground">No notes</p>
   const lit = new Set<number>([chord.bass, ...chord.notes.map((n) => 12 + n)])
   const WHITE = [0, 2, 4, 5, 7, 9, 11]
   const BLACK: [number, number][] = [

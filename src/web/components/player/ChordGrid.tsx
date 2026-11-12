@@ -62,14 +62,14 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
     barRefs.current[bar]?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
   }, [bar, follow])
 
-  if (bars.length === 0) return <p className="mt-6 text-center text-sm text-slate-400">No beats for this song.</p>
+  if (bars.length === 0) return <p className="mt-6 text-center text-sm text-muted-foreground">No beats for this song.</p>
 
   return (
     <div className="mx-auto mt-3 grid max-w-lg gap-1.5 pb-32 lg:max-w-5xl lg:grid-cols-2 lg:gap-x-6">
       {bars.map((beats, i) => [
         // a section name runs across the row, and its first bar starts on the left
         sectionAt.has(i) && (
-          <h3 key={`h${i}`} className="pb-0.5 pl-8 pt-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 lg:col-span-2">
+          <h3 key={`h${i}`} className="pb-0.5 pl-8 pt-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground lg:col-span-2">
             {sectionAt.get(i)}
           </h3>
         ),
@@ -86,12 +86,12 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                 type="button"
                 onClick={() => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' })}
                 aria-label={`Section at bar ${i + 1}`}
-                className="w-6 shrink-0 self-center rounded text-right text-xs tabular-nums text-teal-400 underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                className="w-6 shrink-0 self-center rounded text-right text-xs tabular-nums text-teal-400 underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {i + 1}
               </button>
             ) : (
-              <span className="w-6 shrink-0 self-center text-right text-xs tabular-nums text-slate-500">{i + 1}</span>
+              <span className="w-6 shrink-0 self-center text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
             )}
             <div className={`grid flex-1 gap-1 ${i === bar ? '' : i < bar ? 'opacity-50' : ''}`} style={{ gridTemplateColumns: `repeat(${Math.min(beats.length, 4)}, minmax(0, 1fr))` }}>
               {beats.map((b, k) => {
@@ -106,9 +106,9 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                         : onSeek(b.t)
                     }
                     aria-label={`Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`}
-                    className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 ${
-                      now ? 'border-teal-300 bg-teal-600 text-white' : k === 0 ? 'border-slate-500 bg-slate-800' : 'border-transparent bg-slate-800/70'
-                    } ${b.held && !now ? 'text-slate-500' : ''}`}
+                    className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                      now ? 'border-teal-300 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
+                    } ${b.held && !now ? 'text-muted-foreground' : ''}`}
                   >
                     {b.name}
                   </button>

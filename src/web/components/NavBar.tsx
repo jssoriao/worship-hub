@@ -2,7 +2,7 @@ import { Link, NavLink } from 'react-router'
 import { useChurch } from '../lib/church-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
 import { AccountMenu } from './AccountMenu'
-import { Select } from './Select'
+import { NativeSelect } from '@/components/ui/native-select'
 
 /** The pages of the app, in the order they appear in the bar. `admin` pages show only to people who may manage members. */
 const PAGES = [
@@ -14,8 +14,8 @@ const PAGES = [
 ] as const
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 ${
-    isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+  `relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+    isActive ? 'bg-accent text-white' : 'text-muted-foreground hover:bg-card hover:text-foreground'
   }`
 
 /**
@@ -31,11 +31,11 @@ export function NavBar() {
   const practice = practiceLink(now, church.id)
   const mayManage = church.can({ member: ['create'] })
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
         <Link
           to="/"
-          className="rounded-md text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+          className="rounded-md text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Worship Hub
         </Link>
@@ -49,13 +49,13 @@ export function NavBar() {
                 <label className="sr-only" htmlFor="church">
                   Church
                 </label>
-                <Select compact id="church" value={church.id} onChange={(e) => void church.switchTo(e.target.value)}>
+                <NativeSelect size="sm" id="church" value={church.id} onChange={(e) => void church.switchTo(e.target.value)}>
                   {church.churches.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}
-                </Select>
+                </NativeSelect>
               </>
             ) : (
               <span className="max-w-40 truncate text-sm text-slate-300">{church.name}</span>

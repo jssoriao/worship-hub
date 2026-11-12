@@ -236,15 +236,15 @@ export default function ChartPages({ chart, songId, title, fallbackKey, bpm, act
 
   // ------------------------------------------------------------ view
   const small =
-    'rounded-full border border-slate-700 px-3 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400'
+    'rounded-full border border-input px-3 py-1.5 text-sm outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring'
   const light = view.paper === 'light'
   const sheetLook = paperMode
     ? light
       ? 'bg-white text-slate-900 shadow-lg shadow-black/40'
-      : 'bg-slate-900 text-slate-100 ring-1 ring-slate-800'
+      : 'bg-card text-foreground ring-1 ring-slate-800'
     : light
       ? 'bg-white text-slate-900 rounded-lg'
-      : 'text-slate-100'
+      : 'text-foreground'
   const shown = views[at] ?? [0]
   const pageLabel = `${shown[0] + 1}${shown.length > 1 ? `–${shown[shown.length - 1] + 1}` : ''} / ${pages.length}`
 
@@ -258,11 +258,11 @@ export default function ChartPages({ chart, songId, title, fallbackKey, bpm, act
   return (
     <div
       ref={root}
-      className={full ? 'fixed inset-0 z-40 flex flex-col bg-slate-950 px-3 pb-2 pt-2' : 'flex flex-col'}
+      className={full ? 'fixed inset-0 z-40 flex flex-col bg-background px-3 pb-2 pt-2' : 'flex flex-col'}
       style={full ? undefined : { height: rootHeight }}
     >
       <div className="flex flex-wrap items-center justify-end gap-2 pb-2">
-        <p className="mr-auto min-w-0 truncate text-sm text-slate-400">{full ? heading : meta}</p>
+        <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : meta}</p>
         {hasCues && (
           <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-teal-400/70 text-teal-200' : ''}`} title="Turn to the section being played">
             Follow
@@ -359,14 +359,14 @@ export default function ChartPages({ chart, songId, title, fallbackKey, bpm, act
 
       {/* always takes its room, so showing it never shrinks the sheets (which could change the pages again) */}
       {(
-        <nav aria-label="Pages" aria-hidden={count <= 1 || undefined} className={`mt-1 flex items-center justify-center gap-3 text-sm text-slate-400 ${count > 1 ? '' : 'invisible'}`}>
-          <button type="button" aria-label="Previous page" disabled={at === 0} onClick={() => goTo(at - 1)} className="h-9 w-9 rounded-full border border-slate-700 outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-30">
+        <nav aria-label="Pages" aria-hidden={count <= 1 || undefined} className={`mt-1 flex items-center justify-center gap-3 text-sm text-muted-foreground ${count > 1 ? '' : 'invisible'}`}>
+          <button type="button" aria-label="Previous page" disabled={at === 0} onClick={() => goTo(at - 1)} className="h-9 w-9 rounded-full border border-input outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30">
             ‹
           </button>
           <span aria-live="polite" className="tabular-nums">
             {pageLabel}
           </span>
-          <button type="button" aria-label="Next page" disabled={at >= count - 1} onClick={() => goTo(at + 1)} className="h-9 w-9 rounded-full border border-slate-700 outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-30">
+          <button type="button" aria-label="Next page" disabled={at >= count - 1} onClick={() => goTo(at + 1)} className="h-9 w-9 rounded-full border border-input outline-none hover:bg-card focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30">
             ›
           </button>
         </nav>

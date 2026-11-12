@@ -1,4 +1,7 @@
-import { Select } from '../components/Select'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { ArrEditor, type MutableStem } from '../components/ArrEditor'
@@ -276,8 +279,6 @@ export default function ArrangePage() {
   }
   const isSaved = !!arr && saved.some((s) => s.id === arr.id)
 
-  const small =
-    'rounded-full border border-slate-700 px-3 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40'
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-24 pt-3">
@@ -287,11 +288,11 @@ export default function ArrangePage() {
       </div>
 
       {!songId && (
-        <p className="mt-6 rounded-2xl border border-dashed border-slate-700 p-6 text-center text-sm text-slate-400">
+        <p className="mt-6 rounded-2xl border border-dashed border-input p-6 text-center text-sm text-muted-foreground">
           Choose a song to make your own arrangement of it: the sections in your order, repeated or left out, with stems muted where you want them.
         </p>
       )}
-      {loading && <p className="mt-4 text-sm text-slate-400">{loading}</p>}
+      {loading && <p className="mt-4 text-sm text-muted-foreground">{loading}</p>}
       {error && (
         <p role="alert" className="mt-3 rounded-lg bg-red-950 p-3 text-sm text-red-200">
           {error}
@@ -304,7 +305,7 @@ export default function ArrangePage() {
             <label className="sr-only" htmlFor="arr-open">
               Arrangement
             </label>
-            <Select id="arr-open" value={isSaved ? arr.id : ''} onChange={(e) => void openSaved(e.target.value)}>
+            <NativeSelect id="arr-open" value={isSaved ? arr.id : ''} onChange={(e) => void openSaved(e.target.value)}>
               <option value="">{isSaved ? 'New arrangement' : 'New arrangement (not saved)'}</option>
               {saved.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -312,51 +313,51 @@ export default function ArrangePage() {
                   {s.ownerName && s.owner !== me ? ` · ${s.ownerName}` : ''}
                 </option>
               ))}
-            </Select>
-            <label className="sr-only" htmlFor="arr-name">
+            </NativeSelect>
+            <Label className="sr-only" htmlFor="arr-name">
               Name
-            </label>
-            <input
+            </Label>
+            <Input
               id="arr-name"
               value={arr.name}
               maxLength={80}
               disabled={readOnly}
               onChange={(e) => change({ ...arr, name: e.target.value })}
-              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm"
+              className="w-auto min-w-40 flex-1"
             />
             {!readOnly && (
-              <button type="button" className={`${small} border-teal-400/70 text-teal-200`} disabled={!dirty && isSaved} onClick={() => void save()}>
+              <Button size="sm" disabled={!dirty && isSaved} onClick={() => void save()}>
                 Save
-              </button>
+              </Button>
             )}
-            <button type="button" className={small} onClick={() => void save(true)}>
+            <Button variant="outline" size="sm" onClick={() => void save(true)}>
               {readOnly ? 'Save my copy' : 'Save as new'}
-            </button>
+            </Button>
             {isSaved && !readOnly && (
-              <button type="button" className={small} onClick={() => void remove()}>
+              <Button variant="outline" size="sm" onClick={() => void remove()}>
                 Delete
-              </button>
+              </Button>
             )}
-            <span role="status" className="text-xs text-slate-400">
+            <span role="status" className="text-xs text-muted-foreground">
               {status || (dirty ? 'Not saved' : '')}
               {readOnly ? 'Made by someone else: save your own copy to change it' : ''}
             </span>
           </div>
 
-          <section aria-label="Player" className="mt-3 rounded-2xl border border-slate-800 bg-slate-900 p-3">
+          <section aria-label="Player" className="mt-3 rounded-2xl border border-border bg-card p-3">
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 aria-label={playing ? 'Pause' : 'Play'}
                 onClick={() => void togglePlay()}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-600 text-lg"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-lg"
               >
                 {playing ? '❚❚' : '▶'}
               </button>
               <span className="font-mono text-sm tabular-nums text-slate-300">
                 {formatTime(pos)} / {formatTime(duration)}
               </span>
-              <div role="group" aria-label="Click" className="ml-auto flex rounded-lg border border-slate-700 p-0.5 text-xs">
+              <div role="group" aria-label="Click" className="ml-auto flex rounded-lg border border-input p-0.5 text-xs">
                 {(
                   [
                     ['off', 'No click'],
@@ -364,15 +365,15 @@ export default function ArrangePage() {
                     ['on', 'Click'],
                   ] as const
                 ).map(([m, text]) => (
-                  <button key={m} type="button" aria-pressed={clickMode === m} onClick={() => setClickMode(m)} className={`rounded-md px-2 py-1 ${clickMode === m ? 'bg-teal-600 text-white' : 'text-slate-300'}`}>
+                  <button key={m} type="button" aria-pressed={clickMode === m} onClick={() => setClickMode(m)} className={`rounded-md px-2 py-1 ${clickMode === m ? 'bg-primary text-white' : 'text-slate-300'}`}>
                     {text}
                   </button>
                 ))}
               </div>
-              <label className="flex items-center gap-1 text-xs text-slate-400">
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
                 Count-in
-                <Select
-                  compact
+                <NativeSelect
+                  size="sm"
                   value={arr.countIn}
                   disabled={readOnly}
                   onChange={(e) => change({ ...arr, countIn: Number(e.target.value) })}
@@ -382,7 +383,7 @@ export default function ArrangePage() {
                       {n === 0 ? 'none' : `${n} bar${n > 1 ? 's' : ''}`}
                     </option>
                   ))}
-                </Select>
+                </NativeSelect>
               </label>
             </div>
             <ArrTimeline
@@ -395,7 +396,7 @@ export default function ArrangePage() {
               recording={recording}
               downbeats={downbeats}
             />
-            <p className="mt-1 text-xs text-slate-500">Tap the strip to put the playhead anywhere, then Split at playhead to cut a section there (on the nearest bar).</p>
+            <p className="mt-1 text-xs text-muted-foreground">Tap the strip to put the playhead anywhere, then Split at playhead to cut a section there (on the nearest bar).</p>
           </section>
 
           <div className="mt-4">

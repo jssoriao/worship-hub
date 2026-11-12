@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useEffect, useRef, useState } from 'react'
 
 interface Props {
@@ -20,10 +22,9 @@ export function EditPopover({ title, initial, placeholder, suggestions = [], act
     input.current?.focus()
     input.current?.select()
   }, [])
-  const btn = 'rounded-lg border border-slate-600 px-2.5 py-1 text-xs outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400'
   return (
-    <div role="dialog" aria-label={title} className="mt-1 rounded-xl border border-teal-700/60 bg-slate-900 p-2 shadow-xl shadow-black/50">
-      <p className="mb-1 text-xs text-slate-400">{title}</p>
+    <div role="dialog" aria-label={title} className="mt-1 rounded-xl border border-teal-700/60 bg-card p-2 shadow-xl shadow-black/50">
+      <p className="mb-1 text-xs text-muted-foreground">{title}</p>
       <form
         className="flex flex-wrap items-center gap-1.5"
         onSubmit={(e) => {
@@ -31,31 +32,31 @@ export function EditPopover({ title, initial, placeholder, suggestions = [], act
           onSave(value)
         }}
       >
-        <input
+        <Input
           ref={input}
           value={value}
           placeholder={placeholder}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && onCancel()}
           aria-label={title}
-          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+          className="h-8 w-auto flex-1"
         />
-        <button type="submit" className={`${btn} border-teal-500 text-teal-200`}>
+        <Button size="xs" type="submit">
           Save
-        </button>
+        </Button>
         {actions.map((a) => (
-          <button key={a.label} type="button" onClick={a.onClick} className={btn}>
+          <Button variant="outline" size="xs" key={a.label} onClick={a.onClick}>
             {a.label}
-          </button>
+          </Button>
         ))}
-        <button type="button" onClick={onCancel} className={btn}>
+        <Button variant="outline" size="xs" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
       </form>
       {suggestions.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {suggestions.map((s) => (
-            <button key={s} type="button" onClick={() => onSave(s)} className="rounded-md bg-slate-800 px-2 py-0.5 text-xs text-slate-200 outline-none hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-teal-400">
+            <button key={s} type="button" onClick={() => onSave(s)} className="rounded-md bg-accent px-2 py-0.5 text-xs text-slate-200 outline-none hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-ring">
               {s}
             </button>
           ))}

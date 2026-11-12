@@ -77,8 +77,8 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
   const row = (r: TimelineStem, part = false) => {
     const isOpen = open.has(r.index)
     return (
-      <div key={r.index} className={`flex h-14 items-stretch border-b border-slate-800/80 ${part ? 'bg-slate-950/40' : ''}`}>
-        <div className={`flex w-56 shrink-0 flex-col justify-center gap-1 border-r border-slate-800 px-2 ${part ? 'pl-6' : ''}`}>
+      <div key={r.index} className={`flex h-14 items-stretch border-b border-border/80 ${part ? 'bg-background/40' : ''}`}>
+        <div className={`flex w-56 shrink-0 flex-col justify-center gap-1 border-r border-border px-2 ${part ? 'pl-6' : ''}`}>
           <div className="flex items-center gap-1">
             {r.parts.length > 0 ? (
               <button
@@ -86,21 +86,21 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
                 aria-expanded={isOpen}
                 aria-label={`${isOpen ? 'Hide' : 'Show'} the parts of ${r.stem.name}`}
                 onClick={() => setOpen((s) => (s.has(r.index) ? new Set([...s].filter((x) => x !== r.index)) : new Set([...s, r.index])))}
-                className="w-4 text-xs text-slate-400 outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                className="w-4 text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {isOpen ? '▾' : '▸'}
               </button>
             ) : (
               <span className="w-4" />
             )}
-            <span className={`min-w-0 flex-1 truncate text-sm ${r.parts.length ? 'font-semibold' : 'font-medium'} ${r.audible ? '' : 'text-slate-500'}`} title={r.note}>
+            <span className={`min-w-0 flex-1 truncate text-sm ${r.parts.length ? 'font-semibold' : 'font-medium'} ${r.audible ? '' : 'text-muted-foreground'}`} title={r.note}>
               {r.stem.name}
             </span>
             <button
               aria-pressed={r.mix.muted}
               aria-label={`Mute ${r.stem.name}`}
               onClick={() => onPatch(r.index, { muted: !r.mix.muted })}
-              className={`h-6 w-6 rounded text-xs font-bold ${r.mix.muted ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+              className={`h-6 w-6 rounded text-xs font-bold ${r.mix.muted ? 'bg-red-600 text-white' : 'bg-accent text-slate-300'}`}
             >
               M
             </button>
@@ -108,7 +108,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
               aria-pressed={r.mix.solo}
               aria-label={`Solo ${r.stem.name}`}
               onClick={() => onPatch(r.index, { solo: !r.mix.solo })}
-              className={`h-6 w-6 rounded text-xs font-bold ${r.mix.solo ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}
+              className={`h-6 w-6 rounded text-xs font-bold ${r.mix.solo ? 'bg-amber-500 text-slate-950' : 'bg-accent text-slate-300'}`}
             >
               S
             </button>
@@ -121,14 +121,14 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
             value={r.mix.volume}
             aria-label={`Volume ${r.stem.name}`}
             onChange={(e) => onPatch(r.index, { volume: Number(e.target.value) })}
-            className="ml-5 w-[calc(100%-1.25rem)] accent-teal-500"
+            className="ml-5 w-[calc(100%-1.25rem)] accent-primary"
           />
         </div>
         <div className={`min-w-0 flex-1 px-0 py-1 ${r.waiting ? 'animate-pulse' : ''}`} aria-busy={r.waiting}>
           {r.stem.peaks.length > 0 ? (
             <Waveform peaks={r.stem.peaks} progress={progress} height={44} dim={!r.audible} onSeek={(f) => onSeek(f * duration)} />
           ) : (
-            <div className="h-11 rounded bg-slate-800/40" aria-hidden="true" />
+            <div className="h-11 rounded bg-accent/40" aria-hidden="true" />
           )}
         </div>
       </div>
@@ -143,8 +143,8 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
   )
 
   const lane = (label: string, children: React.ReactNode, h = 'h-6') => (
-    <div className={`flex ${h} items-stretch border-b border-slate-800/80`}>
-      <div className="flex w-56 shrink-0 items-center border-r border-slate-800 px-2 text-[11px] uppercase tracking-wider text-slate-500">{label}</div>
+    <div className={`flex ${h} items-stretch border-b border-border/80`}>
+      <div className="flex w-56 shrink-0 items-center border-r border-border px-2 text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="relative min-w-0 flex-1 cursor-pointer overflow-hidden" onClick={seekAt} aria-hidden="true">
         {children}
       </div>
@@ -166,7 +166,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
                   prev = name || prev
                   const now = i === 0 && position >= b.t && position < (beats[k + 1]?.t ?? strip[1]?.[0].t ?? b.t + 1)
                   return (
-                    <div key={k} className={`flex h-12 items-center rounded px-2 text-lg font-semibold ${now ? 'bg-teal-600 text-white' : k === 0 ? 'border-l-2 border-slate-500 bg-slate-800' : 'bg-slate-800/70'} ${held && !now ? 'text-slate-500' : ''}`}>
+                    <div key={k} className={`flex h-12 items-center rounded px-2 text-lg font-semibold ${now ? 'bg-primary text-white' : k === 0 ? 'border-l-2 border-slate-500 bg-accent' : 'bg-accent/70'} ${held && !now ? 'text-muted-foreground' : ''}`}>
                       {show}
                     </div>
                   )
@@ -177,7 +177,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
         </div>
       )}
 
-      <div ref={box} style={{ height }} className="flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+      <div ref={box} style={{ height }} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card/60">
         {/* the song lanes stay put; the same gutter as the stems below keeps them lined up */}
         {analysis && (
           <div className="relative shrink-0 overflow-y-hidden [scrollbar-gutter:stable]">
@@ -185,7 +185,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
               'Bars',
               bars.map((b, i) =>
                 i % 8 === 0 ? (
-                  <span key={i} className="absolute top-0 h-full border-l border-slate-600 pl-0.5 text-[10px] leading-6 text-slate-500" style={{ left: pct(b[0].t) }}>
+                  <span key={i} className="absolute top-0 h-full border-l border-slate-600 pl-0.5 text-[10px] leading-6 text-muted-foreground" style={{ left: pct(b[0].t) }}>
                     {i + 1}
                   </span>
                 ) : null,
@@ -234,11 +234,11 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
 
         {click && (
           <div className="flex h-12 items-stretch">
-            <div className="flex w-56 shrink-0 items-center gap-2 border-r border-slate-800 px-2">
+            <div className="flex w-56 shrink-0 items-center gap-2 border-r border-border px-2">
               <span className="w-4" />
-              <span className={`flex-1 text-sm font-medium ${click.on ? '' : 'text-slate-500'}`}>Click</span>
-              <input type="range" min={0} max={1} step={0.01} value={click.volume} aria-label="Click volume" onChange={(e) => click.onVolume(Number(e.target.value))} className="w-20 accent-teal-500" />
-              <button aria-pressed={click.on} aria-label={click.on ? 'Click on: turn off' : 'Click off: turn on'} onClick={click.onToggle} className={`h-6 rounded px-1.5 text-xs font-bold ${click.on ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
+              <span className={`flex-1 text-sm font-medium ${click.on ? '' : 'text-muted-foreground'}`}>Click</span>
+              <input type="range" min={0} max={1} step={0.01} value={click.volume} aria-label="Click volume" onChange={(e) => click.onVolume(Number(e.target.value))} className="w-20 accent-primary" />
+              <button aria-pressed={click.on} aria-label={click.on ? 'Click on: turn off' : 'Click off: turn on'} onClick={click.onToggle} className={`h-6 rounded px-1.5 text-xs font-bold ${click.on ? 'bg-primary text-white' : 'bg-accent text-slate-300'}`}>
                 {click.on ? 'On' : 'Off'}
               </button>
             </div>

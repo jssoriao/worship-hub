@@ -1,4 +1,5 @@
-import { Select } from './Select'
+import { Button } from '@/components/ui/button'
+import { NativeSelect } from '@/components/ui/native-select'
 import { useState } from 'react'
 import { barsIn, joinWithNext, newId, type Arrangement } from '../lib/arrangement'
 import { formatTime } from '../lib/chart'
@@ -24,8 +25,6 @@ interface Props {
   canSplit: boolean
 }
 
-const btn =
-  'rounded-lg border border-slate-700 px-2 py-1 text-xs outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40'
 
 /** The order of the song (blocks) and the pieces it is made of (sections). */
 export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPlayBlock, onSplitHere, canSplit }: Props) {
@@ -48,7 +47,7 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section aria-labelledby="order-h">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h2 id="order-h" className="mr-auto text-sm font-semibold uppercase tracking-wide text-slate-400">
+          <h2 id="order-h" className="mr-auto text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Order
           </h2>
           {!readOnly && (
@@ -56,47 +55,46 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
               <label className="sr-only" htmlFor="add-section">
                 Section to add
               </label>
-              <Select id="add-section" value={adding} onChange={(e) => setAdding(e.target.value)}>
+              <NativeSelect id="add-section" value={adding} onChange={(e) => setAdding(e.target.value)}>
                 {sections.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
                   </option>
                 ))}
-              </Select>
-              <button type="button" className={btn} disabled={!adding} onClick={() => setBlocks([...arr.blocks, { id: newId(), section: adding, muted: [] }])}>
+              </NativeSelect>
+              <Button variant="outline" size="xs" disabled={!adding} onClick={() => setBlocks([...arr.blocks, { id: newId(), section: adding, muted: [] }])}>
                 + Add
-              </button>
+              </Button>
             </>
           )}
         </div>
-        {arr.blocks.length === 0 && <p className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">No blocks. Add a section.</p>}
+        {arr.blocks.length === 0 && <p className="rounded-lg border border-dashed border-input p-4 text-sm text-muted-foreground">No blocks. Add a section.</p>}
         <ol className="space-y-2">
           {arr.blocks.map((b, i) => (
-            <li key={b.id} className={`rounded-xl border p-2 ${i === current ? 'border-teal-500/70 bg-teal-500/10' : 'border-slate-800 bg-slate-900/70'}`}>
+            <li key={b.id} className={`rounded-xl border p-2 ${i === current ? 'border-teal-500/70 bg-teal-500/10' : 'border-border bg-card/70'}`}>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="w-6 text-right text-xs tabular-nums text-slate-500">{i + 1}</span>
-                <button type="button" onClick={() => onPlayBlock(i)} className="min-w-0 flex-1 truncate text-left text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-teal-400" aria-label={`Play from ${label(b.section)}`}>
+                <span className="w-6 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                <button type="button" onClick={() => onPlayBlock(i)} className="min-w-0 flex-1 truncate text-left text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Play from ${label(b.section)}`}>
                   ▶ {label(b.section)}
                 </button>
                 {!readOnly && (
                   <div className="flex gap-1">
-                    <button type="button" className={btn} disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${label(b.section)} up`}>
+                    <Button variant="outline" size="xs" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${label(b.section)} up`}>
                       ↑
-                    </button>
-                    <button type="button" className={btn} disabled={i === arr.blocks.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${label(b.section)} down`}>
+                    </Button>
+                    <Button variant="outline" size="xs" disabled={i === arr.blocks.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${label(b.section)} down`}>
                       ↓
-                    </button>
-                    <button
-                      type="button"
-                      className={btn}
+                    </Button>
+                    <Button variant="outline" size="xs"
+                     
                       onClick={() => setBlocks([...arr.blocks.slice(0, i + 1), { ...b, id: newId(), muted: [...b.muted] }, ...arr.blocks.slice(i + 1)])}
                       aria-label={`Repeat ${label(b.section)}`}
                     >
                       Repeat
-                    </button>
-                    <button type="button" className={btn} onClick={() => setBlocks(arr.blocks.filter((_, k) => k !== i))} aria-label={`Remove ${label(b.section)}`}>
+                    </Button>
+                    <Button variant="outline" size="xs" onClick={() => setBlocks(arr.blocks.filter((_, k) => k !== i))} aria-label={`Remove ${label(b.section)}`}>
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -110,7 +108,7 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
                       aria-pressed={on}
                       disabled={readOnly}
                       onClick={() => toggle(i, s.id)}
-                      className={`rounded-full px-2 py-0.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${on ? 'bg-slate-700 text-slate-100' : 'bg-slate-900 text-slate-500 line-through ring-1 ring-slate-800'}`}
+                      className={`rounded-full px-2 py-0.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-slate-700 text-foreground' : 'bg-card text-muted-foreground line-through ring-1 ring-slate-800'}`}
                     >
                       {s.name}
                     </button>
@@ -124,20 +122,20 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
 
       <section aria-labelledby="sections-h">
         <div className="mb-2 flex items-center gap-2">
-          <h2 id="sections-h" className="mr-auto text-sm font-semibold uppercase tracking-wide text-slate-400">
+          <h2 id="sections-h" className="mr-auto text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Sections
           </h2>
           {!readOnly && (
-            <button type="button" className={btn} disabled={!canSplit} onClick={onSplitHere} title="Split the section at the playhead (on the nearest bar)">
+            <Button variant="outline" size="xs" disabled={!canSplit} onClick={onSplitHere} title="Split the section at the playhead (on the nearest bar)">
               Split at playhead
-            </button>
+            </Button>
           )}
         </div>
         <ul className="space-y-1">
           {sections.map((s, i) => {
             const bars = barsIn(s, music)
             return (
-              <li key={s.id} className="flex items-center gap-2 rounded-lg border border-slate-800 px-2 py-1">
+              <li key={s.id} className="flex items-center gap-2 rounded-lg border border-border px-2 py-1">
                 <label className="sr-only" htmlFor={`sec-${s.id}`}>
                   Name of the section at {formatTime(s.start)}
                 </label>
@@ -147,22 +145,22 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
                   disabled={readOnly}
                   maxLength={40}
                   onChange={(e) => onChange({ ...arr, sections: arr.sections.map((x) => (x.id === s.id ? { ...x, label: e.target.value } : x)) })}
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
-                <span className="shrink-0 font-mono text-xs text-slate-500">
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">
                   {formatTime(s.start)}
                   {bars !== null ? ` · ${bars} bars` : ''}
                 </span>
                 {!readOnly && i < sections.length - 1 && (
-                  <button type="button" className={btn} onClick={() => onChange(joinWithNext(arr, s.id))} aria-label={`Join ${s.label} with the next section`} title="Join with the next section">
+                  <Button variant="outline" size="xs" onClick={() => onChange(joinWithNext(arr, s.id))} aria-label={`Join ${s.label} with the next section`} title="Join with the next section">
                     Join ↓
-                  </button>
+                  </Button>
                 )}
               </li>
             )
           })}
         </ul>
-        <p className="mt-2 text-xs text-slate-500">Sections come from the chart's cues, on the nearest bar. Split and join to change them.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Sections come from the chart's cues, on the nearest bar. Split and join to change them.</p>
       </section>
     </div>
   )
