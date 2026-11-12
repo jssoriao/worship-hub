@@ -4,15 +4,22 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: sunday
     open-pull-requests-limit: 5
+    labels: [dependencies]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
-
+    ignore:
+      # the types must match the runtime: Workers and the scripts run on Node 22, so stay on 22/24
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: sunday
+    labels: [dependencies]
     groups:
       actions:
         patterns: ['*']
