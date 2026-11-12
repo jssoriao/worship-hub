@@ -6,6 +6,7 @@
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { ID_PATTERN } from '../shared/ids.ts'
 import { can, type Request as Permission, type Role } from '../shared/permissions.ts'
 import { memberRole, songBelongs, type Db, type Memo } from './data.ts'
 import type { Bindings } from './env.ts'
@@ -35,9 +36,9 @@ export type AppEnv = {
   Bindings: Pick<Bindings, 'FILES'>
   Variables: { deps: Deps; tenant: Tenant }
 }
-/** An error answer: JSON `{ error }` under /api, plain text elsewhere (the /songs/* routes). */
-export const fail = (c: Context, status: ContentfulStatusCode, error: string) =>
-  c.req.path.startsWith('/api/') ? c.json({ error }, status) : c.text(error, status)
+/** An error answer, always JSON `{ error }`; `error` is shown to people, so it is written for them. */
+// generic, so the typed client sees the exact status and keeps errors out of the ok answer's type
+export const fail = <S extends ContentfulStatusCode>(c: Context, status: S, error: string) => c.json({ error }, status)
 /**
  * 401 no session, 409 no active church (the app then picks one), 403 not a member of the active church.
  * A refreshed session cookie from the check is added to whatever the route answers.
@@ -73,7 +74,7 @@ export const need = (permission: Permission) =>
 export const songOwned = createMiddleware<AppEnv>(async (c, next) => {
   const songId = c.req.param('songId')
   const { db, memo } = c.get('deps')
-  if (!songId || !(await songBelongs(db, c.get('tenant').orgId, songId, memo))) return fail(c, 404, 'Not Found')
+  if (!songId || !ID_PATTERN.test(songId) || !(await songBelongs(db, c.get('tenant').orgId, songId, memo))) return fail(c, 404, 'not found')
   await next()
 })
 /** Paths of the Better Auth organization plugin the app uses. The plugin has more (create, invite, ...) which stay closed. */

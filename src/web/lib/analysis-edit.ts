@@ -2,8 +2,8 @@
  * Changes to a song's analysis made in the player (chords, sections, lyrics), and saving it.
  * Every function returns a new analysis; nothing is changed in place.
  */
-import { SONGS_BASE_URL } from '../config'
 import { indexAt, type Chord, type Line, type SongAnalysis } from './analysis'
+import { call, songsApi } from './api'
 
 const EPS = 0.02
 
@@ -174,23 +174,9 @@ export function toStored(a: SongAnalysis) {
 }
 
 export async function saveAnalysis(id: string, a: SongAnalysis): Promise<void> {
-  const res = await fetch(`${SONGS_BASE_URL}/${encodeURIComponent(id)}/analysis.json`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toStored(a)),
-  })
-  if (!res.ok) throw new Error(res.status === 403 ? 'only admins can edit' : (await res.text().catch(() => '')) || `HTTP ${res.status}`)
+  await call(songsApi[':songId']['analysis.json'].$put({ param: { songId: id }, json: toStored(a) }), { 403: 'only editors can edit' })
 }
-
-export interface AnalysisVersion {
-  file: string
-  savedAt: string
-  savedBy: string
-}
-
-export async function listVersions(id: string): Promise<AnalysisVersion[]> {
-  const res = await fetch(`${SONGS_BASE_URL}/${encodeURIComponent(id)}/analysis/history/`, { cache: 'no-store' })
-  if (!res.ok) return []
-  const list = (await res.json().catch(() => [])) as AnalysisVersion[]
-  return Array.isArray(list) ? list : []
-}
+export const listVersionsOf = (id: string) => call(songsApi[':songId'].analysis.history.$get({ param: { songId: id } }))
+export type AnalysisVersion = Awaited<ReturnType<typeof listVersionsOf>>[number]
+/** Earlier versions of the song's analysis, newest first; none when they cannot be loaded. */
+export const listVersions = (id: string): Promise<AnalysisVersion[]> => listVersionsOf(id).catch(() => [])

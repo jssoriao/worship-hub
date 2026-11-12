@@ -16,6 +16,7 @@ import {
   timelineOf,
   type Arrangement,
 } from '../lib/arrangement'
+import { songFile } from '../lib/api'
 import { deleteArrangement, listArrangements, loadArrangement, saveArrangement, type ArrangementInfo } from '../lib/arrangements-api'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
@@ -120,7 +121,7 @@ export default function ArrangePage() {
       const infos = await engine.load(r.sources)
       if (token !== loadToken.current) return
       // sections from the chart's cues, when it has some
-      const chartText = await fetch(`${SONGS_BASE_URL}/${encodeURIComponent(id)}/chart.pro`)
+      const chartText = await fetch(songFile(id, 'chart.pro'))
         .then((res) => (res.ok ? res.text() : ''))
         .catch(() => '')
       if (token !== loadToken.current) return

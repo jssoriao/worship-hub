@@ -22,5 +22,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/web", "src/shared"]
+  "include": ["src/web", "src/shared"],
+  "references": [{ "path": "./tsconfig.worker.json" }]
 }

@@ -9,15 +9,15 @@
  * Who may grant or touch which role: owners any; admins only member and editor. Nobody changes or
  * removes themselves here, so a church can never lose its last owner through the app.
  */
-import { Hono, type Context } from 'hono'
+import { Hono } from 'hono'
 import * as z from 'zod'
 import { isRole, type Role } from '../shared/permissions.ts'
 import * as data from './data.ts'
 import { church, fail, need, sameOrigin, type AppEnv } from './tenant.ts'
-import { body } from './validate.ts'
+import { body, only } from './validate.ts'
 /** Roles this person may grant, change or remove. */
 export const manageableRoles = (role: Role): Role[] => (role === 'owner' ? ['member', 'editor', 'admin', 'owner'] : role === 'admin' ? ['member', 'editor'] : [])
-const MEMBER = '/:memberId{[A-Za-z0-9_-]{1,64}}'
+const MEMBER = '/:memberId'
 const EMAIL_MESSAGE = 'Enter a valid email address'
 const newMember = z.object({
   email: z
@@ -29,9 +29,9 @@ const newMember = z.object({
   role: z.string().optional(),
 })
 const roleChange = z.object({ role: z.string({ error: 'Pick a role' }).refine(isRole, 'Pick a role') })
-const methodNotAllowed = (c: Context) => c.json({ error: 'method not allowed' }, 405)
 export const members = new Hono<AppEnv>({ strict: false })
   .use(church, sameOrigin)
+  .use('/', only('GET', 'POST'))
   .get('/', need({ member: ['create'] }), async (c) => {
     const tenant = c.get('tenant')
     return c.json({ members: await data.listMembers(c.get('deps').db, tenant.orgId), manageable: manageableRoles(tenant.role), me: tenant.user.id })
@@ -44,7 +44,7 @@ export const members = new Hono<AppEnv>({ strict: false })
     if (added === 'exists') return fail(c, 409, 'That person is already in this church')
     return c.json(added, 201)
   })
-  .all('/', methodNotAllowed)
+  .use(MEMBER, only('PATCH', 'DELETE'))
   .patch(MEMBER, need({ member: ['update'] }), body(roleChange), async (c) => {
     const tenant = c.get('tenant')
     const { db, memo } = c.get('deps')
@@ -69,4 +69,3 @@ export const members = new Hono<AppEnv>({ strict: false })
     if (!(await data.removeMember(db, tenant.orgId, memberId, memo))) return fail(c, 404, 'not found')
     return c.json({ ok: true as const })
   })
-  .all(MEMBER, methodNotAllowed)

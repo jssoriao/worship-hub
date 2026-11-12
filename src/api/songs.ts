@@ -8,9 +8,9 @@
  *   PATCH  /songs/<id>               {title?, artist?, key?, bpm?, meter?}
  *   DELETE /songs/<id>                             the row, its arrangements and every file
  *   GET    /songs/<id>/arrangements/               [{ id, name, owner, ownerName, updated }], newest first
- *   GET    /songs/<id>/arrangements/<aid>.json
- *   PUT    /songs/<id>/arrangements/<aid>.json     any member makes one; then only its owner or a manager
- *   DELETE /songs/<id>/arrangements/<aid>.json
+ *   GET    /songs/<id>/arrangements/<aid>
+ *   PUT    /songs/<id>/arrangements/<aid>          any member makes one; then only its owner or a manager
+ *   DELETE /songs/<id>/arrangements/<aid>          (<aid>.json is accepted too)
  *   PUT    /songs/<id>/chart.pro                   text
  *   PUT    /songs/<id>/analysis.json               the replaced copy is kept under analysis/history/
  *   GET    /songs/<id>/analysis/history/           [{ file, savedAt, savedBy }], newest first
@@ -23,9 +23,12 @@ import * as data from './data.ts'
 import { serveFile } from './files.ts'
 import { parseSongPath, songKey, songPrefix } from './keys.ts'
 import { allowed, church, fail, need, sameOrigin, songOwned, type AppEnv } from './tenant.ts'
-import { body, maxBody } from './validate.ts'
-const SONG = '/:songId{[a-z0-9]{12}}'
-const ARRANGEMENT = `${SONG}/arrangements/:file{[A-Za-z0-9_-]{6,32}\\.json}`
+import { body, maxBody, only } from './validate.ts'
+// plain parameters (a regex would show up in the typed client's paths); songOwned and arrangementId check them
+const SONG = '/:songId'
+const ARRANGEMENT = `${SONG}/arrangements/:arrangementId`
+/** An arrangement id; `.json` on the end is accepted too (earlier versions of the app asked with it). */
+const ARRANGEMENT_ID = /^([A-Za-z0-9_-]{6,32})(?:\.json)?$/
 const TITLE_MAX = 120
 const CHART_MAX_BYTES = 200 * 1024
 const ARRANGEMENT_MAX_BYTES = 100 * 1024
@@ -69,17 +72,19 @@ const executionCtx = (c: Context) => {
 }
 const methodNotAllowed = (c: Context) => c.json({ error: 'method not allowed' }, 405)
 const stored = (row: data.ArrangementRow, songId: string) => ({ ...row.data, id: row.id, song: songId, name: row.name, owner: row.owner ?? '', updated: row.updated })
-const arrangementId = (c: Context) => c.req.param('file')!.slice(0, -'.json'.length)
+const arrangementId = (c: Context) => ARRANGEMENT_ID.exec(c.req.param('arrangementId') ?? '')?.[1]
 type ArrangementEnv = AppEnv & { Variables: { arrangement: data.ArrangementRow | null } }
 /** Loads the arrangement; once made, only its owner or someone who may manage arrangements changes it. */
 const arrangementWrite = createMiddleware<ArrangementEnv>(async (c, next) => {
   const { db } = c.get('deps')
   const tenant = c.get('tenant')
-  const existing = await data.getArrangement(db, tenant.orgId, c.req.param('songId')!, arrangementId(c))
+  const id = arrangementId(c)
+  if (!id) return fail(c, 404, 'not found')
+  const existing = await data.getArrangement(db, tenant.orgId, c.req.param('songId')!, id)
   if (existing && existing.owner !== tenant.user.id && !allowed(tenant, { arrangement: ['manage'] })) {
     return fail(c, 403, 'Only its owner or an editor can change this arrangement')
   }
-  if (!existing && c.req.method === 'DELETE') return fail(c, 404, 'Not Found')
+  if (!existing && c.req.method === 'DELETE') return fail(c, 404, 'not found')
   if (!existing && !allowed(tenant, { arrangement: ['create'] })) return fail(c, 403, 'forbidden')
   c.set('arrangement', existing)
   await next()
@@ -91,30 +96,31 @@ function timeFromFile(file: string): string | undefined {
 }
 export const songs = new Hono<AppEnv>({ strict: false })
   .use(church, sameOrigin)
+  .use('/index.json', only('GET'))
   .get('/index.json', need({ song: ['read'] }), async (c) => {
     c.header('Cache-Control', 'private, no-cache')
     return c.json(await data.listSongs(c.get('deps').db, c.get('tenant').orgId))
   })
-  .all('/index.json', methodNotAllowed)
+  .use('/new', only('POST'))
   .post('/new', need({ song: ['create'] }), body(newSong), async (c) => {
     const { user, orgId } = c.get('tenant')
     const song = await data.createSong(c.get('deps').db, orgId, user.id, c.req.valid('json').title)
     if (song === 'exists') return fail(c, 409, 'A song with this name exists already')
     return c.json(song, 201)
   })
-  .all('/new', methodNotAllowed)
   .use(`${SONG}/*`, songOwned)
+  .use(SONG, only('PATCH', 'DELETE'))
   .patch(SONG, need({ content: ['edit'] }), body(songPatch), async (c) => {
     const song = await data.updateSong(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'), c.req.valid('json'))
     if (song === 'exists') return fail(c, 409, 'A song with this name exists already')
-    if (!song) return fail(c, 404, 'Not Found')
+    if (!song) return fail(c, 404, 'not found')
     return c.json(song)
   })
   .delete(SONG, need({ song: ['delete'] }), async (c) => {
     const { orgId } = c.get('tenant')
     const songId = c.req.param('songId')
     const prefix = songPrefix(orgId, songId)
-    if (!prefix || !(await data.deleteSong(c.get('deps').db, orgId, songId, c.get('deps').memo))) return fail(c, 404, 'Not Found')
+    if (!prefix || !(await data.deleteSong(c.get('deps').db, orgId, songId, c.get('deps').memo))) return fail(c, 404, 'not found')
     let cursor: string | undefined
     do {
       const page = await c.env.FILES.list({ prefix, cursor, limit: 1000 })
@@ -123,29 +129,29 @@ export const songs = new Hono<AppEnv>({ strict: false })
     } while (cursor)
     return c.body(null, 204)
   })
-  .all(SONG, methodNotAllowed)
   .get(`${SONG}/arrangements`, async (c) => c.json(await data.listArrangements(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'))))
   .get(ARRANGEMENT, async (c) => {
     const songId = c.req.param('songId')
-    const row = await data.getArrangement(c.get('deps').db, c.get('tenant').orgId, songId, arrangementId(c))
-    return row ? c.json(stored(row, songId)) : fail(c, 404, 'Not Found')
+    const id = arrangementId(c)
+    const row = id ? await data.getArrangement(c.get('deps').db, c.get('tenant').orgId, songId, id) : null
+    return row ? c.json(stored(row, songId)) : fail(c, 404, 'not found')
   })
   .put(ARRANGEMENT, arrangementWrite, maxBody(ARRANGEMENT_MAX_BYTES, 'Arrangement too large'), body(arrangementBody), async (c) => {
     const songId = c.req.param('songId')
     const { id: _id, song: _song, owner: _owner, updated: _updated, name, ...rest } = c.req.valid('json')
     const title = (name?.trim() || 'Arrangement').slice(0, 80)
     const { user, orgId } = c.get('tenant')
-    const row = await data.saveArrangement(c.get('deps').db, orgId, songId, arrangementId(c), user.id, title, rest)
-    return row ? c.json(stored(row, songId)) : fail(c, 404, 'Not Found')
+    const row = await data.saveArrangement(c.get('deps').db, orgId, songId, arrangementId(c)!, user.id, title, rest)
+    return row ? c.json(stored(row, songId)) : fail(c, 404, 'not found')
   })
   .delete(ARRANGEMENT, arrangementWrite, async (c) => {
-    await data.deleteArrangement(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'), arrangementId(c))
+    await data.deleteArrangement(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'), arrangementId(c)!)
     return c.json({ ok: true as const })
   })
-  .all(`${SONG}/arrangements/*`, (c) => fail(c, 404, 'Not Found'))
+  .all(`${SONG}/arrangements/*`, (c) => fail(c, 404, 'not found'))
   .put(`${SONG}/chart.pro`, need({ content: ['edit'] }), maxBody(CHART_MAX_BYTES, 'Chart too large'), async (c) => {
     const key = songKey(c.get('tenant').orgId, c.req.param('songId'), ['chart.pro'])
-    if (!key) return fail(c, 404, 'Not Found')
+    if (!key) return fail(c, 404, 'not found')
     await c.env.FILES.put(key, await c.req.text(), { httpMetadata: { contentType: 'text/plain; charset=utf-8' } })
     return c.body(null, 204)
   })
@@ -153,13 +159,13 @@ export const songs = new Hono<AppEnv>({ strict: false })
     const tenant = c.get('tenant')
     const songId = c.req.param('songId')
     const key = songKey(tenant.orgId, songId, ['analysis.json'])
-    if (!key) return fail(c, 404, 'Not Found')
+    if (!key) return fail(c, 404, 'not found')
     const current = await c.env.FILES.get(key)
-    if (!current) return fail(c, 404, 'Not Found') // only songs that have been analysed
+    if (!current) return fail(c, 404, 'not found') // only songs that have been analysed
     const now = new Date().toISOString()
     const previous = current.customMetadata ?? {}
     const historyKey = songKey(tenant.orgId, songId, ['analysis', 'history', `${now.replace(/[:.]/g, '-')}.json`])
-    if (!historyKey) return fail(c, 404, 'Not Found')
+    if (!historyKey) return fail(c, 404, 'not found')
     await c.env.FILES.put(historyKey, await current.text(), {
       httpMetadata: { contentType: 'application/json' },
       customMetadata: { savedAt: previous.updatedAt ?? current.uploaded.toISOString(), savedBy: previous.updatedBy ?? 'analysis' },
@@ -171,9 +177,10 @@ export const songs = new Hono<AppEnv>({ strict: false })
     })
     return c.json({ ok: true as const, updatedAt: now })
   })
+  .use(`${SONG}/analysis/history`, only('GET'))
   .get(`${SONG}/analysis/history`, async (c) => {
     const dir = songKey(c.get('tenant').orgId, c.req.param('songId'), ['analysis', 'history'])
-    if (!dir) return fail(c, 404, 'Not Found')
+    if (!dir) return fail(c, 404, 'not found')
     const prefix = `${dir}/`
     const out: { file: string; savedAt: string; savedBy: string }[] = []
     let cursor: string | undefined
@@ -189,12 +196,11 @@ export const songs = new Hono<AppEnv>({ strict: false })
     out.sort((a, b) => b.file.localeCompare(a.file))
     return c.json(out)
   })
-  .all(`${SONG}/analysis/history`, methodNotAllowed)
   // GET (and HEAD, which Hono routes here) of any other file of the song
   .get(`${SONG}/*`, need({ song: ['read'] }), async (c) => {
     const path = parseSongPath(new URL(c.req.url).pathname)
     const key = path?.kind === 'song' ? songKey(c.get('tenant').orgId, path.songId, path.rest) : null
-    if (!key) return fail(c, 404, 'Not Found')
+    if (!key) return fail(c, 404, 'not found')
     return await serveFile(c.req.raw, c.env, key, executionCtx(c))
   })
   .all(`${SONG}/*`, methodNotAllowed)

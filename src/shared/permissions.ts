@@ -11,7 +11,7 @@
  * `ai:run` (Music.AI credits) is in no church role: only the platform super admin
  * (user.platformAdmin) runs it, from the CLI.
  */
-import { createAccessControl } from 'better-auth/plugins/access'
+import { createAccessControl, type AccessControl } from 'better-auth/plugins/access'
 import { adminAc, defaultStatements, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 
 export const statement = {
@@ -23,7 +23,8 @@ export const statement = {
   ai: ['run'],
 } as const
 
-export const ac = createAccessControl(statement)
+// named type, so the declaration the web app reads (tsconfig.worker.json) keeps the same type as the source
+export const ac: AccessControl<typeof statement> = createAccessControl(statement)
 
 const member = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create'] })
 const editor = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create', 'manage'], content: ['edit'] })

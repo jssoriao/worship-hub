@@ -80,6 +80,11 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - `src/web/lib/sources.ts`: `StemSource` (zip, library manifest), `fetchLibrary` (the active church's
   songs, `?church=<id>` so the offline copy is per church). Manifests list `tiers` (standard VBR q4,
   saver VBR q6, original), per-stem fingerprints `v` (`file.mp3?v=<hash>`) and waveform `peaks`.
+- `src/web/lib/api.ts`: the typed API client (`hc<AppType>`, Hono RPC): `songsApi`, `membersApi`, and `call()`
+  (typed ok body, else `ApiError` with the server's `{ error }`). Every JSON call goes through it, so an API
+  change the app does not follow fails `pnpm build` (`tsconfig.app.json` references `tsconfig.worker.json`
+  for the API's types). Song files (audio, manifests, `chart.pro`, `analysis.json`) stay plain URLs (`songFile`)
+  for Range streaming and the offline cache. `test/client.test.ts` runs the client against the real app.
 - `src/web/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/web/lib/address.ts`:
   the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open).
 - `src/web/config.ts`: `SONGS_BASE_URL`. Sign-in is always on, also in development.
