@@ -1,0 +1,28 @@
+# Only this Postgres is supported (the proxy reaches it by its name here); Homebrew or Postgres.app
+# databases are not reached. If 5433 is taken, set LOCAL_DB_PROXY_PORT in .dev.vars.
+#
+# A local database for development, instead of the Neon dev branch. Start it with `pnpm db:local`,
+# then in .dev.vars set both DATABASE_URL and DATABASE_OWNER_URL to:
+#   postgres://postgres:postgres@localhost:5432/worship_hub
+# and run `pnpm db:migrate`. The app's database driver talks WebSockets, so the proxy below sits in
+# front of Postgres (shared/local-neon.ts points the code at it whenever the URL is localhost).
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: worship_hub
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - worship-hub-pg:/var/lib/postgresql/data
+  wsproxy:
+    image: ghcr.io/neondatabase/wsproxy:latest
+    environment:
+      ALLOW_ADDR_REGEX: '.*'
+    ports:
+      - '127.0.0.1:${LOCAL_DB_PROXY_PORT:-5433}:80'
+    depends_on:
+      - postgres
+volumes:
+  worship-hub-pg:

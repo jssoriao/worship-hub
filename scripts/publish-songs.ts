@@ -1,13 +1,18 @@
 /**
- * Uploads the local song library of ONE church to the production R2 bucket.
+ * Publishes the local song library of ONE church: to production (--target prod: the production
+ * database and the real R2 bucket) or, by default, to development (the Neon dev branch and the LOCAL
+ * R2 that `pnpm cf:api` serves, in <main checkout>/.wrangler/state, shared by every worktree).
+ * Dev is how you try a song in the app on this machine; nothing in dev touches production.
  *
+ *   pnpm songs:publish --church <church>                               to development (local R2)
+
  *   pnpm songs:publish --church <church> --target prod             all songs in ./songs (or SONGS_DIR)
  *   pnpm songs:publish "Song Folder" --church <church> --target prod   only that song (folder name = title)
  *
  * --church <slug> is required: songs belong to a church (never shared). The song is a row in the
  * database (found by its title, created when new); its id is what names everything in R2. The
- * database is the song list, so there is no index.json. R2 is production, so a real publish needs
- * --target prod (the database of production); --dry-run works against the dev database and creates nothing.
+ * database is the song list, so there is no index.json. A dev publish
+ * creates the song in the dev database (its own id, never the production one); --dry-run creates nothing.
  *   pnpm songs:publish --dry-run          print what would be uploaded
  *   pnpm songs:publish --manifest-only    upload only the manifest (and index), no audio
  *   pnpm songs:publish --force            upload audio even if it looks unchanged
@@ -74,10 +79,19 @@ if (!churchSlug) {
   console.error('Say which church: --church <slug> (pnpm churches list)')
   process.exit(1)
 }
-if (!dryRun && target !== 'prod') {
-  console.error('Publishing writes to the production R2 bucket, so it needs the production database too: add --target prod (or --dry-run to look).')
-  process.exit(1)
-}
+/**
+ * Where the files go. Production: the real bucket. Dev (default): the local R2 that `pnpm cf:api` serves,
+ * kept on this machine in one folder shared by all worktrees, with ids from the Neon dev branch.
+ */
+const remote = target === 'prod'
+const R2_STATE = path.join(
+  spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).stdout.trim() || path.resolve('.git'),
+  '..',
+  '.wrangler',
+  'state',
+)
+/** The wrangler flags that choose the bucket: the real one, or the local one. */
+const where = remote ? ['--remote'] : ['--local', '--persist-to', R2_STATE]
 const databaseUrl = loadTarget(target)
 neonConfig.webSocketConstructor = WebSocket
 const pool = new Pool({ connectionString: databaseUrl })
@@ -116,7 +130,8 @@ const state: Record<string, string> = (() => {
   }
 })()
 const saveState = () => fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 1) + '\n')
-const stateKey = (key: string) => `${BUCKET}/${PREFIX}${key}`
+// dev uploads are remembered apart from production ones, so one never makes the other skip files
+const stateKey = (key: string) => `${remote ? '' : 'dev:'}${BUCKET}/${PREFIX}${key}`
 /** Identifies an upload by its source file and quality, not by the (cached) encoded file. */
 const stamp = (src: string, q: number | null) => {
   const st = fs.statSync(src)
@@ -138,7 +153,7 @@ function put(key: string, file: string, contentType: string, s?: string) {
   }
   console.log(`  ${PREFIX}${key}`)
   if (dryRun) return
-  const result = run(['r2', 'object', 'put', `${BUCKET}/${PREFIX}${key}`, '--file', file, '--content-type', contentType, '--remote'])
+  const result = run(['r2', 'object', 'put', `${BUCKET}/${PREFIX}${key}`, '--file', file, '--content-type', contentType, ...where])
   if (result.status !== 0) throw new Error(`Upload failed: ${key}`)
   if (s) {
     state[stateKey(key)] = s
@@ -153,7 +168,7 @@ function put(key: string, file: string, contentType: string, s?: string) {
  * its files ([] and {} for a new song or an older manifest).
  */
 function remoteManifest(songRoot: string) {
-  const result = run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/stems/manifest.json`, '--remote', '--pipe'], true)
+  const result = run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/stems/manifest.json`, ...where, '--pipe'], true)
   return result.status === 0 ? { tiers: tiersFromManifest(result.stdout), versions: versionsFromManifest(result.stdout) } : { tiers: [], versions: {} }
 }
 
@@ -192,7 +207,7 @@ try {
       songId = (await ensureSong(pool, church.id, song.title, { stems: true, key: music?.key ?? null, bpm: music?.bpm ?? null, meter: music?.meter ?? null }, operator)).id
     }
     const songRoot = rootOf(songId)
-    console.log(`\n${song.title} -> ${songRoot}${dryRun ? ' (dry run)' : ''}`)
+    console.log(`\n${song.title} -> ${remote ? '' : 'local R2: '}${songRoot}${dryRun ? ' (dry run)' : ''}`)
     const songDir = path.join(root, song.dir)
     const stems = stemFiles(songDir).map((stem) => ({ stem, src: path.join(songDir, ...stem.parts) }))
     // what is online already (from the manifest in the bucket), and sizes known without encoding
@@ -275,7 +290,7 @@ try {
     // the analysis (chords, beats, sections, timed lyrics), when the song has been through songs:analyse.
     // Once online it is edited in the app, so it is only uploaded when R2 has none yet, or with --analysis.
     const analysis = currentAnalysis(songDir)
-    const onlineAlready = analysis && !args.includes('--analysis') && run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/${ANALYSIS_FILE}`, '--remote', '--pipe'], true).status === 0
+    const onlineAlready = analysis && !args.includes('--analysis') && run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/${ANALYSIS_FILE}`, ...where, '--pipe'], true).status === 0
     if (onlineAlready) console.log('  analysis: online already, kept (edited in the app); --analysis replaces it')
     if (analysis && !onlineAlready) {
       const analysisFile = path.join(tmp, ANALYSIS_FILE)

@@ -12,6 +12,10 @@ APP_URL=http://127.0.0.1:8787
 DATABASE_OWNER_URL=postgresql://neondb_owner:PASSWORD@HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require
 DATABASE_URL=postgresql://worship_hub_worker:PASSWORD@HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require
 
+# Or a Postgres on this machine (`pnpm db:local`, needs Docker): set BOTH urls to the same local database
+# (both local or both Neon), for example:
+#   postgres://USER:PASSWORD@localhost:5432/worship_hub   (the throwaway login is in docker-compose.local.yml)
+# If port 5433 is taken for its WebSocket proxy: LOCAL_DB_PROXY_PORT=5444
 # Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET=
 
