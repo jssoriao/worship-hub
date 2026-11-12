@@ -8,7 +8,6 @@ import { Link, useSearchParams } from 'react-router'
 import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
-import { SONGS_BASE_URL } from '../config'
 import { PageHeader } from '../components/PageHeader'
 import { resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
 import { call, songFile, songsApi } from '../lib/api'
@@ -38,8 +37,7 @@ export default function ChartsPage() {
   const [position, setPosition] = useState(-1)
 
   useEffect(() => {
-    if (!SONGS_BASE_URL) return
-    fetchLibrary(SONGS_BASE_URL, church.id)
+    fetchLibrary(church.id)
       .then(setLibrary)
       .catch(() => setLibrary([]))
   }, [church.id])
@@ -76,7 +74,7 @@ export default function ChartsPage() {
   useEffect(() => {
     if (!songId || !hasStems) return
     let live = true
-    fetchSongMusic(SONGS_BASE_URL, songId)
+    fetchSongMusic(songId)
       .then((m) => live && setMusic({ id: songId, music: m }))
       .catch(() => live && setMusic({ id: songId }))
     return () => {
@@ -153,7 +151,7 @@ export default function ChartsPage() {
         actions={
           <>
             <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full sm:w-80" />
-            {mayAdd && SONGS_BASE_URL && !adding && (
+            {mayAdd && !adding && (
               <Button variant="outline" onClick={() => setAdding(true)}>
                 <PlusIcon aria-hidden="true" />
                 New song
@@ -162,7 +160,7 @@ export default function ChartsPage() {
           </>
         }
       />
-      {mayAdd && SONGS_BASE_URL && adding && (
+      {mayAdd && adding && (
         <form onSubmit={(e) => void addSong(e)} className="mt-3 flex flex-wrap items-center gap-2">
           <Label className="sr-only" htmlFor="new-song">
             Song title

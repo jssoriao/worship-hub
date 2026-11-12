@@ -7,7 +7,6 @@ import { useSearchParams } from 'react-router'
 import { ArrEditor, type MutableStem } from '../components/ArrEditor'
 import { ArrTimeline } from '../components/ArrTimeline'
 import { SongPicker } from '../components/SongPicker'
-import { SONGS_BASE_URL } from '../config'
 import {
   blockStarts,
   checkArrangement,
@@ -75,8 +74,7 @@ export default function ArrangePage() {
   const loadToken = useRef(0)
 
   useEffect(() => {
-    if (!SONGS_BASE_URL) return
-    fetchLibrary(SONGS_BASE_URL, church.id)
+    fetchLibrary(church.id)
       .then((songs) => setLibrary(songs.filter((s) => s.stems !== false)))
       .catch(() => setLibrary([]))
   }, [church.id])
@@ -123,7 +121,7 @@ export default function ArrangePage() {
     setLoading('Loading the song…')
     try {
       const engine = getEngine()
-      const r = await sourcesFromSong(SONGS_BASE_URL, id)
+      const r = await sourcesFromSong(id)
       const infos = await engine.load(r.sources)
       if (token !== loadToken.current) return
       // sections from the chart's cues, when it has some

@@ -47,9 +47,40 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
   storage only for what changes. Free plan: up to 10 branches per project, and the project's 100 CU-hours and
   1 GB of storage a month are shared by its branches.
 - Fresh copy of production data (people, churches, songs): Dashboard > Branches > `development` > Reset from
-  parent. That replaces everything on the branch; run `pnpm db:migrate` afterwards if dev had newer migrations.
+  parent. That replaces everything on the branch (every database on it, roles included); run `pnpm db:migrate`
+  afterwards if dev had newer migrations, and `pnpm db:app-role` for dev's own password.
 - Local development runs the real Worker against the `development` branch (`pnpm dev:api` + `pnpm dev`);
   put songs into its local R2 with a dev publish (`pnpm songs:publish "Song Folder" --church <slug>`).
+
+### Cutover to the new stack (#21), once
+
+Production moves from `neondb` (old tables, 12-character ids) to `worship_hub` (Drizzle tables, prefixed
+ids), and its R2 files to the new ids. Dev went through the same steps (see History). Each step is
+safe to repeat, and nothing old is deleted until the end, so the previous Worker version keeps
+working throughout and is the rollback.
+
+1. Freeze edits for a few minutes: no `songs:publish`, chart or analysis edits, arrangement saves.
+2. Neon dashboard > `production` > Databases > New database `worship_hub`, owner `neondb_owner`. Point both
+   URLs in `.prod.vars` at `/worship_hub` (keep the old lines commented for the rollback), then
+   `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod --keep-password` (grants on the new
+   database, same password, so the live Worker is unaffected).
+3. `pnpm db:move --from neondb --target prod`: copies every row with a new id (row counts are checked) and
+   writes `.id-map.prod.json`.
+4. `pnpm r2:rekey --target prod`: copies the R2 files to their new keys inside Cloudflare (a temporary
+   Worker `worship-hub-rekey`, deleted when it finishes). Old keys stay.
+5. GitHub: `gh secret set DATABASE_OWNER_URL --env production` with the new owner URL.
+6. Deploy the new code with the new database in one step: `pnpm build`, `pnpm exec wrangler versions upload`,
+   `pnpm exec wrangler versions secret put DATABASE_URL` (the new app URL) on that version, then
+   `pnpm exec wrangler versions deploy <version>@100%`, then `pnpm smoke` and a real sign-in on a phone.
+7. Merge `refactor/stack` into `main` (the deploy workflow migrates and deploys again: no changes).
+8. Main checkout: point `.dev.vars` at `/worship_hub` and drop `DEV_CHURCH`.
+
+Rollback before step 7: `pnpm exec wrangler rollback` (the previous version still has the old
+`DATABASE_URL`, and the old database and R2 keys are untouched); put the old `DATABASE_OWNER_URL` back in
+GitHub. After a week or two of normal use: `pnpm r2:rekey --target prod --delete-old`, drop `neondb` on
+both branches, and delete `src/cli/move-db.ts`, `src/cli/r2-rekey.ts` and `src/cli/lib/rekey-worker.ts`
+(and their scripts in `package.json`). Old `?song=` links stop working; signed-in people stay signed in
+(the 5 minute cookie cache can deny them until it refreshes).
 
 ## Deploy (GitHub Actions)
 Every push to `main` runs `.github/workflows/deploy.yml`: the CI checks, then in the GitHub environment
@@ -80,6 +111,7 @@ pnpm smoke [url]                     # check a deployed Worker answers (/, /api/
 pnpm db:generate                     # a new migration in src/db/migrations from changes to src/db/schema (Drizzle; Better Auth's tables included)
 pnpm db:migrate [--target prod]      # apply pending migrations (drizzle.__drizzle_migrations records them); owner login
 pnpm db:app-role [--target prod]     # create the app role worship_hub_worker or give it a new password; writes DATABASE_URL
+                                     # --keep-password: only grant on the database in DATABASE_OWNER_URL
 pnpm test                            # vitest: permissions, tenancy (PGlite + fake R2), address rules
 pnpm cf:deploy:redirect              # the redirect Worker for the previous address (rarely needed)
 
@@ -87,6 +119,7 @@ pnpm cf:deploy:redirect              # the redirect Worker for the previous addr
 pnpm churches list [--target prod]
 pnpm churches add <slug> <name> [--owner <email>] [--target prod]
 pnpm churches rename <slug> <name>
+pnpm churches theme <slug> [--brand #hex] [--brand2 #hex] [--app-name <name>] [--logo <https url>] [--reset]   # branding; no options shows it
 pnpm churches delete <slug> [--target prod]                    # dry run: what would go (members, songs, arrangements, sessions, R2 files)
 pnpm churches delete <slug> --confirm <slug> [--target prod]   # R2 files first (prod only), checked gone, then the rows in one transaction; rerun if it stops
 
@@ -120,6 +153,8 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 - 2026-11-12: development moved to a new database `worship_hub` (Drizzle migrations, plural snake_case
   tables): created, `pnpm db:migrate`, `pnpm db:app-role --keep-password`, then `pnpm db:move --from neondb`
   copied the data. The development branch's old `neondb` stays until the production cutover.
+- 2026-11-13: prefixed ids (`<prefix>_<24 chars>`, every table). Dev re-copied with `pnpm db:move --from neondb
+  --replace` (new ids, references rewritten), its local R2 files moved with `pnpm r2:rekey`, then `--delete-old`.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
   name: Worker `worship-hub`, bucket `worship-hub` (copied inside Cloudflare by a temporary Worker; the old bucket and that Worker were then deleted), address
   `worshiphub.jssoriao.dev`. The previous address redirects (`src/redirect/`).

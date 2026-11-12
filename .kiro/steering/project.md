@@ -101,14 +101,14 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   for Range streaming and the offline cache. `test/client.test.ts` runs the client against the real app.
 - `src/web/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/web/lib/address.ts`:
   the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open).
-- `src/web/config.ts`: `SONGS_BASE_URL`. Sign-in is always on, also in development.
+- Songs always come from the Worker at `/songs` (same origin). Sign-in is always on, also in development.
 - Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `src/api/members.ts`,
   `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
-  playing; the nav bar links back with `?song=` of the open song), `/charts`, `/arrange`.
+  playing; the sidebar links back with `?song=` of the open song), `/charts`, `/arrange`.
   `src/web/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
-- Practice player: docked `TransportBar` (song + facts, skip/play/seek, click and view-settings
-  popovers, Edit), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
-  Chords, Shapes (`src/web/components/player/`). Shared `Select` (styled native select) and `Popover`.
+- Practice player: `TransportBar`, drawn into the bottom dock (song + facts, skip/play/seek, click, key
+  (the key letter) and view-settings popovers, Edit), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
+  Chords, Shapes (`src/web/components/player/`). `Popover` (play-bar panels, on the shadcn popover).
 - Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are
   `songs` rows with `has_stems` false.
@@ -120,8 +120,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Editing in Practice (`src/web/lib/analysis-edit.ts`; a changed word keeps the time of the word it
   replaces); the Worker keeps each replaced version in `analysis/history/`.
 - `src/web/components/AuthGate.tsx`, `src/web/lib/auth-client.ts`: login form (email, then 6-digit code),
-  sign-out. `src/web/components/NavBar.tsx` is the top bar (church switcher left, account menu with sign-out
-  right, `AccountMenu.tsx`).
+  sign-out. `AuthScreen` is the card the screens before the app share (sign-in, choosing a church).
 - Local dev: `pnpm dev:api` (the Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
   shared by worktrees) + `pnpm dev` (Vite with hot reload, forwarding `/api` and `/songs`; `vite.config.ts`).
   `pnpm songs:publish` without `--target prod` writes the dev database and that local R2 (dev ids; its upload

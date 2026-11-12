@@ -1,6 +1,9 @@
 import JSZip from 'jszip'
 import { audioCache } from './audio-cache'
 
+/** Where the active church's songs are (the Worker, same origin). */
+const SONGS = '/songs'
+
 /**
  * A stem source only knows how to produce its (compressed) bytes.
  * A zip and the library (the Worker) both map onto this.
@@ -143,7 +146,7 @@ export async function sourcesFromZip(file: File): Promise<StemSource[]> {
 
 // ---------------------------------------------------------------- library (the Worker)
 
-/** `${base}/index.json` */
+/** `${SONGS}/index.json` */
 export interface LibrarySong {
   id: string
   title: string
@@ -156,7 +159,7 @@ export interface LibrarySong {
 }
 
 /**
- * `${base}/${id}/stems/manifest.json`. `file` is relative to the manifest (and may be URL-encoded).
+ * `${SONGS}/${id}/stems/manifest.json`. `file` is relative to the manifest (and may be URL-encoded).
  * `mix: true` marks the combined stem of its group; the other stems in that group are its parts.
  * The same format works as manifest.json at the root of a zip.
  */
@@ -218,8 +221,8 @@ export function describeMusic(music: SongMusic | undefined): string {
 }
 
 /** Key and tempo of a library song, for pages that do not load its stems (Charts). */
-export async function fetchSongMusic(base: string, id: string): Promise<SongMusic | undefined> {
-  const url = absolute(`${base}/${encodeURIComponent(id)}/stems/manifest.json`)
+export async function fetchSongMusic(id: string): Promise<SongMusic | undefined> {
+  const url = absolute(`${SONGS}/${encodeURIComponent(id)}/stems/manifest.json`)
   return musicOf(((await getJson<unknown>(url)) as SongManifest | null)?.music)
 }
 
@@ -271,8 +274,8 @@ const FINGERPRINT = /^[0-9a-f]{8,64}$/
  * The active church's songs. The church is not needed to ask (the session says which), but it is in
  * the address so the copy saved for offline use is per church: switching church while offline never shows the other's list.
  */
-export async function fetchLibrary(base: string, churchId: string): Promise<LibrarySong[]> {
-  const url = absolute(`${base}/index.json`)
+export async function fetchLibrary(churchId: string): Promise<LibrarySong[]> {
+  const url = absolute(`${SONGS}/index.json`)
   if (churchId) url.searchParams.set('church', churchId)
   return getJson<LibrarySong[]>(url)
 }
@@ -282,11 +285,10 @@ export async function fetchLibrary(base: string, churchId: string): Promise<Libr
  * is used, then whatever comes first. Songs published without tiers have a single quality (`tier` is null).
  */
 export async function sourcesFromSong(
-  base: string,
   id: string,
   wanted?: string,
 ): Promise<{ title: string; sources: StemSource[]; tiers: QualityTier[]; tier: string | null; music?: SongMusic }> {
-  const manifestUrl = absolute(`${base}/${encodeURIComponent(id)}/stems/manifest.json`)
+  const manifestUrl = absolute(`${SONGS}/${encodeURIComponent(id)}/stems/manifest.json`)
   const m = checkManifest(await getJson<unknown>(manifestUrl), manifestUrl.pathname)
   const tiers = tiersOf(m.tiers)
   const tier = tiers.length === 0 ? null : (tiers.find((t) => t.id === wanted) ?? tiers.find((t) => t.id === 'standard') ?? tiers[0]).id
