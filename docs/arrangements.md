@@ -37,7 +37,7 @@ interface Arrangement {
 
 - Sections come from the chart's `{cue}` times when the song has them, snapped to the nearest
   downbeat of the beat grid; otherwise from `music.sections` in the manifest, suggested at publish
-  time from the stems (`dev/sections.ts`) or set in `song.json`; otherwise the whole song. They can be split at the
+  time from the stems (`src/cli/lib/sections.ts`) or set in `song.json`; otherwise the whole song. They can be split at the
   playhead (snapped to a downbeat), renamed, and joined back.
 - A block plays one section. Repeating a chorus is two blocks. A block mutes stems at the level the
   Practice page shows them (a combined stem such as Drums, or a stem on its own).

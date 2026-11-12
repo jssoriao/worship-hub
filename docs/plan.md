@@ -4,7 +4,7 @@ Decisions made so far. Update as things change.
 
 Everything is church-neutral: Worker `worship-hub`, Neon project `worship-hub`, R2 bucket `worship-hub`, domain
 `worshiphub.jssoriao.dev`. One site serves every church; a church is a tenant in the database, never part
-of a resource name. The app's previous address redirects to the current one (`redirect/`, see docs/infra.md).
+of a resource name. The app's previous address redirects to the current one (`src/redirect/`, see docs/infra.md).
 
 ## Stack
 
@@ -37,7 +37,7 @@ of a resource name. The app's previous address redirects to the current one (`re
 - After sign-in the person lands in their (earliest) church (`session.activeOrganizationId`, set by a
   session-create hook). Someone in several churches gets a switcher in the nav bar; the device remembers
   the last one. Switching reloads at Practice, so nothing of the other church stays open.
-- Roles are permission bundles (`shared/permissions.ts`, `createAccessControl`); code asks
+- Roles are permission bundles (`src/shared/permissions.ts`, `createAccessControl`); code asks
   `can(role, { content: ['edit'] })`, never compares role names:
   member (plays, own arrangements), editor (+ chords, lyrics, sections, charts, song details, any
   arrangement), admin (+ add/remove songs, manage members and editors), owner (+ church settings,
@@ -61,15 +61,15 @@ lyrics, chords and sections. Neon holds the relational data:
 - `song(id, organizationId, title, artist, musicKey, bpm, meter, hasStems, createdBy, createdAt, updatedAt)`,
   title unique per church. The song list (`GET /songs/index.json`) is a query, scoped to the active church.
 - `arrangement(id, songId, owner, name, data jsonb, ...)`, scoped to the church through its song.
-- Ids are 12 random chars of `[a-z0-9]` (`shared/ids.ts`). `?song=` in the address is the song's id.
+- Ids are 12 random chars of `[a-z0-9]` (`src/shared/ids.ts`). `?song=` in the address is the song's id.
 R2 holds the files, under one prefix per song: `churches/<churchId>/songs/<songId>/` with
 `stems/manifest.json`, `stems/<file>` (original), `stems/standard/<file>`, `stems/saver/<file>`,
 `chart.pro`, `analysis.json`, `analysis/history/<time>.json`. URLs stay `/songs/<songId>/...`: the
 church comes from the session, never the URL. Before building any key the Worker checks that the song
 belongs to the member's active church (404 otherwise, the same as missing); keys are built only from
-validated ids (`worker/keys.ts`), so no path can leave the song's prefix. Audio is keyed by file name only
+validated ids (`src/api/keys.ts`), so no path can leave the song's prefix. Audio is keyed by file name only
 and groups live in the manifest, so regrouping never moves or re-uploads audio.
-Saved-offline songs are kept per device in Cache Storage, keyed by URL (`src/lib/audio-cache.ts`).
+Saved-offline songs are kept per device in Cache Storage, keyed by URL (`src/web/lib/audio-cache.ts`).
 The library URL carries `?church=<id>` so the offline copy of the list is per church. Signing out clears it.
 How the data got here from the single-church layout: docs/infra.md, History.
 

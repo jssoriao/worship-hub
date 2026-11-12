@@ -1,38 +1,40 @@
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
-import { songsPlugin } from './dev/songs-plugin.ts'
+
+const repo = fileURLToPath(new URL('.', import.meta.url))
 
 // https://vite.dev/config/
+// The app lives in src/web. In development the real Worker (`pnpm dev:api`) answers /api and /songs;
+// this dev server only serves the app and forwards those paths to it.
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  // `pnpm dev:app`: the real Worker (`pnpm cf:api`) answers /api and /songs, with sign-in on
-  const backend = env.VITE_REQUIRE_AUTH === '1' ? env.BACKEND_URL || 'http://127.0.0.1:8787' : null
+  const env = loadEnv(mode, repo, '')
+  const backend = env.BACKEND_URL || 'http://127.0.0.1:8787'
   type ProxyEvents = { on: (event: 'proxyReq', handler: (req: { setHeader: (k: string, v: string) => void; getHeader: (k: string) => unknown }) => void) => void }
   return {
-    server: backend
-      ? {
-          proxy: Object.fromEntries(
-            ['/api', '/songs'].map((path) => [
-              path,
-              {
-                target: backend,
-                // sign-in only trusts the Worker's own address (APP_URL), so requests say they come from there
-                configure: (proxy: ProxyEvents) =>
-                  proxy.on('proxyReq', (req) => {
-                    if (req.getHeader('origin')) req.setHeader('origin', backend)
-                  }),
-              },
-            ]),
-          ),
-        }
-      : undefined,
+    root: 'src/web',
+    envDir: repo,
+    build: { outDir: '../../dist', emptyOutDir: true },
+    server: {
+      proxy: Object.fromEntries(
+        ['/api', '/songs'].map((path) => [
+          path,
+          {
+            target: backend,
+            // sign-in only trusts the Worker's own address (APP_URL), so requests say they come from there
+            configure: (proxy: ProxyEvents) =>
+              proxy.on('proxyReq', (req) => {
+                if (req.getHeader('origin')) req.setHeader('origin', backend)
+              }),
+          },
+        ]),
+      ),
+    },
     plugins: [
       react(),
       tailwindcss(),
-      // dev only: serves SONGS_DIR (default ./songs) at /songs, mimicking S3/CloudFront (not used with the real Worker)
-      ...(backend ? [] : [songsPlugin(env.SONGS_DIR || 'songs')]),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg'],

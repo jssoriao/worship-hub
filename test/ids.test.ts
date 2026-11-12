@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ID_PATTERN, newId } from '../shared/ids.ts'
+import { ID_PATTERN, newId } from '../src/shared/ids.ts'
 
 describe('newId', () => {
   it('is 12 url-safe lowercase chars by default', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeEmail, parseArgs, parseRole, parseSlug } from '../scripts/lib/cli.ts'
-import { dbIdentity, parseVars } from '../scripts/lib/env.ts'
+import { normalizeEmail, parseArgs, parseRole, parseSlug } from '../src/cli/lib/cli.ts'
+import { dbIdentity, parseVars } from '../src/cli/lib/env.ts'
 
 describe('cli helpers', () => {
   it('parses flags with and without values', () => {

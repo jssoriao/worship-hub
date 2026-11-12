@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Db } from '../worker/data.ts'
-import { Memo } from '../worker/data.ts'
-import { isMembersPath, manageableRoles, routeMembers } from '../worker/members.ts'
-import type { SessionSource } from '../worker/tenant.ts'
+import type { Db } from '../src/api/data.ts'
+import { Memo } from '../src/api/data.ts'
+import { isMembersPath, manageableRoles, routeMembers } from '../src/api/members.ts'
+import type { SessionSource } from '../src/api/tenant.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
 const A = 'churchaaaaaa'
