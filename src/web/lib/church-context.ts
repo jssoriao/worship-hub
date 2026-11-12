@@ -12,7 +12,7 @@ export interface ChurchInfo {
   logo: string | null
 }
 
-/** The church the signed-in person is working in. In dev (no sign-in) there is one stand-in church with every permission. */
+/** The church the signed-in person is working in (ChurchGate in church.tsx provides it). */
 export interface ChurchValue {
   id: string
   name: string
@@ -26,14 +26,13 @@ export interface ChurchValue {
   switchTo: (id: string) => Promise<void>
 }
 
-export const DEV_CHURCH = 'dev'
-
+/** Outside ChurchGate (tests, screens before sign-in): no church and no permissions. */
 export const ChurchContext = createContext<ChurchValue>({
-  id: DEV_CHURCH,
-  name: 'Dev',
+  id: '',
+  name: '',
   theme: {},
   logo: null,
-  role: 'owner',
+  role: null,
   churches: [],
   can: () => false,
   switchTo: async () => {},

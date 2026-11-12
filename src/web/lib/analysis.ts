@@ -2,7 +2,6 @@
  * The song analysis for the player (see dev/analysis.ts for where it comes from): chords on the
  * beat grid, sections, and lyrics with a time per word. Times here are seconds.
  */
-import { SONGS_BASE_URL } from '../config'
 import { songFile } from './api'
 import { keyName, parseKey, prefersFlats, shiftKey, transposeChord } from './chords'
 
@@ -64,7 +63,6 @@ export async function fetchAnalysisVersion(id: string, file: string): Promise<So
 }
 
 async function getAnalysis(url: string): Promise<SongAnalysis | null> {
-  if (!SONGS_BASE_URL) return null
   const res = await fetch(url, { cache: 'no-store' }).catch(() => null)
   if (!res?.ok) return null
   const raw = (await res.json().catch(() => null)) as Raw | null

@@ -12,8 +12,9 @@ of a resource name. The app's previous address redirects to the current one (`sr
 |---|---|---|
 | App hosting | Cloudflare (Workers static assets or Pages) | Vite PWA |
 | Stem storage | Cloudflare R2 | Zero egress fees. About $0.015/GB-month, first 10 GB free |
-| API + auth | Cloudflare Worker + Better Auth | Same origin as the app, so no CORS |
-| Database | Neon Postgres (standalone account, not via Vercel) | Free tier scales to zero after 5 min idle |
+| Frontend | Vite, React, react-router, Tailwind, shadcn/ui (Radix) | Dark only; colours from brand variables, per-church white label |
+| API + auth | Cloudflare Worker: Hono + Zod, Better Auth | Same origin as the app, so no CORS. Typed client (`hono/client`) |
+| Database | Neon Postgres (standalone account, not via Vercel), database `worship_hub` | Drizzle schema and migrations for every table, Better Auth's included. Free tier scales to zero after 5 min idle |
 | Email | Resend | Sending subdomain `mail.jssoriao.dev` |
 | IaC | `wrangler.jsonc` | Neon and Resend are one-time manual setup, documented here |
 | Domain | `worshiphub.jssoriao.dev` | Registrar stays GoDaddy. DNS moves to Cloudflare (Free plan). A product domain can replace this later if the app is sold |
@@ -35,7 +36,7 @@ of a resource name. The app's previous address redirects to the current one (`sr
   creates a church in the app. The Worker closes every organization endpoint except set-active, list,
   get-active-member(-role) and has-permission.
 - After sign-in the person lands in their (earliest) church (`session.activeOrganizationId`, set by a
-  session-create hook). Someone in several churches gets a switcher in the nav bar; the device remembers
+  session-create hook). Someone in several churches gets a switcher in the sidebar; the device remembers
   the last one. Switching reloads at Practice, so nothing of the other church stays open.
 - Roles are permission bundles (`src/shared/permissions.ts`, `createAccessControl`); code asks
   `can(role, { content: ['edit'] })`, never compares role names:
@@ -58,9 +59,10 @@ of a resource name. The app's previous address redirects to the current one (`sr
 
 Songs belong to one church and are never shared (stems included), because each church edits its own
 lyrics, chords and sections. Neon holds the relational data:
-- `song(id, organizationId, title, artist, musicKey, bpm, meter, hasStems, createdBy, createdAt, updatedAt)`,
+- `songs(id, organization_id, title, artist, music_key, bpm, meter, has_stems, created_by, created_at, updated_at)`,
   title unique per church. The song list (`GET /songs/index.json`) is a query, scoped to the active church.
-- `arrangement(id, songId, owner, name, data jsonb, ...)`, scoped to the church through its song.
+- `arrangements(id, song_id, owner_id, name, data jsonb, ...)`, scoped to the church through its song.
+- Tables are plural and snake_case (`src/db/schema`); TypeScript names are camelCase.
 - Ids are `<prefix>_<24 random [0-9a-z]>` (nanoid, about 124 bits) for every table, Better Auth's included (`src/shared/ids.ts`). `?song=` in the address is the song's id without its prefix.
 R2 holds the files, under one prefix per song: `churches/<churchId>/songs/<songId>/` with
 `stems/manifest.json`, `stems/<file>` (original), `stems/standard/<file>`, `stems/saver/<file>`,
@@ -79,6 +81,9 @@ How the data got here from the single-church layout: docs/infra.md, History.
 2. Auth: Better Auth + Neon + Resend, gate song routes, seed members. Done and live.
 3. CI: checks on PRs (`pnpm lint`, `pnpm build`, `pnpm test`) are live. Deploy on `main` (`.github/workflows/deploy.yml`): checks, `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`, rollback if the smoke test fails. See docs/infra.md, Deploy.
 3b. Multi-tenancy (churches, songs in Neon, id based R2 layout) and church-neutral names. Done and live (2026-11-12).
+3c. Stack refactor (#21): one `src/` tree, Hono + Zod, Drizzle, typed client, shadcn/ui, sidebar layout,
+    white label, prefixed ids. Done on `refactor/stack`; the production cutover (new database, ids, R2 keys)
+    is the last step (docs/infra.md, Cutover).
 4. Admin: member management page, then song upload (presigned PUT to R2, peaks precomputed).
 5. Church features: chord and lyric charts (done: ChordPro charts, Music.AI analysis with in-app editing); services, lineups, volunteer assignments (not started).
 
@@ -86,5 +91,5 @@ How the data got here from the single-church layout: docs/infra.md, History.
 
 - DNS is on Cloudflare already (done). The old webapp records were removed and no email records exist.
 - Resend domain verification (SPF, DKIM, DMARC) for `mail.jssoriao.dev`.
-- Admin page for churches and members (today: CLI only).
+- Admin page for churches (today: CLI only; members are managed in the app) and a church settings page for branding (today: `pnpm churches theme`).
 - Verify current free-tier terms for R2, Neon, Resend before relying on them.

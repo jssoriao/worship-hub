@@ -9,7 +9,6 @@ import { keyName, parseKey, shiftKey } from '../lib/chords'
 import { MAX_KEY_SHIFT } from '../lib/key-shift'
 import { loadSong as loadSongSettings, saveSong as saveSongSettings } from '../lib/chart-view'
 import { describeMusic, fetchLibrary, sourcesFromSong, sourcesFromZip, type LibrarySong, type QualityTier, type SongMusic, type StemSource } from '../lib/sources'
-import { SONGS_BASE_URL } from '../config'
 import { useNowPlaying } from '../lib/now-playing-context'
 import { StemRow } from '../components/StemRow'
 import { SongPicker } from '../components/SongPicker'
@@ -245,8 +244,7 @@ export default function PracticePage() {
   }
 
   useEffect(() => {
-    if (!SONGS_BASE_URL) return
-    fetchLibrary(SONGS_BASE_URL, church.id)
+    fetchLibrary(church.id)
       .then((songs) => setLibraryList(songs.filter((s) => s.stems !== false)))
       .catch(() => setLibraryList([]))
   }, [church.id])
@@ -386,7 +384,7 @@ export default function PracticePage() {
 
   /** Fetches the song's manifest for `wanted` quality and remembers which qualities it offers. */
   const librarySources = async (id: string, wanted?: string) => {
-    const r = await sourcesFromSong(SONGS_BASE_URL, id, wanted)
+    const r = await sourcesFromSong(id, wanted)
     setTiers(r.tiers)
     setTier(r.tier)
     nextMusic.current = r.music
