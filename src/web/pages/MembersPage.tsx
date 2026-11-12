@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ROLE_NAMES, type Role } from '../../shared/permissions'
-import { Select } from '../components/Select'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect } from '@/components/ui/native-select'
 import { useChurch } from '../lib/church-context'
 import { addMember, changeRole, listMembers, removeMember, type MemberList } from '../lib/members-api'
 
@@ -62,20 +67,21 @@ export default function MembersPage() {
   return (
     <div className="mx-auto max-w-3xl px-3 pb-24 pt-6">
       <h1 className="text-xl font-semibold tracking-tight">Members</h1>
-      <p className="mt-1 text-sm text-slate-400">People in {church.name || 'this church'}. They sign in with a code sent to their email.</p>
+      <p className="mt-1 text-sm text-muted-foreground">People in {church.name || 'this church'}. They sign in with a code sent to their email.</p>
 
       {error && (
-        <p role="alert" className="mt-4 rounded-lg bg-red-950 p-3 text-sm text-red-200">
+        <Alert variant="destructive" className="mt-4">
           {error}
-        </p>
+        </Alert>
       )}
 
       {list && roleOptions.length > 0 && (
-        <form onSubmit={onAdd} className="mt-5 grid gap-2 rounded-xl border border-slate-800 bg-slate-900 p-3 sm:grid-cols-[1fr_1fr_auto_auto]">
-          <label className="sr-only" htmlFor="member-email">
+        <Card className="mt-5 p-3">
+        <form onSubmit={onAdd} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+          <Label className="sr-only" htmlFor="member-email">
             Email
-          </label>
-          <input
+          </Label>
+          <Input
             id="member-email"
             type="email"
             required
@@ -83,12 +89,11 @@ export default function MembersPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
           />
-          <label className="sr-only" htmlFor="member-name">
+          <Label className="sr-only" htmlFor="member-name">
             Name (optional)
-          </label>
-          <input
+          </Label>
+          <Input
             id="member-name"
             type="text"
             autoComplete="off"
@@ -96,36 +101,33 @@ export default function MembersPage() {
             placeholder="Name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
           />
-          <label className="sr-only" htmlFor="member-role">
+          <Label className="sr-only" htmlFor="member-role">
             Role
-          </label>
-          <Select id="member-role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+          </Label>
+          <NativeSelect wrapperClassName="w-full" id="member-role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {roleOptions.map((r) => (
               <option key={r} value={r}>
                 {label(r)}
               </option>
             ))}
-          </Select>
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white outline-none hover:bg-teal-500 focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-50"
-          >
+          </NativeSelect>
+          <Button type="submit" disabled={busy}>
             Add
-          </button>
+          </Button>
         </form>
+        </Card>
       )}
 
       {!list && !error && (
-        <p role="status" className="mt-6 text-sm text-slate-400">
+        <p role="status" className="mt-6 text-sm text-muted-foreground">
           Loading…
         </p>
       )}
 
       {list && (
-        <ul className="mt-5 divide-y divide-slate-800 rounded-xl border border-slate-800 bg-slate-900">
+        <Card className="mt-5 gap-0 py-0">
+        <ul className="divide-y divide-border">
           {list.members.map((m) => {
             const mine = m.userId === list.me
             const editable = !mine && manageable.includes(m.role)
@@ -134,17 +136,17 @@ export default function MembersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
                     {m.name}
-                    {mine && <span className="ml-2 text-xs font-normal text-slate-400">You</span>}
+                    {mine && <span className="ml-2 text-xs font-normal text-muted-foreground">You</span>}
                   </p>
-                  <p className="truncate text-xs text-slate-400">{m.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                 </div>
                 {editable ? (
                   <>
-                    <label className="sr-only" htmlFor={`role-${m.id}`}>
+                    <Label className="sr-only" htmlFor={`role-${m.id}`}>
                       Role of {m.name}
-                    </label>
-                    <Select
-                      compact
+                    </Label>
+                    <NativeSelect
+                      size="sm"
                       id={`role-${m.id}`}
                       value={m.role}
                       disabled={busy}
@@ -155,42 +157,30 @@ export default function MembersPage() {
                           {label(r)}
                         </option>
                       ))}
-                    </Select>
+                    </NativeSelect>
                     {confirming === m.id ? (
                       <span className="flex gap-1.5">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => void run(() => removeMember(m.id)).then(() => setConfirming(''))}
-                          className="rounded-lg bg-red-700 px-2.5 py-1 text-xs font-medium text-white outline-none hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-300 disabled:opacity-50"
-                        >
+                        <Button variant="destructive" size="sm" disabled={busy} onClick={() => void run(() => removeMember(m.id)).then(() => setConfirming(''))}>
                           Remove {m.name}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirming('')}
-                          className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400"
-                        >
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setConfirming('')}>
                           Cancel
-                        </button>
+                        </Button>
                       </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirming(m.id)}
-                        className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setConfirming(m.id)}>
                         Remove
-                      </button>
+                      </Button>
                     )}
                   </>
                 ) : (
-                  <span className="text-xs text-slate-400">{label(m.role)}</span>
+                  <span className="text-xs text-muted-foreground">{label(m.role)}</span>
                 )}
               </li>
             )
           })}
         </ul>
+        </Card>
       )}
     </div>
   )

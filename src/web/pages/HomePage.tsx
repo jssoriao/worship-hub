@@ -6,10 +6,10 @@ function Card({ to, title, children }: { to: string; title: string; children: st
   return (
     <Link
       to={to}
-      className="block rounded-2xl border border-slate-800 bg-slate-900 p-4 outline-none transition-colors hover:border-slate-700 hover:bg-slate-900/70 focus-visible:ring-2 focus-visible:ring-teal-400"
+      className="block rounded-2xl border border-border bg-card p-4 outline-none transition-colors hover:border-input hover:bg-card/70 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <h2 className="font-semibold">{title}</h2>
-      <p className="mt-1 text-sm text-slate-400">{children}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{children}</p>
     </Link>
   )
 }
@@ -23,16 +23,16 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-3xl px-3 pb-24 pt-8">
       <h1 className="text-2xl font-semibold tracking-tight">Welcome</h1>
-      <p className="mt-2 text-slate-400">Your team's songs, charts and schedule will come together here.</p>
+      <p className="mt-2 text-muted-foreground">Your team's songs, charts and schedule will come together here.</p>
 
       {playing && (
         <Link
           to={practice}
-          className="mt-6 flex items-center gap-3 rounded-2xl border border-teal-900 bg-teal-950/40 p-4 outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+          className="mt-6 flex items-center gap-3 rounded-2xl border border-teal-900 bg-teal-950/40 p-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-teal-400" />
           <span className="min-w-0">
-            <span className="block text-xs uppercase tracking-wide text-teal-300">Playing now</span>
+            <span className="block text-xs uppercase tracking-wide text-highlight">Playing now</span>
             <span className="block truncate font-medium">{title || 'Practice'}</span>
           </span>
         </Link>

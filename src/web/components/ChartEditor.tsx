@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/button'
 import { useMemo, useRef, useState } from 'react'
 import ChartView from './ChartView'
 import { parseChart } from '../lib/chart'
@@ -67,22 +68,20 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel }: Prop
     })
   }
 
-  const button =
-    'rounded-full border border-slate-700 px-4 py-1.5 text-sm outline-none hover:bg-slate-900 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50'
 
   return (
     <div className="mt-4">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => void save()} disabled={saving || !dirty} className={`${button} border-teal-400/70 text-teal-200`}>
+        <Button  onClick={() => void save()} disabled={saving || !dirty}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button type="button" onClick={onCancel} disabled={saving} className={button}>
+        </Button>
+        <Button variant="outline" onClick={onCancel} disabled={saving}>
           {dirty ? 'Discard' : 'Close'}
-        </button>
-        <button type="button" onClick={markCue} disabled={!syncing} className={button} title="Insert the current playback time as a cue at the cursor">
+        </Button>
+        <Button variant="outline" onClick={markCue} disabled={!syncing} title="Insert the current playback time as a cue at the cursor">
           Mark cue
-        </button>
-        {!syncing && <span className="text-xs text-slate-500">Play this song on the Practice page to mark cues.</span>}
+        </Button>
+        {!syncing && <span className="text-xs text-muted-foreground">Play this song on the Practice page to mark cues.</span>}
       </div>
       {error && (
         <p role="alert" className="mt-2 text-sm text-red-300">
@@ -91,7 +90,7 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel }: Prop
       )}
       <div className="mt-3 grid gap-4 md:grid-cols-2">
         <div>
-          <label htmlFor="chart-text" className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <label htmlFor="chart-text" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             ChordPro
           </label>
           <textarea
@@ -102,14 +101,14 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel }: Prop
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
-            className="mt-1 h-[28rem] w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3 font-mono text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-teal-400 md:h-[70vh]"
+            className="mt-1 h-[28rem] w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-[70vh]"
           />
         </div>
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Preview</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</h2>
           <div className="mt-1 md:max-h-[70vh] md:overflow-y-auto">
             <h3 className="text-lg font-semibold">{chart.title}</h3>
-            <p className="mb-3 text-sm text-slate-400">{[chart.artist, chart.key && `Key of ${chart.key}`].filter(Boolean).join(' · ')}</p>
+            <p className="mb-3 text-sm text-muted-foreground">{[chart.artist, chart.key && `Key of ${chart.key}`].filter(Boolean).join(' · ')}</p>
             <ChartView chart={chart} />
           </div>
         </div>

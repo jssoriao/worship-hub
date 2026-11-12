@@ -11,7 +11,14 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 "Worship Hub". The app's previous address only redirects (Worker `worship-hub-redirect`, `src/redirect/`).
 
 ## Stack
-- Vite 8 + React 19 + TypeScript 7, Tailwind v4, react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
+- Vite 8 + React 19 + TypeScript 7, Tailwind v4, shadcn/ui (Radix, lucide icons), react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
+- Design system: tokens in `src/web/index.css` (`bg-background`, `bg-card`, `text-muted-foreground`,
+  `bg-primary`, `ring-ring`, `text-highlight`, ...; dark only, slate surfaces, teal for action) and shadcn
+  components in `src/web/components/ui/` (`pnpm dlx shadcn@<pinned> add <name>`; `components.json`, alias `@/`
+  = `src/web`). Use them instead of raw colours or hand-rolled buttons, inputs, selects (`NativeSelect`, so
+  phones get their own picker), popovers and menus. Local changes to ui/ files are marked "adapted" (pill
+  buttons, `type="button"` by default, readable destructive alert). Copied code is listed in
+  `THIRD_PARTY_NOTICES.md`. Player visuals (stem tiles, chord cells, timeline) stay custom, on the tokens.
 - Cloudflare: Workers (static assets + a Hono API), R2 (files), wrangler 4 pinned. Neon Postgres, Drizzle.
   Better Auth (email OTP + organization plugins) + Resend (emailed 6-digit code, invite only).
   See `docs/plan.md` (decisions) and `docs/infra.md` (every external resource with create/delete

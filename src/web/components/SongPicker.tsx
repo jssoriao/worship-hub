@@ -77,11 +77,11 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
   return (
     <div className={`relative ${className}`}>
       <div
-        className={`flex items-center gap-2 rounded-xl border bg-slate-900 px-3 transition-colors focus-within:border-teal-400/70 focus-within:ring-2 focus-within:ring-teal-400/30 ${
-          open ? 'border-teal-400/70' : 'border-slate-800 hover:border-slate-700'
+        className={`flex items-center gap-2 rounded-xl border bg-card px-3 transition-colors focus-within:border-teal-400/70 focus-within:ring-2 focus-within:ring-ring/30 ${
+          open ? 'border-teal-400/70' : 'border-border hover:border-input'
         }`}
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-4 shrink-0 text-slate-500">
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-4 shrink-0 text-muted-foreground">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="2" />
           <path d="m14 14 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
@@ -109,9 +109,9 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
             setActive(0)
           }}
           onKeyDown={onKeyDown}
-          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
-        <svg aria-hidden="true" viewBox="0 0 20 20" className={`size-4 shrink-0 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`}>
+        <svg aria-hidden="true" viewBox="0 0 20 20" className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}>
           <path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
@@ -121,9 +121,9 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
           id={listId}
           role="listbox"
           aria-label="Songs"
-          className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900 p-1 shadow-xl shadow-black/40"
+          className="absolute inset-x-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl shadow-black/40"
         >
-          {matches.length === 0 && <li className="px-3 py-2.5 text-sm text-slate-500">No songs match “{query}”</li>}
+          {matches.length === 0 && <li className="px-3 py-2.5 text-sm text-muted-foreground">No songs match “{query}”</li>}
           {matches.map((song, i) => {
             const isActive = i === active
             const isSelected = song.id === value
@@ -137,11 +137,11 @@ export function SongPicker({ songs, value, onPick, loading = false, className = 
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(song)}
                 onMouseMove={() => setActive(i)}
-                className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${isActive ? 'bg-slate-800 text-white' : 'text-slate-300'}`}
+                className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-sm ${isActive ? 'bg-accent text-white' : 'text-slate-300'}`}
               >
                 <span className="min-w-0 flex-1 truncate">{song.title}</span>
                 {song.stems === false && (
-                  <span className="shrink-0 rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-400">Chart only</span>
+                  <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs text-muted-foreground">Chart only</span>
                 )}
                 {isSelected && (
                   <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4 shrink-0 text-teal-400">

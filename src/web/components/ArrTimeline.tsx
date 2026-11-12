@@ -40,7 +40,7 @@ export function ArrTimeline({ arr, lead, duration, position, onSeek, peaks, reco
     return start + Math.min(Math.max((e.clientX - r.left) / Math.max(1, r.width), 0), 1) * len
   }
   return (
-    <div className="relative flex h-16 overflow-hidden rounded-lg bg-slate-800">
+    <div className="relative flex h-16 overflow-hidden rounded-lg bg-accent">
       {lead > 0 && (
         <button type="button" onClick={() => onSeek(0)} className="h-full shrink-0 border-r border-slate-950 bg-slate-700 text-[10px] text-slate-300" style={{ width: pct(lead) }} aria-label="Count-in">
           ♩

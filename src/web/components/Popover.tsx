@@ -1,4 +1,7 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
+import { Popover as Root, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 interface Props {
   /** what the button says to screen readers (and on hover) */
@@ -14,60 +17,26 @@ interface Props {
 }
 
 /**
- * A button with a small panel that opens above it, as in the play bar. Closes on Escape, a tap
- * outside, or the button again.
+ * A play-bar button with a small panel above it. Radix handles focus, Escape, a tap outside and
+ * keeping the panel on screen.
  */
-export function Popover({ label, button, title, children, active = false, className = '' }: Props) {
-  const [open, setOpen] = useState(false)
-  const box = useRef<HTMLDivElement>(null)
-  const trigger = useRef<HTMLButtonElement>(null)
-  const id = useId()
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      setOpen(false)
-      trigger.current?.focus()
-    }
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
+export function Popover({ label, button, title, children, active = false, className }: Props) {
   return (
-    <div ref={box} className={`relative ${className}`}>
-      <button
-        ref={trigger}
-        type="button"
-        aria-label={label}
-        title={label}
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className={`flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${
-          open ? 'bg-slate-800 text-white' : active ? 'text-teal-300 hover:bg-slate-800' : 'text-slate-300 hover:bg-slate-800'
-        }`}
-      >
-        {button}
-      </button>
-      {open && (
-        <div
-          id={id}
-          role="dialog"
-          aria-label={title}
-          className="absolute bottom-full right-0 z-40 mb-2 w-72 rounded-xl border border-slate-700 bg-slate-900 p-3 text-sm shadow-xl shadow-black/60"
+    <Root>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          aria-label={label}
+          title={label}
+          className={cn('h-9 px-2.5 text-secondary-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground', active && 'text-highlight', className)}
         >
-          <p className="mb-2 font-medium text-slate-100">{title}</p>
-          {children}
-        </div>
-      )}
-    </div>
+          {button}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" aria-label={title} className="w-72 p-3 text-sm">
+        <p className="mb-2 font-medium">{title}</p>
+        {children}
+      </PopoverContent>
+    </Root>
   )
 }

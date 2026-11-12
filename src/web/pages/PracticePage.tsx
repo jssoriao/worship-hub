@@ -11,7 +11,7 @@ import { SONGS_BASE_URL } from '../config'
 import { useNowPlaying } from '../lib/now-playing-context'
 import { StemRow } from '../components/StemRow'
 import { SongPicker } from '../components/SongPicker'
-import { Select } from '../components/Select'
+import { NativeSelect } from '@/components/ui/native-select'
 import { Popover } from '../components/Popover'
 import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
@@ -600,7 +600,7 @@ export default function PracticePage() {
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className={`relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 ${on ? 'bg-teal-500' : 'bg-slate-700'}`}
+      className={`relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-teal-500' : 'bg-slate-700'}`}
     >
       <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${on ? 'left-4.5' : 'left-0.5'}`} />
     </button>
@@ -628,11 +628,11 @@ export default function PracticePage() {
               {toggle(click.on, (on) => setClick((c) => ({ ...c, on })), 'Play the click')}
             </div>
             <label className="block text-slate-300">
-              <span className="flex justify-between text-xs text-slate-400">
+              <span className="flex justify-between text-xs text-muted-foreground">
                 <span>Volume</span>
                 <span>{Math.round(click.volume * 100)}%</span>
               </span>
-              <input type="range" min={0} max={1} step={0.01} value={click.volume} onChange={(e) => setClick((c) => ({ ...c, volume: Number(e.target.value) }))} className="mt-1 w-full accent-teal-500" />
+              <input type="range" min={0} max={1} step={0.01} value={click.volume} onChange={(e) => setClick((c) => ({ ...c, volume: Number(e.target.value) }))} className="mt-1 w-full accent-primary" />
             </label>
           </div>
         </Popover>
@@ -645,25 +645,25 @@ export default function PracticePage() {
           button={<span className="min-w-6 text-center text-sm font-medium tabular-nums">{key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>}
         >
           <div className="space-y-3 text-slate-300">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               Move the whole song up or down to find a key the singer is comfortable in. The tempo stays the same and the chords follow.
             </p>
             <div className="flex items-center justify-between gap-2">
-              <button type="button" aria-label="One semitone lower" disabled={key <= -MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))} className="size-9 rounded-lg border border-slate-700 text-lg outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40">
+              <button type="button" aria-label="One semitone lower" disabled={key <= -MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))} className="size-9 rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
                 −
               </button>
               <div className="text-center" aria-live="polite">
-                <div className="text-lg font-medium text-slate-100">{originalKey ? keyName(shiftKey(originalKey, key)) : `${key > 0 ? '+' : ''}${key}`}</div>
-                <div className="text-xs text-slate-400">
+                <div className="text-lg font-medium text-foreground">{originalKey ? keyName(shiftKey(originalKey, key)) : `${key > 0 ? '+' : ''}${key}`}</div>
+                <div className="text-xs text-muted-foreground">
                   {key === 0 ? 'Original key' : `${originalKey ? `from ${keyName(originalKey)}, ` : ''}${key > 0 ? '+' : ''}${key} semitone${Math.abs(key) === 1 ? '' : 's'}`}
                 </div>
               </div>
-              <button type="button" aria-label="One semitone higher" disabled={key >= MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))} className="size-9 rounded-lg border border-slate-700 text-lg outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-40">
+              <button type="button" aria-label="One semitone higher" disabled={key >= MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))} className="size-9 rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
                 +
               </button>
             </div>
             {key !== 0 && (
-              <button type="button" onClick={() => setKey(0)} className="text-teal-300 underline underline-offset-2">
+              <button type="button" onClick={() => setKey(0)} className="text-highlight underline underline-offset-2">
                 Back to the original key
               </button>
             )}
@@ -685,7 +685,7 @@ export default function PracticePage() {
         >
           <div className="space-y-3 text-slate-300">
             <div>
-              <p className="mb-1 text-xs text-slate-400">Chord detail</p>
+              <p className="mb-1 text-xs text-muted-foreground">Chord detail</p>
               <Segmented
                 label="Chord detail"
                 value={prefs.level}
@@ -698,7 +698,7 @@ export default function PracticePage() {
               />
             </div>
             <div>
-              <p className="mb-1 text-xs text-slate-400">Chord shapes for</p>
+              <p className="mb-1 text-xs text-muted-foreground">Chord shapes for</p>
               <Segmented
                 label="Instrument"
                 value={prefs.instrument}
@@ -712,7 +712,7 @@ export default function PracticePage() {
             <div className="flex items-center justify-between gap-3">
               <span>
                 Follow the song
-                <span className="block text-xs text-slate-500">Lyrics and Chords scroll as it plays</span>
+                <span className="block text-xs text-muted-foreground">Lyrics and Chords scroll as it plays</span>
               </span>
               {toggle(prefs.follow, (follow) => setPrefs((p) => ({ ...p, follow })), 'Follow the song')}
             </div>
@@ -724,7 +724,7 @@ export default function PracticePage() {
           type="button"
           onClick={() => setEditing(true)}
           title={prefs.view === 'chords' ? 'Fix chords and sections' : 'Fix the lyrics'}
-          className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-300 outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400"
+          className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-300 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
         >
           <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
             <path d="M13.5 3.5l3 3L7 16H4v-3z" />
@@ -734,14 +734,14 @@ export default function PracticePage() {
       )}
     </>
   )
-  const small = 'rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs outline-none hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-teal-400 disabled:opacity-50'
+  const small = 'rounded-lg border border-input bg-card px-2.5 py-1.5 text-xs outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
   // nothing chosen or loading: show only a centred search
   const blank = songId === '' && stems.length === 0 && !loading && !error
 
   const zipButton = (
     <label
       title="Play your own stems from a zip of mp3/wav files"
-      className={`${small} inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-slate-300 focus-within:ring-2 focus-within:ring-teal-400`}
+      className={`${small} inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap text-slate-300 focus-within:ring-2 focus-within:ring-ring`}
     >
       <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H8l2 2h5.5A1.5 1.5 0 0 1 17 8.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
@@ -763,7 +763,7 @@ export default function PracticePage() {
     <div className={`mx-auto max-w-7xl px-3 pt-2 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-24' : 'pb-48 md:pb-40'}`}>
         <h1 className="sr-only">Practice</h1>
         {notInChurch && wanted === '' && (
-          <p role="alert" className="mt-2 rounded-lg bg-slate-900 p-3 text-sm text-slate-300">
+          <p role="alert" className="mt-2 rounded-lg bg-card p-3 text-sm text-slate-300">
             That song is not in this church.
           </p>
         )}
@@ -772,7 +772,7 @@ export default function PracticePage() {
           <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
             <p className="text-lg font-medium text-slate-200">What are we practising?</p>
             {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full" />}
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {library.length > 0 && <span>or</span>}
               {zipButton}
             </div>
@@ -789,9 +789,9 @@ export default function PracticePage() {
                 <label className="sr-only" htmlFor="quality">
                   Audio quality
                 </label>
-                <Select
-                  compact
-                  className="!flex-none whitespace-nowrap"
+                <NativeSelect
+                  size="sm"
+                  wrapperClassName="!flex-none" className="whitespace-nowrap"
                   id="quality"
                   value={tier ?? ''}
                   disabled={loading !== null}
@@ -804,7 +804,7 @@ export default function PracticePage() {
                       {t.bytes ? ` · ${Math.round(t.bytes / 1048576)} MB` : ''}
                     </option>
                   ))}
-                </Select>
+                </NativeSelect>
               </>
             )}
             {songId !== '' && offline && (
@@ -830,7 +830,7 @@ export default function PracticePage() {
         </div>
         )}
 
-        {loading && <p className="mt-2 rounded-lg bg-slate-900 p-2 text-sm text-slate-300">{loading}</p>}
+        {loading && <p className="mt-2 rounded-lg bg-card p-2 text-sm text-slate-300">{loading}</p>}
         {error && (
           <p role="alert" className="mt-2 rounded-lg bg-red-950 p-3 text-sm text-red-200">
             {error}
@@ -870,7 +870,7 @@ export default function PracticePage() {
                   const hasCombined = family.some((f) => idxs.includes(f.parent))
                   return (
                     <div key={group || 'root'}>
-                      {group && !hasCombined && <h2 className="mb-1 px-1 text-xs uppercase tracking-wide text-slate-500">{group}</h2>}
+                      {group && !hasCombined && <h2 className="mb-1 px-1 text-xs uppercase tracking-wide text-muted-foreground">{group}</h2>}
                       <ul className="space-y-2">{idxs.map(renderRow)}</ul>
                     </div>
                   )
@@ -902,16 +902,16 @@ export default function PracticePage() {
                     Done
                   </button>
                 </div>
-                <p role="status" className="mt-1 text-xs text-slate-400">
+                <p role="status" className="mt-1 text-xs text-muted-foreground">
                   {editStatus || (draft ? 'Not saved yet' : '')}
                 </p>
                 {versions && (
                   <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                    {versions.length === 0 && <li className="text-xs text-slate-400">No earlier versions yet: they are kept each time someone saves.</li>}
+                    {versions.length === 0 && <li className="text-xs text-muted-foreground">No earlier versions yet: they are kept each time someone saves.</li>}
                     {versions.map((v) => (
                       <li key={v.file} className="flex items-center gap-2 text-xs">
                         <span className="flex-1 text-slate-300">
-                          {new Date(v.savedAt).toLocaleString()} {v.savedBy && <span className="text-slate-500">· {v.savedBy}</span>}
+                          {new Date(v.savedAt).toLocaleString()} {v.savedBy && <span className="text-muted-foreground">· {v.savedBy}</span>}
                         </span>
                         <button
                           type="button"
@@ -982,14 +982,14 @@ export default function PracticePage() {
 
 function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
   return (
-    <div role="group" aria-label={label} className="flex rounded-lg border border-slate-700 p-0.5">
+    <div role="group" aria-label={label} className="flex rounded-lg border border-input p-0.5">
       {options.map(([v, text]) => (
         <button
           key={v}
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`rounded-md px-2.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${value === v ? 'bg-teal-600 text-white' : 'text-slate-300'}`}
+          className={`rounded-md px-2.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === v ? 'bg-primary text-white' : 'text-slate-300'}`}
         >
           {text}
         </button>

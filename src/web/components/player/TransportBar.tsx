@@ -40,20 +40,20 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
   // while the seek bar is dragged it shows where you are going, and seeks when you let go
   const [drag, setDrag] = useState<number | null>(null)
   const shownPos = drag ?? position
-  const iconBtn = 'flex size-9 items-center justify-center rounded-lg text-slate-300 outline-none hover:bg-slate-800 hover:text-white focus-visible:ring-2 focus-visible:ring-teal-400'
+  const iconBtn = 'flex size-9 items-center justify-center rounded-lg text-slate-300 outline-none hover:bg-accent hover:text-white focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-20">
       {view && onView && (
         <nav aria-label="Views" className="pointer-events-none mb-3 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-slate-700 bg-slate-900/95 p-1 shadow-xl shadow-black/50 backdrop-blur">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-input bg-card/95 p-1 shadow-xl shadow-black/50 backdrop-blur">
             {VIEWS.map(([v, label]) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={view === v}
                 onClick={() => onView(v)}
-                className={`rounded-xl px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-teal-400 sm:px-4 ${view === v ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                className={`rounded-xl px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${view === v ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-accent'}`}
               >
                 {label}
               </button>
@@ -62,14 +62,14 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
         </nav>
       )}
 
-      <div role="region" aria-label="Playback" className="border-t border-slate-800 bg-slate-950/95 backdrop-blur">
+      <div role="region" aria-label="Playback" className="border-t border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-100" title={title}>
+            <p className="truncate text-sm font-medium text-foreground" title={title}>
               {title}
             </p>
-            <p className="truncate text-xs text-slate-400" title={facts}>
+            <p className="truncate text-xs text-muted-foreground" title={facts}>
               {facts}
             </p>
           </div>
@@ -86,7 +86,7 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
                 type="button"
                 aria-label={playing ? 'Pause' : 'Play'}
                 onClick={onToggle}
-                className="flex size-10 items-center justify-center rounded-full bg-teal-600 text-white outline-none hover:bg-teal-500 focus-visible:ring-2 focus-visible:ring-teal-300"
+                className="flex size-10 items-center justify-center rounded-full bg-primary text-white outline-none hover:bg-teal-500 focus-visible:ring-2 focus-visible:ring-teal-300"
               >
                 {playing && buffering ? (
                   <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -106,7 +106,7 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
                 </svg>
               </button>
             </div>
-            <div className="flex w-full items-center gap-2 text-[11px] tabular-nums text-slate-400">
+            <div className="flex w-full items-center gap-2 text-[11px] tabular-nums text-muted-foreground">
               <span className="w-9 text-right font-mono">{fmt(shownPos)}</span>
               <input
                 type="range"
@@ -127,11 +127,11 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
                   setDrag(null)
                   onSeek(Number(e.currentTarget.value))
                 }}
-                className="h-1 min-w-0 flex-1 cursor-pointer accent-teal-500"
+                className="h-1 min-w-0 flex-1 cursor-pointer accent-primary"
               />
               <span className="w-9 font-mono">{fmt(duration)}</span>
             </div>
-            {bar && <p className="hidden text-[10px] text-slate-500 md:block">{bar}</p>}
+            {bar && <p className="hidden text-[10px] text-muted-foreground md:block">{bar}</p>}
           </div>
 
           {/* tools */}
