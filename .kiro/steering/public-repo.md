@@ -10,9 +10,15 @@ This repo is public and all rights reserved (see `LICENSE`). Nothing pushed can 
 - No copyrighted content: song lyrics (except public domain), chord charts, audio, stems, album
   art, or analysis output from real songs. Examples and tests use public-domain songs or made-up
   titles.
-- No third-party code, assets, icons, fonts, CSS or copy pasted from other products or sites.
-  Write it yourself. New dependencies need a license that allows this use (MIT, Apache-2.0, BSD,
-  ISC); flag anything else (GPL, AGPL, no license) before adding it.
+- Third-party code and assets only under a permissive license (MIT, Apache-2.0, BSD, ISC); flag
+  anything else (GPL, AGPL, no license, or none stated) before adding it. Nothing copied from
+  products or sites that don't license it (their code, CSS, icons, fonts, copy, designs).
+  - As a dependency: listed in package.json, nothing else needed.
+  - Copied into the repo (for example shadcn/ui components, generated with its CLI): add the project
+    to `THIRD_PARTY_NOTICES.md` with its license text and the files or folder it covers, and keep
+    any notice already in the copied files. Apache-2.0 code also keeps its NOTICE file contents.
+  - The repo itself stays all rights reserved (`LICENSE`); its exception covers only what
+    `THIRD_PARTY_NOTICES.md` lists.
 - No church names or other tenant data in code, docs, tests, commit messages or issues. Tenants
   live only in the database.
 - Naming other products: factual mentions only (services the app integrates with, file formats it
