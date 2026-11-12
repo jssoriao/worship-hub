@@ -147,9 +147,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Services, lineups, volunteer assignments; A-B loop, playback speed, key/tempo change.
 
 ## Repo
-- Code is public; all rights reserved (see `LICENSE`). Never commit secrets, real people's details,
-  real song lyrics or audio. Personal notes for this machine go in `.kiro/steering/local.md`
-  (gitignored).
+- Code is public; all rights reserved (see `LICENSE`). Before every commit and push, follow
+  `.kiro/steering/public-repo.md` (no secrets, personal data, lyrics, audio, third-party material or
+  tenant names). Personal notes for this machine go in `.kiro/steering/local.md` (gitignored).
 - Work is tracked in GitHub issues: labels `P1` (next), `P2` (soon), `P3` (later) plus `area:*`
   (infra, security, ops, admin, player, product, legal) and `dependencies`. Add an issue for every
   concern worth tracking.
