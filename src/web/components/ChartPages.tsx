@@ -264,7 +264,7 @@ export default function ChartPages({ chart, songId, title, fallbackKey, bpm, act
       <div className="flex flex-wrap items-center justify-end gap-2 pb-2">
         <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : meta}</p>
         {hasCues && (
-          <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-teal-400/70 text-teal-200' : ''}`} title="Turn to the section being played">
+          <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-highlight/70 text-highlight' : ''}`} title="Turn to the section being played">
             Follow
           </button>
         )}

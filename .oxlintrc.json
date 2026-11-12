@@ -24,7 +24,8 @@
         "src/web/components/ui/**"
       ],
       "rules": {
-        "react/only-export-components": "off"
+        "react/only-export-components": "off",
+        "react/purity": "off"
       }
     }
   ]

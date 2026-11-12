@@ -8,7 +8,7 @@ their own licenses; they are not repeated here.
 
 - Source: https://github.com/shadcn-ui/ui
 - Covers: `src/web/components/ui/` (components generated with the shadcn CLI, then adapted) and
-  `src/web/lib/utils.ts`
+  `src/web/lib/utils.ts` and `src/web/hooks/use-mobile.ts`
 - License: MIT
 
 ```

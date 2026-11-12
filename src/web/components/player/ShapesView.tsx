@@ -50,7 +50,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
             <div key={c.t} className="min-w-0 flex-1">
               <p className={`truncate text-center text-xs ${i === at ? 'text-foreground' : 'text-muted-foreground'}`}>{c.name}</p>
               <div className="mt-1 h-1 overflow-hidden rounded bg-slate-700">
-                <div className="h-full bg-teal-300" style={{ width: `${progress * 100}%` }} />
+                <div className="h-full bg-highlight" style={{ width: `${progress * 100}%` }} />
               </div>
             </div>
           )
@@ -60,7 +60,7 @@ export function ShapesView({ analysis, level, instrument, position, onSeek }: Pr
       <div className="max-w-2xl text-center" aria-live="polite">
         <p className="min-h-[2.5em] text-2xl font-semibold leading-snug text-white sm:text-3xl">
           {line?.words.map((w, k) => (
-            <span key={k} className={position >= w.t ? 'text-teal-100' : ''}>
+            <span key={k} className={position >= w.t ? 'text-highlight' : ''}>
               {w.w}{' '}
             </span>
           ))}

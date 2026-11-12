@@ -107,7 +107,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
           )
         if (r.kind === 'chords')
           return (
-            <button key={i} type="button" onClick={() => onSeek(r.t)} className="flex flex-wrap gap-x-4 text-left text-sm font-semibold text-highlight/80 outline-none hover:text-teal-200 focus-visible:ring-2 focus-visible:ring-ring">
+            <button key={i} type="button" onClick={() => onSeek(r.t)} className="flex flex-wrap gap-x-4 text-left text-sm font-semibold text-highlight/80 outline-none hover:text-highlight focus-visible:ring-2 focus-visible:ring-ring">
               {r.chords.map((c, k) => (
                 <span key={k}>{c}</span>
               ))}
@@ -132,8 +132,8 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               const sung = current && position >= tk.t
               return (
                 <span key={k} className="inline-flex flex-col">
-                  <span className={`h-5 whitespace-nowrap pr-1 text-sm font-semibold leading-5 lg:h-6 lg:text-base lg:leading-6 ${current ? 'text-highlight' : 'text-teal-400/60'}`}>{tk.chords.join(' ')}</span>
-                  <span className={`text-xl leading-snug sm:text-2xl lg:text-3xl ${sung ? 'text-teal-100' : ''}`}>{tk.w}</span>
+                  <span className={`h-5 whitespace-nowrap pr-1 text-sm font-semibold leading-5 lg:h-6 lg:text-base lg:leading-6 ${current ? 'text-highlight' : 'text-highlight/60'}`}>{tk.chords.join(' ')}</span>
+                  <span className={`text-xl leading-snug sm:text-2xl lg:text-3xl ${sung ? 'text-highlight' : ''}`}>{tk.w}</span>
                 </span>
               )
             })}

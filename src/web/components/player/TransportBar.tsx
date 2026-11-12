@@ -1,4 +1,7 @@
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router'
+import { useChurch } from '../../lib/church-context'
+import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
 
 export type PlayerView = 'stems' | 'lyrics' | 'chords' | 'shapes'
 
@@ -28,32 +31,37 @@ interface Props {
   onView?: (v: PlayerView) => void
   /** the right-hand controls: tempo and key, the click, settings, edit */
   tools?: ReactNode
+  /** false on other pages: the views are hidden and the title leads back to Practice */
+  onPracticePage?: boolean
 }
 
 const SKIP = 5
 
 /**
- * The play bar, docked to the bottom: the song on the left, playback in the middle,
- * tools on the right, and the views floating just above it. On phones it takes two rows.
+ * The compact play bar, drawn into the dock at the bottom of the app (App.tsx): the song on the
+ * left, playback in the middle, tools on the right, and on Practice the views floating just above
+ * it. It stays on every page while a song is open. On phones it takes two rows.
  */
-export function TransportBar({ title, facts, playing, buffering, position, duration, onToggle, onSeek, bar, view, onView, tools }: Props) {
+export function TransportBar({ title, facts, playing, buffering, position, duration, onToggle, onSeek, bar, view, onView, tools, onPracticePage = true }: Props) {
+  const now = useNowPlaying()
+  const church = useChurch()
   // while the seek bar is dragged it shows where you are going, and seeks when you let go
   const [drag, setDrag] = useState<number | null>(null)
   const shownPos = drag ?? position
-  const iconBtn = 'flex size-9 items-center justify-center rounded-lg text-slate-300 outline-none hover:bg-accent hover:text-white focus-visible:ring-2 focus-visible:ring-ring'
+  const iconBtn = 'flex size-9 items-center justify-center rounded-full text-secondary-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-20">
-      {view && onView && (
+    <div>
+      {onPracticePage && view && onView && (
         <nav aria-label="Views" className="pointer-events-none mb-3 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-input bg-card/95 p-1 shadow-xl shadow-black/50 backdrop-blur">
+          <div className="surface-glass pointer-events-auto flex items-center gap-1 rounded-full border p-1">
             {VIEWS.map(([v, label]) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={view === v}
                 onClick={() => onView(v)}
-                className={`rounded-xl px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${view === v ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-accent'}`}
+                className={`rounded-full px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${view === v ? 'bg-brand-gradient text-primary-foreground' : 'text-secondary-foreground hover:bg-accent'}`}
               >
                 {label}
               </button>
@@ -62,13 +70,19 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
         </nav>
       )}
 
-      <div role="region" aria-label="Playback" className="border-t border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <div role="region" aria-label="Playback" className="surface-glass rounded-none border-x-0 border-b-0 border-t">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground" title={title}>
-              {title}
-            </p>
+            {onPracticePage ? (
+              <p className="truncate text-sm font-medium text-foreground" title={title}>
+                {title}
+              </p>
+            ) : (
+              <Link to={practiceLink(now, church.id)} title={`Open ${title} in Practice`} className="block truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                {title}
+              </Link>
+            )}
             <p className="truncate text-xs text-muted-foreground" title={facts}>
               {facts}
             </p>
@@ -86,7 +100,7 @@ export function TransportBar({ title, facts, playing, buffering, position, durat
                 type="button"
                 aria-label={playing ? 'Pause' : 'Play'}
                 onClick={onToggle}
-                className="flex size-10 items-center justify-center rounded-full bg-primary text-white outline-none hover:bg-teal-500 focus-visible:ring-2 focus-visible:ring-teal-300"
+                className="bg-brand-gradient flex size-10 items-center justify-center rounded-full text-primary-foreground shadow-[0_6px_18px_-6px_var(--brand)] outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {playing && buffering ? (
                   <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />

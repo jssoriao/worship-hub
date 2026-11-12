@@ -13,12 +13,20 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 ## Stack
 - Vite 8 + React 19 + TypeScript 7, Tailwind v4, shadcn/ui (Radix, lucide icons), react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
 - Design system: tokens in `src/web/index.css` (`bg-background`, `bg-card`, `text-muted-foreground`,
-  `bg-primary`, `ring-ring`, `text-highlight`, ...; dark only, slate surfaces, teal for action) and shadcn
-  components in `src/web/components/ui/` (`pnpm dlx shadcn@<pinned> add <name>`; `components.json`, alias `@/`
-  = `src/web`). Use them instead of raw colours or hand-rolled buttons, inputs, selects (`NativeSelect`, so
-  phones get their own picker), popovers and menus. Local changes to ui/ files are marked "adapted" (pill
-  buttons, `type="button"` by default, readable destructive alert). Copied code is listed in
-  `THIRD_PARTY_NOTICES.md`. Player visuals (stem tiles, chord cells, timeline) stay custom, on the tokens.
+  `bg-primary`, `ring-ring`, `text-highlight`, ...) all derived from four brand variables (`--brand`, `--brand-2`,
+  `--brand-foreground`, `--brand-hue`); utilities `bg-app` (navy page with brand glows), `surface-glass` (cards),
+  `bg-brand-gradient` (main action). Dark only. White label: a church's colours, app name and logo live in
+  `organizations.metadata` (`{ theme: { brand, brand2, appName } }`) and `organizations.logo`, set with
+  `pnpm churches theme <slug> ...`; `src/shared/theme.ts` validates them and fixes contrast, `src/web/lib/theme.ts`
+  applies them. shadcn components in `src/web/components/ui/` (`components.json`, alias `@/` = `src/web`; the
+  registry now imports `cn` from shadcn's own `cn` package: we keep `@/lib/utils`, so fetch sources with
+  `pnpm dlx shadcn@<pinned> view <name>` and point the import there). Local changes to ui/ files are marked
+  "adapted" (pill buttons with the brand gradient, `type="button"` by default, glass cards, readable destructive
+  alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
+- Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts`, account with sign-out;
+  folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
+  "Church / Page", title, the page's controls). The play bar is drawn by Practice into a dock at the bottom
+  (`src/web/lib/player-slot.ts`, App.tsx), so the compact player stays on every page while a song is open.
 - Cloudflare: Workers (static assets + a Hono API), R2 (files), wrangler 4 pinned. Neon Postgres, Drizzle.
   Better Auth (email OTP + organization plugins) + Resend (emailed 6-digit code, invite only).
   See `docs/plan.md` (decisions) and `docs/infra.md` (every external resource with create/delete

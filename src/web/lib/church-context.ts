@@ -1,16 +1,23 @@
 import { createContext, useContext } from 'react'
 import type { Request, Role } from '../../shared/permissions'
+import type { ChurchTheme } from './theme'
 
 export interface ChurchInfo {
   id: string
   name: string
   slug: string
+  /** the church's branding (colours, app name); empty for the default */
+  theme: ChurchTheme
+  /** https URL of the church's logo, if it has one */
+  logo: string | null
 }
 
 /** The church the signed-in person is working in. In dev (no sign-in) there is one stand-in church with every permission. */
 export interface ChurchValue {
   id: string
   name: string
+  theme: ChurchTheme
+  logo: string | null
   role: Role | null
   churches: ChurchInfo[]
   /** whether the person's role includes this permission (the Worker enforces it; this only shows or hides controls) */
@@ -24,6 +31,8 @@ export const DEV_CHURCH = 'dev'
 export const ChurchContext = createContext<ChurchValue>({
   id: DEV_CHURCH,
   name: 'Dev',
+  theme: {},
+  logo: null,
   role: 'owner',
   churches: [],
   can: () => false,

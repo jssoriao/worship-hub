@@ -9,6 +9,7 @@ import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
 import { SONGS_BASE_URL } from '../config'
+import { PageHeader } from '../components/PageHeader'
 import { resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
 import { call, songFile, songsApi } from '../lib/api'
 import { useChurch } from '../lib/church-context'
@@ -146,43 +147,46 @@ export default function ChartsPage() {
   }
 
   return (
-    <div className={`mx-auto px-3 pt-3 ${editing ? 'max-w-5xl pb-24' : 'max-w-6xl pb-2'}`}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-xl font-semibold tracking-tight">Charts</h1>
-        <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full sm:w-80" />
-      {mayAdd && SONGS_BASE_URL && (
-        <div className={adding ? 'w-full' : ''}>
-          {adding ? (
-            <form onSubmit={(e) => void addSong(e)} className="flex flex-wrap items-center gap-2">
-              <Label className="sr-only" htmlFor="new-song">
-                Song title
-              </Label>
-              <Input
-                id="new-song"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Song title"
-                maxLength={120}
-                autoFocus
-                className="w-auto flex-1"
-              />
-              <Button type="submit" disabled={newTitle.trim() === ''}>
-                Add
+    <div className={`mx-auto px-4 pt-3 md:px-6 ${editing ? 'max-w-5xl pb-24' : 'max-w-6xl pb-2'}`}>
+      <PageHeader
+        title="Charts"
+        actions={
+          <>
+            <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full sm:w-80" />
+            {mayAdd && SONGS_BASE_URL && !adding && (
+              <Button variant="outline" onClick={() => setAdding(true)}>
+                <PlusIcon aria-hidden="true" />
+                New song
               </Button>
-              <Button variant="outline" onClick={() => { setAdding(false); setAddError('') }}>
-                Cancel
-              </Button>
-              {addError && <p role="alert" className="w-full text-sm text-red-300">{addError}</p>}
-            </form>
-          ) : (
-            <Button variant="outline" onClick={() => setAdding(true)}>
-              <PlusIcon aria-hidden="true" />
-              New song
-            </Button>
+            )}
+          </>
+        }
+      />
+      {mayAdd && SONGS_BASE_URL && adding && (
+        <form onSubmit={(e) => void addSong(e)} className="mt-3 flex flex-wrap items-center gap-2">
+          <Label className="sr-only" htmlFor="new-song">
+            Song title
+          </Label>
+          <Input id="new-song" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Song title" maxLength={120} autoFocus className="w-auto flex-1" />
+          <Button type="submit" disabled={newTitle.trim() === ''}>
+            Add
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAdding(false)
+              setAddError('')
+            }}
+          >
+            Cancel
+          </Button>
+          {addError && (
+            <p role="alert" className="w-full text-sm text-red-300">
+              {addError}
+            </p>
           )}
-        </div>
+        </form>
       )}
-      </div>
 
       {unknownSong && (
         <Alert className="mt-4">That song is not in this church.</Alert>

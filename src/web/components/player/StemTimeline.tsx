@@ -28,7 +28,7 @@ interface Props {
   click?: { on: boolean; volume: number; onToggle: () => void; onVolume: (v: number) => void }
 }
 
-const LANE_COLOURS = ['bg-teal-800/70', 'bg-sky-800/70', 'bg-indigo-800/70', 'bg-violet-800/70', 'bg-fuchsia-900/70', 'bg-amber-800/70']
+const LANE_COLOURS = ['bg-primary/60', 'bg-sky-800/70', 'bg-indigo-800/70', 'bg-violet-800/70', 'bg-fuchsia-900/70', 'bg-amber-800/70']
 
 /**
  * The stems on one shared timeline, as in a DAW: a strip of the coming chords as beat boxes, a bar
@@ -209,7 +209,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
               'Chords',
               changes.map((c, i) => (
                 // just where the chords change: names are too cramped here (the strip above has them)
-                <span key={i} title={c.name} className="absolute top-1.5 bottom-1.5 border-l-2 border-teal-400/50" style={{ left: pct(c.t) }} />
+                <span key={i} title={c.name} className="absolute top-1.5 bottom-1.5 border-l-2 border-highlight/50" style={{ left: pct(c.t) }} />
               )),
             )}
             {lane(

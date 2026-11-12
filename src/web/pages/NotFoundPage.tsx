@@ -1,16 +1,19 @@
 import { Link } from 'react-router'
+import { buttonVariants } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { PageHeader } from '../components/PageHeader'
 
 export default function NotFoundPage() {
   return (
-    <div className="mx-auto max-w-3xl px-3 pb-24 pt-10 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">Page not found</h1>
-      <p className="mt-2 text-muted-foreground">There's nothing at this address.</p>
-      <Link
-        to="/"
-        className="mt-5 inline-block rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
-      >
-        Back to Home
-      </Link>
+    <div className="mx-auto max-w-6xl px-4 pt-3 pb-24 md:px-6">
+      <PageHeader title="Not found" />
+      <Card className="mx-auto mt-10 max-w-md items-center gap-3 p-8 text-center">
+        <p className="text-lg font-medium">Page not found</p>
+        <p className="text-sm text-muted-foreground">There's nothing at this address.</p>
+        <Link to="/" className={buttonVariants()}>
+          Back to Home
+        </Link>
+      </Card>
     </div>
   )
 }
