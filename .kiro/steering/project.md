@@ -91,6 +91,12 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   replaces); the Worker keeps each replaced version in `analysis/history/`.
 - `src/components/AuthGate.tsx`, `src/lib/auth-client.ts`: login form (email, then 6-digit code),
   sign-out.
+- Local backend: `pnpm cf:api` (Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
+  shared by worktrees) + `pnpm dev:app` (Vite forwarding `/api` and `/songs`, sign-in on; `vite.config.ts`).
+  `pnpm songs:publish` without `--target prod` writes the dev database and that local R2 (dev ids; its upload
+  record is kept apart in `.publish-state.json`). `pnpm db:local` (`docker-compose.local.yml`) is an optional
+  Postgres on this machine: `shared/local-neon.ts` sends the Neon driver through a WebSocket proxy when a
+  database URL is localhost (both URLs local or both hosted).
 - `dev/songs-plugin.ts`: dev-only Vite middleware serving `./songs` (or `SONGS_DIR`) at `/songs` with
   the production URL layout; song ids come from the Neon dev database (`dev/dev-ids.ts`, church
   `DEV_CHURCH` from `.dev.vars`). Its helpers are reused by `scripts/publish-songs.ts`.

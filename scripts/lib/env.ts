@@ -6,6 +6,8 @@
  * DATABASE_OWNER_URL is the owner's, which scripts use because migrations create and alter tables.
  */
 import { readFileSync } from 'node:fs'
+import { neonConfig } from '@neondatabase/serverless'
+import { isLocalDb, routeLocalDb } from '../../shared/local-neon.ts'
 
 export type Target = 'dev' | 'prod'
 
@@ -62,6 +64,13 @@ export function loadTarget(target: Target): string {
     process.exit(1)
   }
   process.env.WORSHIP_HUB_TARGET = target
+  // one login on this machine and the other on Neon would half-work in confusing ways
+  if (process.env.DATABASE_URL && isLocalDb(url) !== isLocalDb(process.env.DATABASE_URL)) {
+    console.error(`DATABASE_URL and DATABASE_OWNER_URL in ${file} must both point at the local database, or both at Neon.`)
+    process.exit(1)
+  }
+  // a database on this machine (docker-compose.local.yml) is reached through its WebSocket proxy
+  routeLocalDb(neonConfig, url, process.env.DATABASE_URL)
   if (target === 'dev') assertDevIsNotProd(url)
   return url
 }

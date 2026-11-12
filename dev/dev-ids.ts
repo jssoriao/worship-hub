@@ -6,6 +6,7 @@
  */
 import fs from 'node:fs'
 import { Pool, neonConfig } from '@neondatabase/serverless'
+import { routeLocalDb } from '../shared/local-neon.ts'
 import { assertDevIsNotProd, parseVars } from '../scripts/lib/env.ts'
 import { churchBySlug, ensureSong } from '../scripts/lib/songs-db.ts'
 
@@ -69,6 +70,7 @@ export function createDevIds(church = devChurch()) {
         if (!vars.DATABASE_URL) throw new Error('DATABASE_URL missing in .dev.vars')
         assertDevIsNotProd(vars.DATABASE_URL)
         neonConfig.webSocketConstructor = WebSocket
+        routeLocalDb(neonConfig, vars.DATABASE_URL)
         const pool = new Pool({ connectionString: vars.DATABASE_URL })
         try {
           const org = await churchBySlug(pool, church)
