@@ -14,7 +14,11 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "noEmit": true,
+    // declarations only, so the web app can import the API's types (AppType) without type-checking
+    // Worker code against the DOM: tsconfig.app.json references this project
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./node_modules/.tmp/api-types",
 
     /* Linting */
     "noUnusedLocals": true,

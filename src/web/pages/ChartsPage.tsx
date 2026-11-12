@@ -5,6 +5,7 @@ import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
 import { SONGS_BASE_URL } from '../config'
 import { resolveSongParam } from '../lib/address'
+import { call, songFile, songsApi } from '../lib/api'
 import { useChurch } from '../lib/church-context'
 import { activeSection, parseChart } from '../lib/chart'
 import { useNowPlaying } from '../lib/now-playing-context'
@@ -45,7 +46,7 @@ export default function ChartsPage() {
   useEffect(() => {
     if (!songId) return
     const ctl = new AbortController()
-    fetch(`${SONGS_BASE_URL}/${encodeURIComponent(songId)}/chart.pro`, { signal: ctl.signal })
+    fetch(songFile(songId, 'chart.pro'), { signal: ctl.signal })
       .then(async (r) => {
         if (r.status === 404) return setLoaded({ id: songId, text: null, error: '' })
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -111,13 +112,7 @@ export default function ChartsPage() {
     e.preventDefault()
     setAddError('')
     try {
-      const r = await fetch(`${SONGS_BASE_URL}/new`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle }),
-      })
-      if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`)
-      const song = (await r.json()) as LibrarySong
+      const song = await call(songsApi.new.$post({ json: { title: newTitle } }))
       setLibrary((prev) => [...(prev ?? []), song].sort((a, b) => a.title.localeCompare(b.title)))
       setAdding(false)
       setNewTitle('')
@@ -129,12 +124,10 @@ export default function ChartsPage() {
   }
 
   const save = async (next: string) => {
-    const r = await fetch(`${SONGS_BASE_URL}/${encodeURIComponent(songId)}/chart.pro`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      body: next,
-    })
-    if (!r.ok) throw new Error(r.status === 403 ? 'you cannot edit charts here' : `HTTP ${r.status}`)
+    await call(
+      songsApi[':songId']['chart.pro'].$put({ param: { songId } }, { init: { body: next, headers: { 'Content-Type': 'text/plain; charset=utf-8' } } }),
+      { 403: 'you cannot edit charts here' },
+    )
     setLoaded({ id: songId, text: next, error: '' })
     setEditing(false)
   }

@@ -3,6 +3,7 @@
  * beat grid, sections, and lyrics with a time per word. Times here are seconds.
  */
 import { SONGS_BASE_URL } from '../config'
+import { songFile } from './api'
 import { keyName, parseKey, prefersFlats, shiftKey, transposeChord } from './chords'
 
 export type ChordLevel = 'basic' | 'simple' | 'complex'
@@ -54,12 +55,12 @@ const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
 /** The song's analysis, or null when it has none (or it cannot be read). */
 export async function fetchAnalysis(id: string): Promise<SongAnalysis | null> {
-  return getAnalysis(`${SONGS_BASE_URL}/${encodeURIComponent(id)}/analysis.json`)
+  return getAnalysis(songFile(id, 'analysis.json'))
 }
 
 /** An earlier version of the song's analysis (see listVersions in analysis-edit.ts). */
 export async function fetchAnalysisVersion(id: string, file: string): Promise<SongAnalysis | null> {
-  return getAnalysis(`${SONGS_BASE_URL}/${encodeURIComponent(id)}/analysis/history/${encodeURIComponent(file)}`)
+  return getAnalysis(songFile(id, 'analysis', 'history', file))
 }
 
 async function getAnalysis(url: string): Promise<SongAnalysis | null> {

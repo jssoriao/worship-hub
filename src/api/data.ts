@@ -62,13 +62,14 @@ export interface MemberRow {
   userId: string
   name: string
   email: string
-  role: string
+  /** always one of the roles: the API only ever writes those */
+  role: Role
   joined: string
 }
 
 const memberColumns = { id: members.id, userId: members.userId, name: users.name, email: users.email, role: members.role, joined: members.createdAt }
 
-const toMember = (r: { id: string; userId: string; name: string; email: string; role: string; joined: Date }): MemberRow => ({ ...r, joined: iso(r.joined) })
+const toMember = (r: { id: string; userId: string; name: string; email: string; role: string; joined: Date }): MemberRow => ({ ...r, role: r.role as Role, joined: iso(r.joined) })
 
 export async function listMembers(db: Db, orgId: string): Promise<MemberRow[]> {
   const rows = await db

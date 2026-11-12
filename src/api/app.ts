@@ -30,7 +30,7 @@ export function createApp(provide: Provide) {
       .on(['GET', 'POST'], '/api/auth/*', async (c) => (authPathAllowed(c.req.path) ? await c.get('deps').authHandler(c.req.raw) : c.json({ error: 'not found' }, 404)))
       .route('/api/church/members', members)
       .route('/songs', songs)
-      .notFound((c) => fail(c, 404, c.req.path.startsWith('/api/') ? 'not found' : 'Not Found'))
+      .notFound((c) => fail(c, 404, 'not found'))
       .onError((error, c) => {
         // malformed JSON bodies and the like; anything else is a bug, logged without personal data
         if (error instanceof HTTPException) return fail(c, error.status, error.message || 'Bad Request')
