@@ -16,7 +16,7 @@ import PracticePage from './pages/PracticePage'
 function PlayerDock({ onSlot }: { onSlot: (el: HTMLElement | null) => void }) {
   const { state, isMobile } = useSidebar()
   const left = isMobile ? '0px' : state === 'expanded' ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)'
-  return <div ref={onSlot} className="fixed right-0 bottom-0 z-20 transition-[left] duration-200 ease-linear" style={{ left }} />
+  return <div ref={onSlot} data-player-dock="" className="fixed right-0 bottom-0 z-20 transition-[left] duration-200 ease-linear" style={{ left }} />
 }
 
 /**

@@ -25,7 +25,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
 - Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts`, account with sign-out;
   folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
-  "Church / Page", title, the page's controls). The play bar is drawn by Practice into a dock at the bottom
+  title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom
   (`src/web/lib/player-slot.ts`, App.tsx), so the compact player stays on every page while a song is open.
 - Cloudflare: Workers (static assets + a Hono API), R2 (files), wrangler 4 pinned. Neon Postgres, Drizzle.
   Better Auth (email OTP + organization plugins) + Resend (emailed 6-digit code, invite only).
