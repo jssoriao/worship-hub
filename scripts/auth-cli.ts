@@ -1,7 +1,7 @@
 /**
  * Config for the Better Auth CLI, used by `pnpm db:migrate`.
  * It reuses the Worker's options, so the tables it creates always match what production runs.
- * Reads DATABASE_URL from .dev.vars (or the environment).
+ * Uses the owner login, DATABASE_OWNER_URL (set by `pnpm db:migrate` for its target; else from .dev.vars).
  */
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import { betterAuth } from 'better-auth'
@@ -17,7 +17,7 @@ try {
 // Node has no sockets-over-WebSocket transport built in; Neon's driver needs one
 neonConfig.webSocketConstructor = WebSocket
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const pool = new Pool({ connectionString: process.env.DATABASE_OWNER_URL })
 
 export const auth = betterAuth(
   authOptions({

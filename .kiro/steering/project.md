@@ -101,7 +101,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Regenerate types with `pnpm cf-typegen`.
 - `scripts/`: `publish-songs.ts` (`pnpm songs:publish --church <slug> --target prod`), `churches.ts`,
   `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts`/`auth-cli.ts` (`pnpm db:migrate`).
-  Scripts default to the dev database; `--target prod` uses `.prod.vars`.
+  Scripts default to the dev database; `--target prod` uses `.prod.vars`. Scripts use the owner login
+  (`DATABASE_OWNER_URL`); `pnpm db:app-role` manages the app's role.
 - `redirect/`: the redirect Worker for the previous address (`pnpm cf:deploy:redirect`).
 - `songs/` is gitignored. Song folders or symlinks go there for local testing.
 
@@ -112,7 +113,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   (memoised 30 s), so removing a member or changing a role applies within 30 s.
 - After sign-in the person lands in their earliest church (`session.activeOrganizationId`).
 - Secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`) live in Worker secrets; locally
-  `.dev.vars` (dev database) and `.prod.vars` (production database URL), both gitignored. Never put
+  `.dev.vars` (development branch) and `.prod.vars` (production), both gitignored. Two database logins:
+  `DATABASE_URL` is the app role `worship_hub_worker` (data only, no DDL; the Worker and dev server) and
+  `DATABASE_OWNER_URL` the owner (scripts and migrations only). Never put
   them in `VITE_*`.
 
 ## Verified
@@ -139,7 +142,6 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 
 ## Possible next steps
 - See the GitHub issues (P1 first).
-- Least-privilege Postgres role for the Worker (owner role only for migrations).
 - Backups of edited data (analysis, charts, arrangements) beyond R2 history.
 - Admin pages: members, songs (presigned-PUT upload, peaks at upload), Music.AI from the app.
 - Services, lineups, volunteer assignments; A-B loop, playback speed, key/tempo change.

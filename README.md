@@ -218,11 +218,12 @@ pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner
 pnpm members remove a@b.com --church <slug>
 pnpm db:migrate               # create/update the auth tables and db/schema.sql (add --target prod for production)
+pnpm db:app-role              # the app's database role (data access only); also rotates its password
 pnpm test                     # vitest
 pnpm cf:deploy                # build and deploy the Worker + app
 ```
 
-Local secrets live in `.dev.vars` (gitignored, template `.dev.vars.example`); it points at the Neon dev database. The production database URL is in `.prod.vars` (gitignored) and only used with `--target prod`.
+Local secrets live in `.dev.vars` (gitignored, template `.dev.vars.example`); it points at the Neon development branch. Production's are in `.prod.vars` (gitignored), used with `--target prod`. Each has two database logins: `DATABASE_URL`, the app's role with data access only (what the Worker uses), and `DATABASE_OWNER_URL`, the owner, which only scripts and migrations use.
 To try the real sign-in flow locally: `pnpm cf:dev` and open http://127.0.0.1:8787.
 
 ## How playback works

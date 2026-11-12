@@ -50,7 +50,8 @@ of a resource name. The app's previous address redirects to the current one (`re
 - Always answer "if that email is registered, we sent a code" so membership does not leak.
 - Short link expiry (about 10 min), single use, rate limited per email and IP.
 - Long sessions (about 30 days). httpOnly, Secure, SameSite cookies.
-- Neon connection string and secrets live in Worker secrets, never in `VITE_*` vars.
+- Neon connection string and secrets live in Worker secrets, never in `VITE_*` vars. The Worker connects as
+  `worship_hub_worker`, a role with data access only; the owner login is only for migrations and scripts.
 - Optional later: Google sign-in, only for emails already in the allowlist.
 
 ## Songs and files (per church)
@@ -85,6 +86,5 @@ How the data got here from the single-church layout: docs/infra.md, History.
 
 - DNS is on Cloudflare already (done). The old webapp records were removed and no email records exist.
 - Resend domain verification (SPF, DKIM, DMARC) for `mail.jssoriao.dev`.
-- Least-privilege Postgres role for the Worker (the owner role is only for migrations).
 - Admin page for churches and members (today: CLI only).
 - Verify current free-tier terms for R2, Neon, Resend before relying on them.

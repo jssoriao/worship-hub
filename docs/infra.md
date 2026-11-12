@@ -10,11 +10,12 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 | Resource | Where | Create | Delete |
 |---|---|---|---|
 | DNS zone `jssoriao.dev` | Cloudflare (registrar stays GoDaddy) | Dashboard: Add a domain, then set the two Cloudflare nameservers at GoDaddy | Point nameservers back to GoDaddy, then remove the site in Cloudflare |
-| Worker `worship-hub` (app assets, `/api/auth/*`, `/songs/*`). Secrets: `DATABASE_URL` (prod, from `.prod.vars`), `BETTER_AUTH_SECRET` (random), `RESEND_API_KEY` | Cloudflare Workers | `pnpm cf:deploy`, then `pnpm exec wrangler secret put <NAME>` for each secret | `pnpm exec wrangler delete` |
+| Worker `worship-hub` (app assets, `/api/auth/*`, `/songs/*`). Secrets: `DATABASE_URL` (the app role `worship_hub_worker` on production, from `.prod.vars`), `BETTER_AUTH_SECRET` (random), `RESEND_API_KEY` | Cloudflare Workers | `pnpm cf:deploy`, then `pnpm exec wrangler secret put <NAME>` for each secret | `pnpm exec wrangler delete` |
 | Worker `worship-hub-redirect` (`redirect/`): redirect only, no bindings or secrets. Owns the app's previous address (custom domain, set in `redirect/wrangler.jsonc`, which is gitignored; template `redirect/wrangler.example.jsonc`) and sends every request to the same path on `worshiphub.jssoriao.dev` (301) | Cloudflare Workers | `pnpm cf:deploy:redirect` | `pnpm exec wrangler delete --config redirect/wrangler.jsonc` (the previous address then stops working; check DNS afterwards) |
 | Custom domain `worshiphub.jssoriao.dev` | Declared in `wrangler.jsonc` (`routes`) | Created by `pnpm cf:deploy` | Removed by `wrangler delete` (check DNS afterwards) |
 | R2 bucket `worship-hub` (private; every church's files under `churches/<churchId>/songs/<songId>/`) | Cloudflare R2 | `pnpm exec wrangler r2 bucket create worship-hub` | Empty it, then `pnpm exec wrangler r2 bucket delete worship-hub` |
-| Neon project `worship-hub` (branch `production`), database `neondb` (production: people, churches, members, sessions, songs, arrangements). URL in `.prod.vars` (gitignored) and the Worker secret | Neon, standalone account | Dashboard: create project, copy the pooled connection string | Dashboard: delete project |
+| Neon project `worship-hub` (branch `production`), database `neondb` (production: people, churches, members, sessions, songs, arrangements). URLs in `.prod.vars` (gitignored): `DATABASE_OWNER_URL` (owner) and `DATABASE_URL` (app role, also the Worker secret) | Neon, standalone account | Dashboard: create project, copy the owner's pooled connection string; then `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod` | Dashboard: delete project |
+| Postgres role `worship_hub_worker` on each branch: the app's login, data access only (select/insert/update/delete on the app's tables, also on tables added later; no DDL, no create database/role) | Neon (SQL, not the console: console roles join `neon_superuser`, which the owner cannot remove) | `pnpm db:app-role [--target prod]` (also rotates the password); for prod then `pnpm exec wrangler secret put DATABASE_URL` | `drop owned by worship_hub_worker; drop role worship_hub_worker;` as the owner (after pointing the Worker elsewhere) |
 | Neon branch `development` of project `worship-hub` (child of `production`, database `neondb`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; then `pnpm db:migrate` | Dashboard > Branches > `development` > Delete |
 | Resend domain `mail.jssoriao.dev` + API key | Resend, DNS records in Cloudflare | Dashboard: Domains > Add domain, add the records it lists in Cloudflare DNS | Dashboard: delete domain and key, remove the DNS records |
 | Budget alert | Cloudflare dashboard: Billing, Billable usage | Dashboard: Add Budget Alert | Dashboard |
@@ -23,7 +24,7 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 
 | Secret | Value | Set | Remove |
 |---|---|---|---|
-| `DATABASE_URL` | Neon pooled connection string | `pnpm exec wrangler secret put DATABASE_URL` | `pnpm exec wrangler secret delete DATABASE_URL` |
+| `DATABASE_URL` | Pooled connection string of the app role `worship_hub_worker` on `production` (the `DATABASE_URL` line of `.prod.vars`); never the owner | `pnpm exec wrangler secret put DATABASE_URL` | `pnpm exec wrangler secret delete DATABASE_URL` |
 | `BETTER_AUTH_SECRET` | Random string: `openssl rand -base64 32`. Changing it signs everyone out | `pnpm exec wrangler secret put BETTER_AUTH_SECRET` | same pattern |
 | `RESEND_API_KEY` | Resend API key with sending access | `pnpm exec wrangler secret put RESEND_API_KEY` | same pattern |
 
@@ -32,9 +33,15 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
 ### Databases: dev and prod
 
 - `.prod.vars` points at branch `production`, `.dev.vars` at branch `development` (both database `neondb`,
-  both pooled URLs, gitignored, in the main repo and in each worktree). Scripts default to dev; anything that
-  should touch production needs `--target prod`. Scripts and the dev server refuse to run when `.dev.vars`
-  names the production database (same host and database name).
+  pooled URLs, gitignored, in the main repo and in each worktree). Each has two logins:
+  - `DATABASE_URL`: the app role `worship_hub_worker` (data only). The Worker uses it, locally (`pnpm cf:dev`)
+    and deployed (as its secret), and so does the dev server, so local runs have exactly production's rights.
+  - `DATABASE_OWNER_URL`: the owner `neondb_owner`. Only scripts use it (`db:migrate`, `members`, `churches`,
+    `songs:publish`, `songs:analyse`, `db:app-role`), because migrations create and alter tables.
+  Scripts default to dev; anything that should touch production needs `--target prod`. Scripts and the dev
+  server refuse to run when `.dev.vars` names the production database (either login; same host and database).
+- After "Reset from parent" the development branch gets production's role and password; run `pnpm db:app-role`
+  to give dev its own password again.
 - `development` is a copy-on-write branch of `production`: its own compute (scales to zero after 5 min idle),
   storage only for what changes. Free plan: up to 10 branches per project, and the project's 100 CU-hours and
   1 GB of storage a month are shared by its branches.
@@ -49,7 +56,8 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
 
 ```sh
 pnpm cf:deploy                       # build the PWA and deploy the Worker + assets
-pnpm db:migrate [--target prod]      # Better Auth tables (incl. organization/member) + db/schema.sql (song, arrangement); idempotent
+pnpm db:migrate [--target prod]      # Better Auth tables (incl. organization/member) + db/schema.sql (song, arrangement); idempotent; owner login
+pnpm db:app-role [--target prod]     # create the app role worship_hub_worker or give it a new password; writes DATABASE_URL
 pnpm test                            # vitest: permissions, tenancy (PGlite + fake R2), address rules
 pnpm cf:deploy:redirect              # the redirect Worker for the previous address (rarely needed)
 

@@ -4,9 +4,13 @@
 # Local origin, so cookies and the auth origin point at your machine
 APP_URL=http://127.0.0.1:8787
 
-# The Neon DEV database (never production; production lives in .prod.vars, used with --target prod).
-# Neon dashboard > Connect > pooled connection string (host contains "-pooler")
-DATABASE_URL=postgresql://USER:PASSWORD@HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+# The Neon development branch (never production; production lives in .prod.vars, used with --target prod).
+# Two logins, both pooled connection strings (host contains "-pooler"):
+#   DATABASE_OWNER_URL  the owner role (neondb_owner): scripts and migrations, which create and alter tables
+#   DATABASE_URL        the app's role (worship_hub_worker): what the Worker and the dev server use; data only.
+#                       Created with SQL, not in the console (console roles are near-admin); see docs/infra.md.
+DATABASE_OWNER_URL=postgresql://neondb_owner:PASSWORD@HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL=postgresql://worship_hub_worker:PASSWORD@HOST-pooler.REGION.aws.neon.tech/neondb?sslmode=require
 
 # Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET=

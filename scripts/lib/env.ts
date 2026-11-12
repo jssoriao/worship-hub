@@ -1,6 +1,9 @@
 /**
- * Which database a script talks to. `--target dev` (default) reads .dev.vars (the Neon dev database);
+ * Which database a script talks to. `--target dev` (default) reads .dev.vars (the Neon dev branch);
  * `--target prod` reads .prod.vars (production). Anything that writes to production must say so.
+ *
+ * Each file has two logins: DATABASE_URL is the app's (the Worker's; data access only) and
+ * DATABASE_OWNER_URL is the owner's, which scripts use because migrations create and alter tables.
  */
 import { readFileSync } from 'node:fs'
 
@@ -39,23 +42,23 @@ export function parseVars(text: string): Record<string, string> {
   return out
 }
 
-/** Loads the variables for a target into process.env (overriding what is there) and returns DATABASE_URL. */
+/** Loads the variables for a target into process.env (overriding what is there) and returns DATABASE_OWNER_URL. */
 export function loadTarget(target: Target): string {
   const file = target === 'prod' ? '.prod.vars' : '.dev.vars'
   let vars: Record<string, string> = {}
   try {
     vars = parseVars(readFileSync(file, 'utf8'))
   } catch {
-    if (!process.env.DATABASE_URL || target === 'prod') {
+    if (!process.env.DATABASE_OWNER_URL || target === 'prod') {
       console.error(`${file} not found. See .dev.vars.example and docs/infra.md.`)
       process.exit(1)
     }
   }
   // prod variables only supply the database; secrets for dev stay from .dev.vars
   for (const [k, v] of Object.entries(vars)) process.env[k] = v
-  const url = process.env.DATABASE_URL
+  const url = process.env.DATABASE_OWNER_URL
   if (!url) {
-    console.error(`DATABASE_URL is not set in ${file}.`)
+    console.error(`DATABASE_OWNER_URL (the owner login, for scripts and migrations) is not set in ${file}. See .dev.vars.example.`)
     process.exit(1)
   }
   process.env.WORSHIP_HUB_TARGET = target
@@ -69,16 +72,17 @@ export function dbIdentity(url: string): string {
   return `${u.host.replace(/-pooler/, '')}${u.pathname}`
 }
 
-/** Refuses to run when the dev URL points at the production database. */
+/** Refuses to run when a dev URL (either login) points at the production database. */
 export function assertDevIsNotProd(devUrl: string): void {
-  let prod: string | undefined
+  let prod: Record<string, string>
   try {
-    prod = parseVars(readFileSync('.prod.vars', 'utf8')).DATABASE_URL
+    prod = parseVars(readFileSync('.prod.vars', 'utf8'))
   } catch {
     return
   }
-  if (prod && dbIdentity(prod) === dbIdentity(devUrl)) {
-    console.error('DATABASE_URL in .dev.vars is the production database. Point it at the Neon dev database (docs/infra.md).')
+  const prodIds = [prod.DATABASE_URL, prod.DATABASE_OWNER_URL].filter(Boolean).map(dbIdentity)
+  if (prodIds.includes(dbIdentity(devUrl))) {
+    console.error('.dev.vars points at the production database. Point it at the Neon development branch (docs/infra.md).')
     process.exit(1)
   }
 }

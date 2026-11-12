@@ -16,6 +16,7 @@
     "songs:publish": "node scripts/publish-songs.ts",
     "songs:pack": "node scripts/pack-song.ts",
     "db:migrate": "node scripts/db-migrate.ts",
+    "db:app-role": "node scripts/db-app-role.ts",
     "members": "node scripts/members.ts",
     "churches": "node scripts/churches.ts",
     "songs:analyse": "node scripts/analyse.ts"

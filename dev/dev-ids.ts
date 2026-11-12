@@ -65,6 +65,7 @@ export function createDevIds(church = devChurch()) {
         } catch {
           throw new Error('.dev.vars not found: dev needs the Neon dev database (see .dev.vars.example)')
         }
+        // the app's own login: the dev server only reads and adds song rows, as the app does
         if (!vars.DATABASE_URL) throw new Error('DATABASE_URL missing in .dev.vars')
         assertDevIsNotProd(vars.DATABASE_URL)
         neonConfig.webSocketConstructor = WebSocket
