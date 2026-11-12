@@ -20,16 +20,19 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   fake R2 in `test/`).
 
 ## Tenancy and data
-- Neon (`src/db/schema.sql` plus Better Auth's tables): `organization` (church), `member` (person, church,
-  role), `user` (`platformAdmin` flag), `song` (per church: title unique per church, artist, key, bpm,
-  meter, hasStems), `arrangement` (per song, owner, `data` jsonb). Ids are 12 random `[a-z0-9]`
+- Neon, through **Drizzle** (`src/db/schema/`, migrations in `src/db/migrations`, made by `pnpm db:generate`,
+  applied by `pnpm db:migrate`). snake_case columns, plural tables: Better Auth's `users` (`platform_admin`),
+  `sessions`, `accounts`, `verifications`, `organizations` (church), `members` (person, church, role),
+  `invitations`, `rate_limits`; the app's `songs` (per church: title unique per church, artist, key, bpm,
+  meter, has_stems) and `arrangements` (per song, owner, `data` jsonb). Better Auth uses its Drizzle adapter
+  (`usePlural`); `test/auth-schema.test.ts` checks the tables match its options. Ids are 12 random `[a-z0-9]`
   (`src/shared/ids.ts`); `?song=<id>` in the address is the song's id.
 - R2: every file of a song under `churches/<churchId>/songs/<songId>/`: `stems/manifest.json`,
   `stems/<file>` (original), `stems/standard|saver/<file>`, `chart.pro`, `analysis.json`,
   `analysis/history/<time>.json`. URLs are `/songs/<songId>/...`; the church always comes from the
   session, never the URL.
 - Isolation lives in the Worker: `src/api/tenant.ts` `requireChurch` (session -> active church ->
-  `member` row read from the database, memoised 30 s), then `data.songBelongs(orgId, songId)` before
+  `members` row read from the database, memoised 30 s), then `data.songBelongs(orgId, songId)` before
   any handler or key, then `src/api/keys.ts` builds keys only from validated ids (no path can leave the
   song's prefix). `src/api/data.ts` is the only SQL for church data; every function takes `orgId` first.
 - Songs, stems included, are never shared between churches (per-church edits and stem licences).
@@ -39,7 +42,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Worker (enforces) and the app (shows/hides): member (play, own arrangements), editor (+ chords,
   lyrics, sections, charts, song details, any arrangement), admin (+ add/remove songs, members and
   editors), owner (+ church settings, admins/owners). Code checks permissions (`can`), never role names.
-- Platform super admin: `user.platformAdmin`, outside churches. Only they run Music.AI (credits) and
+- Platform super admin: `users.platform_admin`, outside churches. Only they run Music.AI (credits) and
   manage any church from the CLI. It does not bypass church membership in the Worker.
 - Churches and people are added only by the CLI: `pnpm churches add <slug> <name> [--owner <email>]`,
   `pnpm members add <email> [name] --church <slug> --role <role>`, `pnpm members platform-admin`.
@@ -89,7 +92,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Chords, Shapes (`src/web/components/player/`). Shared `Select` (styled native select) and `Popover`.
 - Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are
-  `song` rows with `hasStems` false.
+  `songs` rows with `has_stems` false.
 - Arrange (`src/web/pages/ArrangePage.tsx`, own `StemEngine`): `src/web/lib/arrangement.ts`,
   `StemEngine.setTimeline(...)`. Arrangements are rows in Neon. Plan: `docs/arrangements.md`.
 - Analysis: `src/cli/analyse.ts` (`pnpm songs:analyse <song> --church <slug>`, Music.AI REST, no SDK;
@@ -114,16 +117,16 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   isolate, a Neon pool per request), `auth-options.ts` (shared with the CLI), `mail.ts` (Resend).
   Regenerate types with `pnpm cf-typegen`.
 - `src/cli/`: `publish-songs.ts` (`pnpm songs:publish --church <slug> --target prod`), `churches.ts`,
-  `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts`/`auth-cli.ts` (`pnpm db:migrate`).
+  `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts` (`pnpm db:migrate`).
   Scripts default to the dev database; `--target prod` uses `.prod.vars`. Scripts use the owner login
   (`DATABASE_OWNER_URL`); `pnpm db:app-role` manages the app's role.
 - `src/redirect/`: the redirect Worker for the previous address (`pnpm cf:deploy:redirect`).
 - `songs/` is gitignored. Song folders or symlinks go there for local testing.
 
 ## Auth model
-- Invite only, no passwords. People are `user` rows linked to churches by `member` rows.
+- Invite only, no passwords. People are `users` rows linked to churches by `members` rows.
 - The sign-in endpoint answers the same for members and strangers and only emails members.
-- Sessions last 30 days with a 5-minute signed cookie cache, but song routes read the `member` row
+- Sessions last 30 days with a 5-minute signed cookie cache, but song routes read the `members` row
   (memoised 30 s), so removing a member or changing a role applies within 30 s.
 - After sign-in the person lands in their earliest church (`session.activeOrganizationId`).
 - Secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`) live in Worker secrets; locally

@@ -24,7 +24,9 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { Pool, neonConfig } from '@neondatabase/serverless'
+import { eq } from 'drizzle-orm'
+import { openDb } from '../db/client.ts'
+import { users } from '../db/schema/index.ts'
 import { listSongs, stemFiles } from './lib/song-files.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
 import { churchBySlug } from './lib/songs-db.ts'
@@ -78,15 +80,14 @@ async function api<T>(method: string, route: string, body?: unknown): Promise<T>
 
 /** Only the platform super admin may spend Music.AI credits. */
 async function requirePlatformAdmin() {
-  neonConfig.webSocketConstructor = WebSocket
-  const pool = new Pool({ connectionString: loadTarget(target) })
+  const { db, close } = openDb(loadTarget(target))
   try {
-    if (!(await churchBySlug(pool, churchSlug))) throw new Error(`No church "${churchSlug}" in the ${target} database.`)
+    if (!(await churchBySlug(db, churchSlug))) throw new Error(`No church "${churchSlug}" in the ${target} database.`)
     const operator = (process.env.WORSHIP_HUB_OPERATOR ?? execFileSync('git', ['config', 'user.email']).toString()).trim().toLowerCase()
-    const { rows } = await pool.query<{ platformAdmin: boolean }>('select "platformAdmin" from "user" where email = $1', [operator])
-    if (!rows[0]?.platformAdmin) throw new Error(`${operator || '(no email)'} is not the platform admin, so AI runs are not allowed. (pnpm members platform-admin <email>)`)
+    const [person] = await db.select({ platformAdmin: users.platformAdmin }).from(users).where(eq(users.email, operator))
+    if (!person?.platformAdmin) throw new Error(`${operator || '(no email)'} is not the platform admin, so AI runs are not allowed. (pnpm members platform-admin <email>)`)
   } finally {
-    await pool.end()
+    await close()
   }
 }
 if (!dryRun) {

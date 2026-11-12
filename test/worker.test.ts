@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { Db } from '../src/api/data.ts'
+import type { Db } from '../src/db/client.ts'
 import { Memo } from '../src/api/data.ts'
 import { songKey, songPrefix, parseSongPath } from '../src/api/keys.ts'
 import { routeSongs } from '../src/api/router.ts'
@@ -58,7 +58,7 @@ beforeEach(async () => {
   }
   await seedUser(pg, 'bob-b')
   await seedMember(pg, B, 'bob-b', 'owner')
-  await pg.query(`insert into song (id, "organizationId", title, "hasStems") values ($1, $2, 'Song A', true), ($3, $4, 'Song B', true)`, [SONG_A, A, SONG_B, B])
+  await pg.query(`insert into songs (id, organization_id, title, has_stems) values ($1, $2, 'Song A', true), ($3, $4, 'Song B', true)`, [SONG_A, A, SONG_B, B])
   await r2.put(`churches/${A}/songs/${SONG_A}/stems/manifest.json`, '{"title":"A"}', { httpMetadata: { contentType: 'application/json' } })
   await r2.put(`churches/${A}/songs/${SONG_A}/stems/a.mp3`, new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]))
   await r2.put(`churches/${B}/songs/${SONG_B}/stems/manifest.json`, '{"title":"B"}')
@@ -108,7 +108,7 @@ describe('session and church', () => {
   })
   it('a removed member is denied once the memo expires', async () => {
     expect((await call('/songs/index.json', asA('member'))).status).toBe(200)
-    await pg.query(`delete from member where "userId" = 'member-a'`)
+    await pg.query(`delete from members where user_id = 'member-a'`)
     expect((await call('/songs/index.json', asA('member'))).status).toBe(200) // inside the 30 s window
     now = 31_000
     expect((await call('/songs/index.json', asA('member'))).status).toBe(403)
@@ -131,7 +131,7 @@ describe('tenancy: church A cannot touch church B song', () => {
     expect(res.status).toBe(404)
     // nothing of A changed
     expect(r2.objects.has(`churches/${A}/songs/${SONG_A}/stems/manifest.json`)).toBe(true)
-    expect((await pg.query('select 1 from song where id = $1', [SONG_A])).rows).toHaveLength(1)
+    expect((await pg.query('select 1 from songs where id = $1', [SONG_A])).rows).toHaveLength(1)
   })
   it('an active church the person is not in is refused', async () => {
     expect((await call(`/songs/${SONG_A}/stems/manifest.json`, `user=bob-b; church=${A}`)).status).toBe(403)
@@ -143,7 +143,7 @@ describe('tenancy: church A cannot touch church B song', () => {
     // B cannot overwrite A's arrangement id by saving to its own song
     const res = await call(`/songs/${SONG_B}/arrangements/arr123456.json`, asBob, { method: 'PUT', body })
     expect([404, 403, 200]).toContain(res.status)
-    const { rows } = await pg.query<{ songId: string; owner: string }>('select "songId", owner from arrangement where id = $1', ['arr123456'])
+    const { rows } = await pg.query<{ songId: string; owner: string }>('select song_id as "songId", owner_id as owner from arrangements where id = $1', ['arr123456'])
     expect(rows).toEqual([{ songId: SONG_A, owner: 'member-a' }])
   })
 })

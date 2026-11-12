@@ -1,16 +1,16 @@
 /**
- * The only module with SQL for church data (songs, arrangements, membership).
+ * The only module with queries for church data (songs, arrangements, membership).
  *
  * Tenancy rule: every function takes the church (`orgId`) first and every query is restricted to it.
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
  */
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { accounts, arrangements, members, sessions, songs, users } from '../db/schema/index.ts'
+import { isUniqueViolation, type Db } from '../db/client.ts'
 import { newId } from '../shared/ids.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
 
-/** What a pg-style pool or client offers; tests plug in PGlite. */
-export interface Db {
-  query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<{ rows: T[] }>
-}
+export type { Db }
 
 // ---------------------------------------------------------------- short-lived memory
 
@@ -41,14 +41,19 @@ export class Memo {
 }
 export const memo = new Memo()
 
+const iso = (d: Date) => d.toISOString()
+
 // ---------------------------------------------------------------- membership
 
 /** The person's role in that church, or null when they are not a member. Never trusts a cookie. */
 export function memberRole(db: Db, userId: string, orgId: string, cache: Memo = memo): Promise<Role | null> {
   return cache.get(`m:${orgId}:${userId}`, async () => {
-    const { rows } = await db.query<{ role: string }>('select role from member where "organizationId" = $1 and "userId" = $2 limit 1', [orgId, userId])
-    const role = rows[0]?.role
-    return isRole(role) ? role : null
+    const [row] = await db
+      .select({ role: members.role })
+      .from(members)
+      .where(and(eq(members.organizationId, orgId), eq(members.userId, userId)))
+      .limit(1)
+    return isRole(row?.role) ? row.role : null
   })
 }
 
@@ -61,46 +66,61 @@ export interface MemberRow {
   joined: string
 }
 
-const MEMBER_SELECT = `select m.id, m."userId", u.name, u.email, m.role,
-       to_char(m."createdAt" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as joined
-  from member m join "user" u on u.id = m."userId"`
+const memberColumns = { id: members.id, userId: members.userId, name: users.name, email: users.email, role: members.role, joined: members.createdAt }
+
+const toMember = (r: { id: string; userId: string; name: string; email: string; role: string; joined: Date }): MemberRow => ({ ...r, joined: iso(r.joined) })
 
 export async function listMembers(db: Db, orgId: string): Promise<MemberRow[]> {
-  const { rows } = await db.query<MemberRow>(`${MEMBER_SELECT} where m."organizationId" = $1 order by m."createdAt", u.email`, [orgId])
-  return rows
+  const rows = await db
+    .select(memberColumns)
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(eq(members.organizationId, orgId))
+    .orderBy(asc(members.createdAt), asc(users.email))
+  return rows.map(toMember)
 }
 
 export async function getMember(db: Db, orgId: string, memberId: string): Promise<MemberRow | null> {
-  const { rows } = await db.query<MemberRow>(`${MEMBER_SELECT} where m."organizationId" = $1 and m.id = $2`, [orgId, memberId])
-  return rows[0] ?? null
+  const [row] = await db
+    .select(memberColumns)
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, orgId), eq(members.id, memberId)))
+  return row ? toMember(row) : null
 }
 
 /**
  * Adds a person to the church (creating their sign-in record when the email is new). Same effect as
- * `pnpm members add`. 'exists' when they are already in this church. One statement, so it is all or nothing.
+ * `pnpm members add`. 'exists' when they are already in this church. All or nothing.
  */
 export async function addMember(db: Db, orgId: string, email: string, name: string, role: Role): Promise<MemberRow | 'exists'> {
-  const { rows } = await db.query<{ id: string }>(
-    `with u as (
-       insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-       values ($1, $2, $3, true, now(), now())
-       on conflict (email) do update set "updatedAt" = now() returning id
-     )
-     insert into member (id, "organizationId", "userId", role, "createdAt")
-     select $4, $5, u.id, $6, now() from u
-      where not exists (select 1 from member x where x."organizationId" = $5 and x."userId" = u.id)
-     returning id`,
-    [crypto.randomUUID(), name, email, crypto.randomUUID(), orgId, role],
-  )
-  if (!rows[0]) return 'exists'
-  return (await getMember(db, orgId, rows[0].id))!
+  const id = await db.transaction(async (tx) => {
+    // Better Auth looks people up by email; emailVerified is true because only invited people exist here
+    const [user] = await tx
+      .insert(users)
+      .values({ id: crypto.randomUUID(), name, email, emailVerified: true })
+      .onConflictDoUpdate({ target: users.email, set: { updatedAt: sql`now()` } })
+      .returning({ id: users.id })
+    const [member] = await tx
+      .insert(members)
+      .values({ id: crypto.randomUUID(), organizationId: orgId, userId: user.id, role })
+      .onConflictDoNothing({ target: [members.organizationId, members.userId] })
+      .returning({ id: members.id })
+    return member?.id ?? null
+  })
+  if (!id) return 'exists'
+  return (await getMember(db, orgId, id))!
 }
 
 /** null when the church has no such member. */
 export async function setMemberRole(db: Db, orgId: string, memberId: string, role: Role, cache: Memo = memo): Promise<MemberRow | null> {
-  const { rows } = await db.query('update member set role = $3 where "organizationId" = $1 and id = $2 returning id', [orgId, memberId, role])
+  const updated = await db
+    .update(members)
+    .set({ role })
+    .where(and(eq(members.organizationId, orgId), eq(members.id, memberId)))
+    .returning({ id: members.id })
   cache.clear()
-  return rows[0] ? getMember(db, orgId, memberId) : null
+  return updated[0] ? getMember(db, orgId, memberId) : null
 }
 
 /**
@@ -108,17 +128,34 @@ export async function setMemberRole(db: Db, orgId: string, memberId: string, rol
  * the platform admin) is removed entirely, as `pnpm members remove` does. False when there is no such member.
  */
 export async function removeMember(db: Db, orgId: string, memberId: string, cache: Memo = memo): Promise<boolean> {
-  const { rows } = await db.query<{ userId: string }>('delete from member where "organizationId" = $1 and id = $2 returning "userId"', [orgId, memberId])
+  const removed = await db.transaction(async (tx) => {
+    const [gone] = await tx
+      .delete(members)
+      .where(and(eq(members.organizationId, orgId), eq(members.id, memberId)))
+      .returning({ userId: members.userId })
+    if (!gone) return false
+    await removePersonIfChurchless(tx, gone.userId, orgId)
+    return true
+  })
   cache.clear()
-  const userId = rows[0]?.userId
-  if (!userId) return false
-  await db.query('delete from session where "userId" = $1 and "activeOrganizationId" = $2', [userId, orgId])
-  const left = await db.query('select 1 from member where "userId" = $1', [userId])
-  if (left.rows.length === 0) {
-    await db.query('delete from session where "userId" = $1', [userId])
-    await db.query('delete from account where "userId" = $1', [userId])
-    await db.query('delete from "user" where id = $1 and coalesce("platformAdmin", false) = false', [userId])
-  }
+  return removed
+}
+
+/**
+ * After someone left `orgId`: ends their sessions there, and when they are in no church any more (and
+ * are not the platform admin) removes their sessions, accounts and sign-in record. Shared with the CLI.
+ * Returns true when the person was removed entirely.
+ */
+export async function removePersonIfChurchless(db: Pick<Db, 'select' | 'delete'>, userId: string, orgId: string): Promise<boolean> {
+  // sessions open in that church would keep pointing at it
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), eq(sessions.activeOrganizationId, orgId)))
+  const left = await db.select({ id: members.id }).from(members).where(eq(members.userId, userId)).limit(1)
+  if (left.length > 0) return false
+  const [person] = await db.select({ platformAdmin: users.platformAdmin }).from(users).where(eq(users.id, userId))
+  if (!person || person.platformAdmin) return false
+  await db.delete(sessions).where(eq(sessions.userId, userId))
+  await db.delete(accounts).where(eq(accounts.userId, userId))
+  await db.delete(users).where(eq(users.id, userId))
   return true
 }
 
@@ -134,79 +171,93 @@ export interface SongRow {
   stems: boolean
 }
 
-const SONG_COLUMNS = `id, title, artist, "musicKey" as key, bpm::float8 as bpm, meter, "hasStems" as stems`
+const songColumns = { id: songs.id, title: songs.title, artist: songs.artist, key: songs.musicKey, bpm: songs.bpm, meter: songs.meter, stems: songs.hasStems }
 
 export async function listSongs(db: Db, orgId: string): Promise<SongRow[]> {
-  const { rows } = await db.query<SongRow>(`select ${SONG_COLUMNS} from song where "organizationId" = $1 order by lower(title), id`, [orgId])
-  return rows
+  return db
+    .select(songColumns)
+    .from(songs)
+    .where(eq(songs.organizationId, orgId))
+    .orderBy(sql`lower(${songs.title})`, asc(songs.id))
 }
 
 export function songBelongs(db: Db, orgId: string, songId: string, cache: Memo = memo): Promise<true | null> {
   return cache.get(`s:${orgId}:${songId}`, async () => {
-    const { rows } = await db.query('select 1 from song where "organizationId" = $1 and id = $2', [orgId, songId])
+    const rows = await db
+      .select({ id: songs.id })
+      .from(songs)
+      .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+      .limit(1)
     return rows.length > 0 ? true : null
   })
 }
 
 export async function getSong(db: Db, orgId: string, songId: string): Promise<SongRow | null> {
-  const { rows } = await db.query<SongRow>(`select ${SONG_COLUMNS} from song where "organizationId" = $1 and id = $2`, [orgId, songId])
-  return rows[0] ?? null
-}
-
-const isUnique = (error: unknown, constraint?: string) => {
-  const e = error as { code?: string; constraint?: string }
-  return e?.code === '23505' && (!constraint || e.constraint === constraint)
+  const [row] = await db
+    .select(songColumns)
+    .from(songs)
+    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+  return row ?? null
 }
 
 /** 'exists' when the church already has a song with that title. */
-export async function createSong(db: Db, orgId: string, userId: string, title: string, extra: Partial<Omit<SongRow, 'id' | 'title'>> = {}): Promise<SongRow | 'exists'> {
+export async function createSong(db: Db, orgId: string, userId: string | null, title: string, extra: Partial<Omit<SongRow, 'id' | 'title'>> = {}): Promise<SongRow | 'exists'> {
   for (let attempt = 0; attempt < 5; attempt++) {
-    const id = newId()
     try {
-      const { rows } = await db.query<SongRow>(
-        `insert into song (id, "organizationId", title, artist, "musicKey", bpm, meter, "hasStems", "createdBy")
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning ${SONG_COLUMNS}`,
-        [id, orgId, title, extra.artist ?? null, extra.key ?? null, extra.bpm ?? null, extra.meter ?? null, extra.stems ?? false, userId],
-      )
-      return rows[0]
+      const [row] = await db
+        .insert(songs)
+        .values({
+          id: newId(),
+          organizationId: orgId,
+          title,
+          artist: extra.artist ?? null,
+          musicKey: extra.key ?? null,
+          bpm: extra.bpm ?? null,
+          meter: extra.meter ?? null,
+          hasStems: extra.stems ?? false,
+          createdBy: userId,
+        })
+        .returning(songColumns)
+      return row
     } catch (error) {
-      if (isUnique(error, 'song_pkey')) continue // id clash: draw another
-      if (isUnique(error)) return 'exists'
+      if (isUniqueViolation(error, 'songs_pkey')) continue // id clash: draw another
+      if (isUniqueViolation(error)) return 'exists'
       throw error
     }
   }
   throw new Error('could not find a free song id')
 }
 
-export type SongPatch = Partial<Pick<SongRow, 'title' | 'artist' | 'key' | 'bpm' | 'meter'>>
+export type SongPatch = Partial<Pick<SongRow, 'title' | 'artist' | 'key' | 'bpm' | 'meter' | 'stems'>>
+
+const patchColumns = { title: 'title', artist: 'artist', key: 'musicKey', bpm: 'bpm', meter: 'meter', stems: 'hasStems' } as const
 
 /** null = no such song in this church, 'exists' = the title is taken. */
 export async function updateSong(db: Db, orgId: string, songId: string, patch: SongPatch): Promise<SongRow | null | 'exists'> {
-  const sets: string[] = []
-  const params: unknown[] = [orgId, songId]
-  const columns = { title: 'title', artist: 'artist', key: '"musicKey"', bpm: 'bpm', meter: 'meter' } as const
-  for (const [field, column] of Object.entries(columns) as [keyof typeof columns, string][]) {
-    if (field in patch) {
-      params.push(patch[field] ?? null)
-      sets.push(`${column} = $${params.length}`)
-    }
+  const set: Partial<typeof songs.$inferInsert> = {}
+  for (const [field, column] of Object.entries(patchColumns) as [keyof SongPatch, (typeof patchColumns)[keyof SongPatch]][]) {
+    if (field in patch) (set as Record<string, unknown>)[column] = patch[field] ?? (field === 'stems' ? false : null)
   }
-  if (sets.length === 0) return getSong(db, orgId, songId)
+  if (Object.keys(set).length === 0) return getSong(db, orgId, songId)
   try {
-    const { rows } = await db.query<SongRow>(
-      `update song set ${sets.join(', ')}, "updatedAt" = now() where "organizationId" = $1 and id = $2 returning ${SONG_COLUMNS}`,
-      params,
-    )
-    return rows[0] ?? null
+    const [row] = await db
+      .update(songs)
+      .set({ ...set, updatedAt: sql`now()` })
+      .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+      .returning(songColumns)
+    return row ?? null
   } catch (error) {
-    if (isUnique(error)) return 'exists'
+    if (isUniqueViolation(error)) return 'exists'
     throw error
   }
 }
 
 /** Deletes the song row (and, by cascade, its arrangements). False when the church has no such song. */
 export async function deleteSong(db: Db, orgId: string, songId: string, cache: Memo = memo): Promise<boolean> {
-  const { rows } = await db.query('delete from song where "organizationId" = $1 and id = $2 returning id', [orgId, songId])
+  const rows = await db
+    .delete(songs)
+    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+    .returning({ id: songs.id })
   cache.clear()
   return rows.length > 0
 }
@@ -221,17 +272,21 @@ export interface ArrangementInfo {
   updated: string
 }
 
+/** Song ids of this church with this id: a subquery that keeps arrangement queries inside the church. */
+const songOfChurch = (db: Db, orgId: string, songId: string) =>
+  db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+
 export async function listArrangements(db: Db, orgId: string, songId: string): Promise<ArrangementInfo[]> {
-  const { rows } = await db.query<ArrangementInfo>(
-    `select a.id, a.name, coalesce(a.owner, '') as owner, coalesce(u.name, '') as "ownerName", to_char(a."updatedAt" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated
-       from arrangement a
-       join song s on s.id = a."songId"
-       left join "user" u on u.id = a.owner
-      where s."organizationId" = $1 and s.id = $2
-      order by a."updatedAt" desc, a.id`,
-    [orgId, songId],
-  )
-  return rows
+  const rows = await db
+    .select({ id: arrangements.id, name: arrangements.name, owner: arrangements.ownerId, ownerName: users.name, updated: arrangements.updatedAt })
+    .from(arrangements)
+    .leftJoin(users, eq(users.id, arrangements.ownerId))
+    .where(inArray(arrangements.songId, songOfChurch(db, orgId, songId)))
+    .orderBy(desc(arrangements.updatedAt), asc(arrangements.id))
+  return rows.map((r) => ({ id: r.id, name: r.name, owner: r.owner ?? '', ownerName: r.ownerName ?? '', updated: iso(r.updated) }))
 }
 
 export interface ArrangementRow {
@@ -244,13 +299,11 @@ export interface ArrangementRow {
 }
 
 export async function getArrangement(db: Db, orgId: string, songId: string, id: string): Promise<ArrangementRow | null> {
-  const { rows } = await db.query<ArrangementRow>(
-    `select a.id, a."songId", a.owner, a.name, a.data, to_char(a."updatedAt" at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated
-       from arrangement a join song s on s.id = a."songId"
-      where s."organizationId" = $1 and s.id = $2 and a.id = $3`,
-    [orgId, songId, id],
-  )
-  return rows[0] ?? null
+  const [row] = await db
+    .select({ id: arrangements.id, songId: arrangements.songId, owner: arrangements.ownerId, name: arrangements.name, data: arrangements.data, updated: arrangements.updatedAt })
+    .from(arrangements)
+    .where(and(eq(arrangements.id, id), inArray(arrangements.songId, songOfChurch(db, orgId, songId))))
+  return row ? { ...row, updated: iso(row.updated) } : null
 }
 
 /**
@@ -266,22 +319,25 @@ export async function saveArrangement(
   name: string,
   data: Record<string, unknown>,
 ): Promise<ArrangementRow | null> {
-  const { rows } = await db.query<{ id: string }>(
-    `insert into arrangement (id, "songId", owner, name, data)
-     select $3, s.id, $4, $5, $6::jsonb from song s where s."organizationId" = $1 and s.id = $2
-     on conflict (id) do update set name = excluded.name, data = excluded.data, "updatedAt" = now()
-       where arrangement."songId" = excluded."songId"
-     returning id`,
-    [orgId, songId, id, ownerId, name, JSON.stringify(data)],
-  )
-  return rows[0] ? getArrangement(db, orgId, songId, id) : null
+  if (!(await getSong(db, orgId, songId))) return null
+  const saved = await db
+    .insert(arrangements)
+    .values({ id, songId, ownerId, name, data })
+    .onConflictDoUpdate({
+      target: arrangements.id,
+      set: { name: sql`excluded.name`, data: sql`excluded.data`, updatedAt: sql`now()` },
+      // an id that belongs to another song is not taken over
+      setWhere: sql`${arrangements.songId} = excluded.song_id`,
+    })
+    .returning({ id: arrangements.id })
+  return saved[0] ? getArrangement(db, orgId, songId, id) : null
 }
 
 export async function deleteArrangement(db: Db, orgId: string, songId: string, id: string): Promise<boolean> {
-  const { rows } = await db.query(
-    `delete from arrangement a using song s
-      where s.id = a."songId" and s."organizationId" = $1 and s.id = $2 and a.id = $3 returning a.id`,
-    [orgId, songId, id],
-  )
+  const rows = await db
+    .delete(arrangements)
+    .where(and(eq(arrangements.id, id), inArray(arrangements.songId, songOfChurch(db, orgId, songId))))
+    .returning({ id: arrangements.id })
   return rows.length > 0
 }
+

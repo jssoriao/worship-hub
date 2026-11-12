@@ -93,7 +93,7 @@ Paste a chart in, **Mark cue** inserts `{cue: m:ss.s}` at the cursor from the pl
 loaded on Practice), **Save** writes the song's `chart.pro` to R2 (`PUT`, editors and up, 200 KB max).
 `pnpm dev` has no sign-in, so it saves into the local song folder instead.
 
-A chart doesn't need stems: **+ New song** (admins) adds a chart-only song by title: a `song` row with
+A chart doesn't need stems: **+ New song** (admins) adds a chart-only song by title: a `songs` row with
 `hasStems` false (Practice hides it). Publishing stems later from a folder with the same name (the
 title) attaches them. Note: `songs:publish` uploads a local `chart.pro` if there is one, replacing the
 one edited in the app.
@@ -107,7 +107,7 @@ suggests from the stems (`src/cli/lib/sections.ts`: lead vocal in/out, drums in/
 whole song. The strip shows the waveform and bars; tap to place the playhead, split at the
 playhead and joined back, then an order of blocks you can move, repeat and remove, with stems muted
 per block, a count-in and an optional click. Any member can save arrangements; only the owner or an
-editor can change one (the Neon `arrangement` table). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
+editor can change one (the Neon `arrangements` table). Plan and later phases (key, tempo, MIDI parts, export): `docs/arrangements.md`.
 
 ## Two ways to load a song
 
@@ -176,7 +176,7 @@ are permission bundles in `src/shared/permissions.ts` (the Worker enforces them,
 controls with the same `can()`): `member` (plays, own arrangements), `editor` (+ chords, lyrics,
 sections, charts, song details, any arrangement), `admin` (+ adds and removes songs, manages members
 and editors), `owner` (+ church settings, grants admin/owner). The platform super admin
-(`user.platformAdmin`) is outside churches and is the only one who runs Music.AI.
+(`users.platform_admin`) is outside churches and is the only one who runs Music.AI.
 `pnpm churches add <slug> <name>`, `pnpm members add <email> --church <slug> --role <role>`.
 
 ### Members (admins and owners)
@@ -271,7 +271,8 @@ pnpm churches list            # churches (tenants)
 pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner
 pnpm members remove a@b.com --church <slug>   # the same can be done in the app: Members page (admins and owners)
-pnpm db:migrate               # create/update the auth tables and src/db/schema.sql (add --target prod for production)
+pnpm db:generate              # write a migration for changes to src/db/schema (Drizzle)
+pnpm db:migrate               # apply pending migrations (add --target prod for production)
 pnpm db:app-role              # the app's database role (data access only); also rotates its password
 pnpm test                     # vitest
 pnpm cf:deploy                # build and deploy the Worker + app

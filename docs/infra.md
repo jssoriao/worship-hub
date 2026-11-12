@@ -76,7 +76,8 @@ Manual deploy from a laptop still works: `pnpm db:migrate --target prod`, `pnpm 
 ```sh
 pnpm cf:deploy                       # build the PWA and deploy the Worker + assets (CI does this on every push to main)
 pnpm smoke [url]                     # check a deployed Worker answers (/, /api/auth/ok, /songs/index.json is 401)
-pnpm db:migrate [--target prod]      # Better Auth tables (incl. organization/member) + src/db/schema.sql (song, arrangement); idempotent; owner login
+pnpm db:generate                     # a new migration in src/db/migrations from changes to src/db/schema (Drizzle; Better Auth's tables included)
+pnpm db:migrate [--target prod]      # apply pending migrations (drizzle.__drizzle_migrations records them); owner login
 pnpm db:app-role [--target prod]     # create the app role worship_hub_worker or give it a new password; writes DATABASE_URL
 pnpm test                            # vitest: permissions, tenancy (PGlite + fake R2), address rules
 pnpm cf:deploy:redirect              # the redirect Worker for the previous address (rarely needed)
@@ -121,8 +122,8 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 
 ## Notes
 
-- Sign-in is invite-only. People are rows in the Neon `user` table and belong to churches through `member` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members.
-- Removing a member deletes their sessions in that church. Song routes read the `member` row (memoised 30 s), so access to songs ends within 30 s; other session data may live up to 5 minutes (signed session cookie cache).
+- Sign-in is invite-only. People are rows in the Neon `users` table and belong to churches through `members` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members.
+- Removing a member deletes their sessions in that church. Song routes read the `members` row (memoised 30 s), so access to songs ends within 30 s; other session data may live up to 5 minutes (signed session cookie cache).
 - Audio is stored once in R2 and served by the Worker with Range support, only to signed-in members. There are no egress fees.
 - `wrangler r2 object put` rejects files over 300 MiB. Stems are far below that.
 - Each song is stored in three qualities: `stems/<file>` (original), `stems/standard/<file>` (VBR q4) and `stems/saver/<file>` (VBR q6), re-encoded with ffmpeg at publish time (about 141 + 61 + 43 MB for a 12-stem song). R2 charges for storage only (egress is free), so the extra copies cost cents. `.publish-state.json` (gitignored) records what was uploaded from which source, so publishing again skips unchanged files; a fresh clone without it uploads everything again.

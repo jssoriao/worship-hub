@@ -29,7 +29,7 @@ of a resource name. The app's previous address redirects to the current one (`sr
 ## Auth model
 
 - Better Auth, emailed 6-digit code only (email OTP plugin). Started as a magic link, but a link that signs in on GET gets burned by mail scanners, and a confirm tap was an extra step. The code is typed in the same tab, so it also works when the email is on another device. 10-minute expiry, 3 wrong guesses kill the code.
-- Invite-only: sign-up disabled. The `user` table is the allowlist; `member` rows say which church and role.
+- Invite-only: sign-up disabled. The `users` table is the allowlist; `members` rows say which church and role.
 - A church is a Better Auth organization (organization plugin). Churches and members are added only by
   CLI scripts (`pnpm churches add`, `pnpm members add --church --role`): nobody signs up and nobody
   creates a church in the app. The Worker closes every organization endpoint except set-active, list,
@@ -42,10 +42,10 @@ of a resource name. The app's previous address redirects to the current one (`sr
   member (plays, own arrangements), editor (+ chords, lyrics, sections, charts, song details, any
   arrangement), admin (+ add/remove songs, manage members and editors), owner (+ church settings,
   grant admin/owner).
-- Platform super admin: `user.platformAdmin` (set by `pnpm members platform-admin`, never by a client).
+- Platform super admin: `users.platform_admin` (set by `pnpm members platform-admin`, never by a client).
   Only they run Music.AI (`songs:analyse` checks it) and manage any church (the CLI). It does not
   bypass church membership in the Worker: to open a church's songs they must also be its member.
-- The Worker never trusts a role from the cookie: it reads the `member` row (memoised 30 s per isolate,
+- The Worker never trusts a role from the cookie: it reads the `members` row (memoised 30 s per isolate,
   positive answers only), so a removed member loses song access within 30 s.
 - Always answer "if that email is registered, we sent a code" so membership does not leak.
 - Short link expiry (about 10 min), single use, rate limited per email and IP.
