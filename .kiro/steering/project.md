@@ -12,7 +12,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 
 ## Stack
 - Vite 8 + React 19 + TypeScript 7, Tailwind v4, react-router, vite-plugin-pwa, JSZip. pnpm, Node 22 via fnm.
-- Cloudflare: Workers (static assets + API), R2 (files), wrangler 4 pinned. Neon Postgres.
+- Cloudflare: Workers (static assets + a Hono API), R2 (files), wrangler 4 pinned. Neon Postgres, Drizzle.
   Better Auth (email OTP + organization plugins) + Resend (emailed 6-digit code, invite only).
   See `docs/plan.md` (decisions) and `docs/infra.md` (every external resource with create/delete
   commands and the history of migrations; keep it current).
@@ -31,9 +31,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `stems/<file>` (original), `stems/standard|saver/<file>`, `chart.pro`, `analysis.json`,
   `analysis/history/<time>.json`. URLs are `/songs/<songId>/...`; the church always comes from the
   session, never the URL.
-- Isolation lives in the Worker: `src/api/tenant.ts` `requireChurch` (session -> active church ->
-  `members` row read from the database, memoised 30 s), then `data.songBelongs(orgId, songId)` before
-  any handler or key, then `src/api/keys.ts` builds keys only from validated ids (no path can leave the
+- Isolation lives in the Worker (a Hono app, `src/api/app.ts`): the `church` middleware in
+  `src/api/tenant.ts` (session -> active church -> `members` row read from the database, memoised 30 s),
+  then `songOwned` (`data.songBelongs(orgId, songId)`) before any handler or key, then `src/api/keys.ts` builds keys only from validated ids (no path can leave the
   song's prefix). `src/api/data.ts` is the only SQL for church data; every function takes `orgId` first.
 - Songs, stems included, are never shared between churches (per-church edits and stem licences).
 
@@ -111,10 +111,14 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   database URL is localhost (both URLs local or both hosted).
 - `src/cli/lib/song-files.ts`: reads a local folder of songs (`./songs` or `SONGS_DIR`): stems, groups,
   manifests, qualities and their re-encoding. Used by `songs:publish`, `songs:analyse` and `songs:pack`.
-- `src/api/`: `index.ts` (routing; `/api/auth/*` to Better Auth behind an allowlist, `/songs/*` to
-  `router.ts`), `tenant.ts`, `router.ts`, `data.ts`, `keys.ts`, `songs.ts` (R2 serving with
-  Range/HEAD/304 and edge cache, chart/analysis/arrangement handlers), `auth.ts` (Better Auth per
-  isolate, a Neon pool per request), `auth-options.ts` (shared with the CLI), `mail.ts` (Resend).
+- `src/api/` (Hono, Zod via `@hono/zod-validator`): `app.ts` (`createApp(provide)`: `/api/auth/*` to Better
+  Auth behind an allowlist, `/api/church/members` to `members.ts`, `/songs/*` to `songs.ts`; exports
+  `AppType` for the typed client), `index.ts` (Worker entry: a pool and Better Auth per request),
+  `tenant.ts` (`church`, `sameOrigin`, `need(permission)`, `songOwned` middleware), `validate.ts`,
+  `songs.ts` (song, chart, analysis, arrangement routes), `files.ts` (R2 serving with Range/HEAD/304
+  and edge cache), `data.ts`, `keys.ts`, `auth.ts` (Better Auth per isolate, a Neon pool per request),
+  `auth-options.ts` (shared with the CLI), `mail.ts` (Resend). Tests drive the real app with
+  `app.request()` over PGlite and a fake bucket (`test/app.ts`).
   Regenerate types with `pnpm cf-typegen`.
 - `src/cli/`: `publish-songs.ts` (`pnpm songs:publish --church <slug> --target prod`), `churches.ts`,
   `members.ts`, `analyse.ts`, `pack-song.ts`, `db-migrate.ts` (`pnpm db:migrate`).
