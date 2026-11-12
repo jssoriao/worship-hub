@@ -6,6 +6,7 @@
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import { betterAuth } from 'better-auth'
 import { PostgresDialect, type PostgresPool } from 'kysely'
+import { routeLocalDb } from '../shared/local-neon.ts'
 import { authOptions } from '../worker/auth-options.ts'
 
 try {
@@ -16,6 +17,7 @@ try {
 
 // Node has no sockets-over-WebSocket transport built in; Neon's driver needs one
 neonConfig.webSocketConstructor = WebSocket
+routeLocalDb(neonConfig, process.env.DATABASE_OWNER_URL)
 
 const pool = new Pool({ connectionString: process.env.DATABASE_OWNER_URL })
 

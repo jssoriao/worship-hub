@@ -63,6 +63,11 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Streaming: playback starts after the first seconds of every heard stem; if a download falls
   within 1 s of the playhead it stalls ("Buffering…") and resumes at 6 s ahead. `unload()` aborts
   all downloads. `setBeats/setClick` schedule the click on the stems' clock.
+- `src/lib/key-shift.ts` (`KeyBus`): key change for the Practice player (±6 semitones, same tempo). Stems and
+  click play into the bus; at the original key it is a straight wire, otherwise one Signalsmith Stretch
+  AudioWorklet (npm `signalsmith-stretch`, lazy chunk) shifts the summed stems and the click is delayed by its
+  latency. `StemEngine.setKey`. Key is stored per song as the chart's `transpose` (`chart-view.ts`), so Charts
+  and Practice agree; `transposeAnalysis` moves the chords shown in Practice.
 - `src/lib/mix.ts`: pure mix rules (`computeMix`, `families`, `lazyFlags`), shared by the engine
   and the UI. A group can have a combined stem (`mix: true`, a file named like its folder) plus
   parts; they never play together. Parts are fetched after the first load (`preloadParts`, skipped
@@ -96,6 +101,12 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - `src/components/AuthGate.tsx`, `src/lib/auth-client.ts`: login form (email, then 6-digit code),
   sign-out. `src/components/NavBar.tsx` is the top bar (church switcher left, account menu with sign-out
   right, `AccountMenu.tsx`).
+- Local backend: `pnpm cf:api` (Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,
+  shared by worktrees) + `pnpm dev:app` (Vite forwarding `/api` and `/songs`, sign-in on; `vite.config.ts`).
+  `pnpm songs:publish` without `--target prod` writes the dev database and that local R2 (dev ids; its upload
+  record is kept apart in `.publish-state.json`). `pnpm db:local` (`docker-compose.local.yml`) is an optional
+  Postgres on this machine: `shared/local-neon.ts` sends the Neon driver through a WebSocket proxy when a
+  database URL is localhost (both URLs local or both hosted).
 - `dev/songs-plugin.ts`: dev-only Vite middleware serving `./songs` (or `SONGS_DIR`) at `/songs` with
   the production URL layout; song ids come from the Neon dev database (`dev/dev-ids.ts`, church
   `DEV_CHURCH` from `.dev.vars`). Its helpers are reused by `scripts/publish-songs.ts`.
@@ -152,9 +163,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Services, lineups, volunteer assignments; A-B loop, playback speed, key/tempo change.
 
 ## Repo
-- Code is public; all rights reserved (see `LICENSE`). Never commit secrets, real people's details,
-  real song lyrics or audio. Personal notes for this machine go in `.kiro/steering/local.md`
-  (gitignored).
+- Code is public; all rights reserved (see `LICENSE`). Before every commit and push, follow
+  `.kiro/steering/public-repo.md` (no secrets, personal data, lyrics, audio, third-party material or
+  tenant names). Personal notes for this machine go in `.kiro/steering/local.md` (gitignored).
 - Work is tracked in GitHub issues: labels `P1` (next), `P2` (soon), `P3` (later) plus `area:*`
   (infra, security, ops, admin, player, product, legal) and `dependencies`. Add an issue for every
   concern worth tracking.

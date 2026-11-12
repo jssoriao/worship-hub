@@ -24,6 +24,47 @@ pnpm build          # type-check + production build
 pnpm lint
 ```
 
+### Local development with the real backend
+
+`pnpm dev` has no backend, so no sign-in, roles or Members page. To run the real Worker (sign-in, roles,
+the church's database and files) next to hot reload, use two terminals:
+
+```sh
+pnpm cf:api         # the Worker on http://127.0.0.1:8787 (database from .dev.vars, files in a local R2)
+pnpm dev:app        # Vite with hot reload on http://127.0.0.1:5173, forwarding /api and /songs to the Worker
+```
+
+Open http://127.0.0.1:5173 (not `localhost`: sign-in only trusts the address in `APP_URL`). The
+Worker reads and writes a **local R2** kept in `.wrangler/state` of the main checkout, shared by every
+git worktree, and never touches the production bucket. Put songs there with a dev publish:
+
+```sh
+pnpm songs:publish "Song Folder" --church <slug>    # dev: the dev database (its own song ids) + the local R2
+pnpm songs:publish "Song Folder" --church <slug> --target prod   # production database + the real bucket
+```
+
+Dev and production never share ids or files. Dev uploads are remembered apart from production ones
+in `.publish-state.json`.
+
+**A database on your machine instead of Neon** (needs Docker). Set `DATABASE_URL` and `DATABASE_OWNER_URL`
+in `.dev.vars` to `postgres://postgres:postgres@localhost:5432/worship_hub`, then:
+
+```sh
+pnpm db:local       # Postgres 17 and a WebSocket proxy (the database driver talks WebSockets)
+pnpm db:migrate     # creates the tables
+pnpm churches add <slug> "<Name>"
+pnpm members add <your email> "<Your name>" --church <slug> --role owner
+```
+
+The code uses the proxy only when a database URL points at `localhost`; Neon and production URLs are
+untouched, and both URLs must be local or both hosted. Only this compose Postgres is supported (not
+Homebrew or Postgres.app). If port 5433 is taken, set `LOCAL_DB_PROXY_PORT` in `.dev.vars`. Data lives in
+the `worship-hub-pg` Docker volume (`docker compose -f docker-compose.local.yml down -v` erases it).
+Sign-in codes are still emailed, so `RESEND_API_KEY` is needed. The compose file's login is a throwaway
+for development: it listens on 127.0.0.1 only, so keep real data and real people out of it and do not
+publish its ports. The Postgres and proxy images are pulled from their publishers (PostgreSQL license,
+Apache-2.0); nothing of them is included in this repository.
+
 ## Pages
 
 Top bar: the app name, then the church you are in (a dropdown for someone in several churches), the
@@ -228,6 +269,7 @@ sessions, and Resend sends the sign-in emails. Setup and cleanup commands are in
 
 ```sh
 pnpm songs:publish --church <slug> --target prod   # upload ./songs to R2 (add a folder name for one song, --dry-run to preview)
+                              # without --target prod it publishes to the dev database and the local R2 instead
 pnpm songs:publish ... --tiers=standard   # upload only some qualities: standard (q4), saver (q6), original; default all three
 pnpm songs:publish ... --manifest-only    # regroup, or add fingerprints, without re-uploading audio (file names must not change)
                               # uploads are remembered in .publish-state.json, so re-running costs no data
@@ -242,7 +284,8 @@ pnpm cf:deploy                # build and deploy the Worker + app
 ```
 
 Local secrets live in `.dev.vars` (gitignored, template `.dev.vars.example`); it points at the Neon development branch. Production's are in `.prod.vars` (gitignored), used with `--target prod`. Each has two database logins: `DATABASE_URL`, the app's role with data access only (what the Worker uses), and `DATABASE_OWNER_URL`, the owner, which only scripts and migrations use.
-To try the real sign-in flow locally: `pnpm cf:dev` and open http://127.0.0.1:8787.
+To try the real sign-in flow locally: see "Local development with the real backend" above, or `pnpm cf:dev`
+(builds, then serves everything from the Worker) and open http://127.0.0.1:8787.
 
 ## How playback works
 

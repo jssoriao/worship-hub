@@ -3,6 +3,7 @@
  * beat grid, sections, and lyrics with a time per word. Times here are seconds.
  */
 import { SONGS_BASE_URL } from '../config'
+import { keyName, parseKey, prefersFlats, shiftKey, transposeChord } from './chords'
 
 export type ChordLevel = 'basic' | 'simple' | 'complex'
 
@@ -141,4 +142,17 @@ export function chordChanges(a: SongAnalysis, level: ChordLevel): { t: number; e
     else out.push({ t: c.t, end: c.end, name })
   }
   return out
+}
+
+/** The analysis as it reads when the song is played `semitones` higher (or lower): key and chords moved. */
+export function transposeAnalysis(a: SongAnalysis, semitones: number): SongAnalysis {
+  if (semitones === 0) return a
+  const original = parseKey(a.key)
+  const target = original ? shiftKey(original, semitones) : null
+  const move = (name: string) => (name ? transposeChord(name, semitones, prefersFlats(target, name)) : name)
+  return {
+    ...a,
+    key: target ? keyName(target) : a.key,
+    chords: a.chords.map((c) => ({ ...c, basic: move(c.basic), simple: move(c.simple), complex: move(c.complex), bass: move(c.bass) })),
+  }
 }

@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { Pool } from '@neondatabase/serverless'
+import { Pool, neonConfig } from '@neondatabase/serverless'
 import { betterAuth } from 'better-auth'
 import { PostgresDialect, type PostgresPool, type PostgresPoolClient } from 'kysely'
+import { routeLocalDb } from '../shared/local-neon.ts'
 import { authOptions } from './auth-options.ts'
 import type { Bindings } from './env.ts'
 import { sendLoginEmail } from './mail.ts'
@@ -70,6 +71,8 @@ let instance: Auth | undefined
 /** Runs `run` with a request-scoped database pool, then closes the pool once background work is done. */
 export async function withAuth<T>(env: Bindings, ctx: ExecutionContext, run: (auth: Auth, pool: Pool) => Promise<T>): Promise<T> {
   instance ??= createAuth(env)
+  // a database on this machine (docker-compose.local.yml) is reached through its WebSocket proxy; Neon and production are untouched
+  routeLocalDb(neonConfig, env.DATABASE_URL)
   const pool = new Pool({ connectionString: env.DATABASE_URL })
   // An idle connection whose WebSocket drops makes the pool emit 'error'. Unhandled, that crashes the
   // request (and any email still being sent in the background). The pool replaces the connection itself.

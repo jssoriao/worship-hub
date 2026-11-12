@@ -7,8 +7,6 @@ const AUTH_TABLES = `
 create table "user" (id text primary key, name text not null, email text not null unique, "emailVerified" boolean not null default false, "createdAt" timestamptz not null default now(), "updatedAt" timestamptz not null default now(), role text default 'member');
 create table organization (id text primary key, name text not null, slug text unique, logo text, "createdAt" timestamptz not null default now(), metadata text);
 create table member (id text primary key, "organizationId" text not null references organization(id) on delete cascade, "userId" text not null references "user"(id) on delete cascade, role text not null, "createdAt" timestamptz not null default now());
-create table session (id text primary key, "userId" text not null references "user"(id) on delete cascade, "activeOrganizationId" text);
-create table account (id text primary key, "userId" text not null references "user"(id) on delete cascade);
 `
 export const SCHEMA_SQL = readFileSync('db/schema.sql', 'utf8')
 

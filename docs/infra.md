@@ -65,7 +65,8 @@ pnpm cf:deploy:redirect              # the redirect Worker for the previous addr
 pnpm churches list [--target prod]
 pnpm churches add <slug> <name> [--owner <email>] [--target prod]
 pnpm churches rename <slug> <name>
-pnpm churches delete <slug> --confirm <slug> [--target prod]   # its songs, arrangements and member links; with prod also its R2 files
+pnpm churches delete <slug> [--target prod]                    # dry run: what would go (members, songs, arrangements, sessions, R2 files)
+pnpm churches delete <slug> --confirm <slug> [--target prod]   # R2 files first (prod only), checked gone, then the rows in one transaction; rerun if it stops
 
 # people (admins and owners can also add, re-role and remove people in the app: Members page, /api/church/members)
 pnpm members list [--church <slug>]
@@ -73,7 +74,8 @@ pnpm members add <email> [name] --church <slug> --role member|editor|admin|owner
 pnpm members remove <email> --church <slug>    # leaves that church; someone in no church is removed entirely
 pnpm members platform-admin <email> [--revoke] # the platform super admin (Music.AI, any church)
 
-# songs (per church; the folder name is the title; real publishes write prod R2, so they need --target prod)
+# songs (per church; the folder name is the title; --target prod writes the real bucket, the default writes the
+# dev database and the LOCAL R2 in <main checkout>/.wrangler/state, which pnpm cf:api serves; never prod)
 pnpm songs:publish --church <slug> --target prod                  # every song in ./songs (or $SONGS_DIR)
 pnpm songs:publish "Song Folder" --church <slug> --target prod    # one song: finds or creates its row, uploads under its id
 pnpm songs:publish --church <slug> --dry-run                      # list what would be uploaded (new layout keys)

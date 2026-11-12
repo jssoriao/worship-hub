@@ -4,7 +4,9 @@
  *   pnpm churches list
  *   pnpm churches add <slug> <name> [--owner <email>]
  *   pnpm churches rename <slug> <name>
- *   pnpm churches delete <slug> --confirm <slug>      deletes its songs, members' links and (with --target prod) its R2 files
+ *   pnpm churches delete <slug>                       shows what deleting it would remove (nothing is deleted)
+ *   pnpm churches delete <slug> --confirm <slug>      deletes its R2 files (only with --target prod), then its songs,
+ *                                                     arrangements and member links; safe to run again if it stops
  *
  * Add --target prod to act on the production database (default is the Neon dev database).
  */
@@ -12,6 +14,7 @@ import { Pool, neonConfig } from '@neondatabase/serverless'
 import { newId } from '../shared/ids.ts'
 import { normalizeEmail, parseArgs, parseSlug } from './lib/cli.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
+import { deleteChurch, describePlan, planChurchDelete } from './lib/church-delete.ts'
 import { WranglerStore } from './lib/r2.ts'
 import { churchBySlug } from './lib/songs-db.ts'
 
@@ -24,7 +27,7 @@ const fail = (message: string): never => {
   process.exit(1)
 }
 if (!['list', 'add', 'rename', 'delete'].includes(command ?? '')) {
-  fail('Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches delete <slug> --confirm <slug>\n(add --target prod for production)')
+  fail('Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches delete <slug> [--confirm <slug>]\n(add --target prod for production)')
 }
 neonConfig.webSocketConstructor = WebSocket
 const pool = new Pool({ connectionString: loadTarget(target) })
@@ -60,23 +63,28 @@ try {
     console.log(`Renamed ${church.slug} to ${name}.`)
   } else if (command === 'delete') {
     const slug = parseSlug(args[0])
-    if (flags.confirm !== slug) fail(`This deletes the church, all its songs and arrangements. Repeat the slug to confirm: pnpm churches delete ${slug} --confirm ${slug}`)
-    const church = (await churchBySlug(pool, slug)) ?? fail('No such church.')
-    // sessions pointing at it would otherwise keep an active church that no longer exists
-    await pool.query('update session set "activeOrganizationId" = null where "activeOrganizationId" = $1', [church.id])
-    await pool.query('delete from organization where id = $1', [church.id]) // songs, arrangements, members go with it
-    console.log(`Deleted church ${slug} from the ${target} database.`)
-    if (target === 'prod') {
-      const store = new WranglerStore(BUCKET)
-      try {
-        const objects = await store.list(`churches/${church.id}/`)
-        for (const o of objects) await store.delete(o.key)
-        console.log(`Deleted ${objects.length} file(s) from R2.`)
-      } finally {
-        store.close()
+    const church = (await churchBySlug(pool, slug)) ?? fail(`No church "${slug}" in the ${target} database (already deleted?).`)
+    // Only production deletes files: the development branch is a copy of production with the same
+    // church ids, so deleting a dev church must never touch production's files.
+    const store = target === 'prod' ? new WranglerStore(BUCKET) : null
+    try {
+      const plan = await planChurchDelete(pool, store, church)
+      for (const line of describePlan(plan)) console.log(line)
+      if (flags.confirm !== slug) {
+        console.log(`\nNothing was deleted. To delete all of this from the ${target} database${store ? ' and R2' : ''}:`)
+        console.log(`  pnpm churches delete ${slug} --confirm ${slug}${target === 'prod' ? ' --target prod' : ''}`)
+      } else {
+        console.log(`\nDeleting church ${church.id}. If this stops halfway, run the same command again.`)
+        const client = await pool.connect()
+        try {
+          const { filesDeleted } = await deleteChurch(client, store, church, (line) => console.log(line))
+          console.log(`Deleted church ${slug}: ${filesDeleted} file(s) from R2${store ? '' : ' (not touched)'}, then its rows from the ${target} database.`)
+        } finally {
+          client.release()
+        }
       }
-    } else {
-      console.log('R2 was not touched (only --target prod deletes files).')
+    } finally {
+      store?.close()
     }
   }
 } catch (error) {

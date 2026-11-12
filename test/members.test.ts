@@ -39,6 +39,9 @@ const memberId = async (user: string, church = A) => (await pg.query<{ id: strin
 
 beforeEach(async () => {
   ;({ pg, db } = await freshDb())
+  // the Better Auth tables that removing a person cleans up (the shared helper does not create them)
+  await pg.exec(`create table session (id text primary key, "userId" text not null references "user"(id) on delete cascade, "activeOrganizationId" text);
+    create table account (id text primary key, "userId" text not null references "user"(id) on delete cascade);`)
   cache = new Memo()
   await seedChurch(pg, A, 'a')
   await seedChurch(pg, B, 'b')
