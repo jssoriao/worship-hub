@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
+import { TurnstileError } from '../lib/turnstile-error'
 import { Turnstile, type TurnstileHandle } from './Turnstile'
 
 const CODE_LENGTH = 6
@@ -68,30 +69,32 @@ function LoginScreen() {
   const [codeSent, setCodeSent] = useState(pending !== null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // the human check's token (Turnstile): needed to ask for a code, and good for one request
-  const [token, setToken] = useState<string | null>(null)
-  const [checkFailed, setCheckFailed] = useState(false)
+  // asking for a code: first the human check (Turnstile, a fresh token each time), then the request
+  const [sending, setSending] = useState<'check' | 'send' | null>(null)
   const check = useRef<TurnstileHandle>(null)
-  const checking = !token && !checkFailed
-  const human = (
-    <Turnstile
-      ref={check}
-      onToken={(t) => {
-        setToken(t)
-        if (t) setCheckFailed(false)
-      }}
-      onUnavailable={() => setCheckFailed(true)}
-    />
-  )
 
   const requestCode = async () => {
-    if (!token) return
+    if (!check.current) return
     setBusy(true)
     setError(null)
+    setSending('check')
+    let token: string
+    try {
+      token = await check.current.token()
+    } catch (e) {
+      setBusy(false)
+      setSending(null)
+      setError(
+        e instanceof TurnstileError && e.unavailable
+          ? "The security check couldn't load. Check your connection, or allow challenges.cloudflare.com if a content blocker is on, then reload."
+          : "The security check didn't pass. Try again.",
+      )
+      return
+    }
+    setSending('send')
     const { error: failure } = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: 'sign-in' }, { headers: { 'x-captcha-response': token } })
     setBusy(false)
-    // a token works once: get the next one ready
-    check.current?.reset()
+    setSending(null)
     if (!failure) {
       setCode('')
       setCodeSent(true)
@@ -107,9 +110,6 @@ function LoginScreen() {
           : "Couldn't send the code. Check the address and your connection, then try again.",
     )
   }
-  const checkNote = checkFailed && (
-    <ErrorNote>The security check couldn't load. Check your connection, or allow challenges.cloudflare.com if a content blocker is on, then reload.</ErrorNote>
-  )
 
   const submitEmail = (e: FormEvent) => {
     e.preventDefault()
@@ -135,6 +135,8 @@ function LoginScreen() {
     )
   }
 
+  // one human check for both steps: it shows its box only while Cloudflare asks for a tick
+  const human = <Turnstile ref={check} />
   if (codeSent) {
     return (
       <AuthScreen>
@@ -159,13 +161,13 @@ function LoginScreen() {
             className="h-11 text-center font-mono text-lg tracking-[0.5em] md:text-lg"
           />
           <Button type="submit" size="lg" disabled={busy || code.length !== CODE_LENGTH} className="mt-3 w-full">
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy && !sending ? 'Signing in…' : 'Sign in'}
           </Button>
           {error && <ErrorNote>{error}</ErrorNote>}
         </form>
         <div className="mt-4 flex justify-between text-sm">
-          <Button variant="link" className="h-auto p-0 text-highlight" disabled={busy || !token} onClick={() => void requestCode()}>
-            {checking ? 'Checking…' : 'Send a new code'}
+          <Button variant="link" className="h-auto p-0 text-highlight" disabled={busy} onClick={() => void requestCode()}>
+            {sending === 'check' ? 'Checking…' : sending === 'send' ? 'Sending…' : 'Send a new code'}
           </Button>
           <Button
             variant="link"
@@ -180,7 +182,6 @@ function LoginScreen() {
           </Button>
         </div>
         {human}
-        {checkNote}
       </AuthScreen>
     )
   }
@@ -203,12 +204,11 @@ function LoginScreen() {
           onChange={(e) => setEmail(e.target.value)}
           className="h-11"
         />
-        <Button type="submit" size="lg" disabled={busy || email.trim() === '' || !token} className="mt-3 w-full">
-          {busy ? 'Sending…' : checking ? 'Checking you are not a bot…' : 'Email me a code'}
+        <Button type="submit" size="lg" disabled={busy || email.trim() === ''} className="mt-3 w-full">
+          {sending === 'check' ? 'Checking you are not a bot…' : sending === 'send' ? 'Sending…' : 'Email me a code'}
         </Button>
         {human}
         {error && <ErrorNote>{error}</ErrorNote>}
-        {checkNote}
       </form>
     </AuthScreen>
   )
