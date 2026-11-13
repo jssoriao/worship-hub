@@ -810,10 +810,10 @@ export default function PracticePage() {
       )}
     </>
   )
-  // Save / Discard / Versions / Done float above the views (TransportBar), so they are in reach wherever you are in the song
+  // Save / Discard / Versions / Done: they sit under the toolbar and stick to the top of the window when the page is scrolled, so they are in reach wherever you are in the song
   const editBar =
     shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') ? (
-      <div role="region" aria-label="Editing" className="surface-glass pointer-events-auto w-full max-w-2xl rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
+      <div role="region" aria-label="Editing" className="surface-glass sticky top-2 z-30 mt-2 rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
         {versions && (
           <ul className="mb-2 max-h-48 space-y-1 overflow-y-auto border-b border-border pb-2">
             {versions.length === 0 && <li className="text-xs text-muted-foreground">No earlier versions yet: they are kept each time someone saves.</li>}
@@ -1001,6 +1001,7 @@ export default function PracticePage() {
               </div>
             )}
 
+            {editBar}
             {heard && prefs.view === 'lyrics' && (
               <LyricsView
                 analysis={heard}
@@ -1048,7 +1049,6 @@ export default function PracticePage() {
                   view={analysis ? prefs.view : undefined}
                   onView={(view) => setPrefs((p) => ({ ...p, view }))}
                   tools={tools}
-                  floating={editBar}
                   // away from Practice: the views make no sense, and the title leads back
                   onPracticePage={onPracticePage}
                 />,
