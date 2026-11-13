@@ -148,6 +148,12 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   until Save changes (the Worker then replaces R2's analysis.json, not the database); closing the tab with a draft asks
   too (`beforeunload`). `src/web/lib/analysis-edit.ts`: a changed word keeps the time of the word it
   replaces); the Worker keeps each replaced version in `analysis/history/`.
+  Words Music.AI was unsure of (score < 0.4, `src/shared/doubt.ts`) keep that score in percent as a 4th number
+  of the stored word `[w, t, end, doubt]` (`Word.doubt`); retyping or approving a line drops it. In Practice's
+  Lyrics edit mode they are underlined and the line has an amber bar; "N lines to check" steps through them
+  (Listen, Approve, Save, Skip, Delete). `pnpm songs:doubts "<song>" --church <slug> [--target prod]` adds the
+  scores from the raw results to an analysis that is already online (history copy first; retyped/moved words
+  are left alone; safe to repeat).
 - `src/web/components/AuthGate.tsx`, `src/web/lib/auth-client.ts`: login form (email, then 6-digit code),
   sign-out. `AuthScreen` is the card the screens before the app share (sign-in, choosing a church).
 - Local dev: `pnpm dev:api` (the Worker on 127.0.0.1:8787, local R2 in the main checkout's `.wrangler/state`,

@@ -26,7 +26,7 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { approveLine, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 
@@ -621,6 +621,11 @@ export default function PracticePage() {
     setPos(engine.position)
   }
 
+  /** Plays from `t` (starting playback if it is paused), to hear a line. */
+  const listenFrom = async (t: number) => {
+    await seekTo(t)
+    if (!engineRef.current?.isPlaying) await togglePlay()
+  }
   const seekFraction = async (f: number) => {
     const engine = engineRef.current
     if (!engine) return
@@ -1041,6 +1046,8 @@ export default function PracticePage() {
                 onLine={onLine}
                 onDeleteLine={(i) => change((a) => deleteLine(a, i))}
                 onJoinLine={(i) => change((a) => joinWithNextLine(a, i))}
+                onApproveLine={(i) => change((a) => approveLine(a, i))}
+                onListen={(t) => void listenFrom(t)}
               />
             )}
             {heard && prefs.view === 'chords' && (
