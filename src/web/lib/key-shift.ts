@@ -1,5 +1,6 @@
 /**
- * Changing the key of what is heard, without changing the tempo.
+ * Changing the key of what is heard, without changing the tempo. The engine also uses it to undo the
+ * pitch change of a faster or slower tempo (playbackRate), so the shift can be any number of semitones.
  *
  * Every stem plays into `stems`; the click plays into `click`. At the original key the stems go
  * straight to the speakers (no delay, no processing). In another key they go through one pitch
@@ -10,6 +11,8 @@
 import type { StretchNode } from 'signalsmith-stretch'
 
 export const MAX_KEY_SHIFT = 6
+/** the largest shift the bus applies: the key plus what undoes a tempo change */
+const MAX_SHIFT = 12
 
 const FADE = 0.03 // seconds, to cross between the straight and the shifted path
 
@@ -59,13 +62,13 @@ export class KeyBus {
     return this.loading
   }
 
-  /** Sets how many semitones up (+) or down (-) the stems sound. 0 is the original key. */
+  /** Sets how many semitones up (+) or down (-) the stems sound (fractions too). 0 is the original pitch. */
   async setSemitones(n: number) {
-    const key = Math.max(-MAX_KEY_SHIFT, Math.min(MAX_KEY_SHIFT, Math.round(n)))
+    const key = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, n))
     const token = ++this.token
     this.semitones = key
     const now = this.ctx.currentTime
-    if (key === 0) {
+    if (Math.abs(key) < 0.005) {
       this.through(false, now)
       return
     }

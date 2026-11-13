@@ -91,6 +91,10 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   Streaming: playback starts after the first seconds of every heard stem; if a download falls
   within 1 s of the playhead it stalls ("Buffering…") and resumes at 6 s ahead. `unload()` aborts
   all downloads. `setBeats/setClick` schedule the click on the stems' clock.
+- Tempo (`StemEngine.setTempo(rate)`, 0.7-1.3, `src/web/lib/tempo.ts` steps/memory): plain playback only (timelines stay at 1).
+  Sources play at `playbackRate = rate` (`position` = clock * rate, chunk and click times divided by rate) and the
+  KeyBus shifter turns the pitch back: shift = key - 12*log2(rate), fractional semitones allowed (`MAX_SHIFT` 12).
+  A change restarts the sources from the same position (brief gap), so the page applies it on each step.
 - `src/web/lib/key-shift.ts` (`KeyBus`): key change for the Practice player (±6 semitones, same tempo). Stems and
   click play into the bus; at the original key it is a straight wire, otherwise one Signalsmith Stretch
   AudioWorklet (npm `signalsmith-stretch`, lazy chunk) shifts the summed stems and the click is delayed by its
@@ -119,8 +123,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `src/web/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
 - Practice player: `TransportBar`, drawn into the bottom dock (seek line on its top edge; song + facts;
   volume popover (master gain, `KeyBus.master`), back, stop (`StemEngine.stop`: to the start), play, forward,
-  repeat (plays again from the start at the end), time and bar; click, "bpm · key" (Key popover) and
-  view-settings popovers, Edit; volume and repeat remembered per device), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
+  repeat (plays again from the start at the end; tinted with a dot when on), time and bar; click, a
+  "143 bpm · E" button (Tempo & Key panel: − value + for each, Reset) and view-settings popovers, Edit;
+  volume and repeat remembered per device, tempo and key per song), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
   Chords, Shapes (`src/web/components/player/`). `Popover` (play-bar panels, on the shadcn popover).
 - Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are

@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 import { usePlayerSlot } from '../lib/player-slot'
 import { audioCache } from '../lib/audio-cache'
-import { StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
+import { MAX_TEMPO, MIN_TEMPO, StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
 import { computeMix, families, type MixState } from '../lib/mix'
 import { keyName, parseKey, shiftKey } from '../lib/chords'
 import { MAX_KEY_SHIFT } from '../lib/key-shift'
+import { savedTempo, saveTempo, stepTempo } from '../lib/tempo'
 import { loadSong as loadSongSettings, saveSong as saveSongSettings } from '../lib/chart-view'
 import { describeMusic, fetchLibrary, sourcesFromSong, sourcesFromZip, type LibrarySong, type QualityTier, type SongMusic, type StemSource } from '../lib/sources'
 import { useNowPlaying } from '../lib/now-playing-context'
@@ -164,6 +165,9 @@ export default function PracticePage() {
   // the key the stems sound in, in semitones from the recording; remembered per song on this device
   const [key, setKey] = useState(0)
   const keyRef = useRef(0)
+  // the tempo, as a rate of the recording's (1.1 = 10 % faster); remembered per song on this device
+  const [tempo, setTempo] = useState(1)
+  const tempoRef = useRef(1)
   // chords, beats, sections and timed lyrics, when the song has been analysed
   const [analysis, setAnalysis] = useState<SongAnalysis | null>(null)
   const [prefs, setPrefs] = useState<ViewPrefs>(savedViewPrefs)
@@ -246,7 +250,8 @@ export default function PracticePage() {
       e.onBuffering = setBuffering
       e.onKeyError = () => {
         setKey(0)
-        setError('Could not change the key on this device. Playing in the original key.')
+        setTempo(1)
+        setError('Could not change the key or tempo on this device. Playing as recorded.')
       }
       e.onDownload = (d) => {
         setDownload(d)
@@ -292,6 +297,11 @@ export default function PracticePage() {
     if (songId) saveSongSettings(songId, { ...loadSongSettings(songId), transpose: key })
   }, [key, songId])
 
+  useEffect(() => {
+    tempoRef.current = tempo
+    engineRef.current?.setTempo(tempo)
+    if (songId) saveTempo(songId, tempo)
+  }, [tempo, songId])
   // playhead ticker
   useEffect(() => {
     if (!playing) return
@@ -345,6 +355,7 @@ export default function PracticePage() {
     setError(null)
     const engine = getEngine() // created inside the user gesture
     engine.setKey(keyRef.current)
+    engine.setTempo(tempoRef.current)
     engine.unload()
     if (!restore) {
       setStems([])
@@ -399,6 +410,7 @@ export default function PracticePage() {
     // a zip is not a library song: the address has none (setSongId first, so that is not a "close")
     setSongId('')
     setKey(0)
+    setTempo(1)
     if (wanted) navigate('/practice')
     setTiers([])
     setTier(null)
@@ -424,6 +436,7 @@ export default function PracticePage() {
     if (!song) return
     setSongId(id)
     setKey(savedKey(id))
+    setTempo(savedTempo(id))
     setAnalysis(null)
     setDraft(null)
     setEditing(false)
@@ -437,6 +450,7 @@ export default function PracticePage() {
     engineRef.current?.unload()
     setSongId('')
     setKey(0)
+    setTempo(1)
     setStems([])
     setMix([])
     mixRef.current = []
@@ -645,6 +659,8 @@ export default function PracticePage() {
     </button>
   )
   const originalKey = parseKey(analysis?.key || music?.key || '')
+  const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`
+  const tempoText = music?.bpm ? `${Math.round(music.bpm * tempo)} bpm` : `${Math.round(tempo * 100)}%`
   const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
   const tools = (
     <>
@@ -678,44 +694,49 @@ export default function PracticePage() {
       )}
       {stems.length > 0 && (
         <Popover
-          label={key === 0 ? 'Key: original' : `Key: ${key > 0 ? '+' : ''}${key} semitones`}
-          title="Key"
-          active={key !== 0}
+          label={`Tempo ${tempoText} · key ${keyText}`}
+          title="Tempo & Key"
+          active={key !== 0 || tempo !== 1}
           className="rounded-full border border-input px-3"
           button={
-            // tempo and key, the key with how far it moved
             <span className="flex items-baseline gap-1.5 whitespace-nowrap text-sm tabular-nums">
-              {music?.bpm ? <span>{Math.round(music.bpm)} bpm</span> : null}
-              {music?.bpm ? <span aria-hidden="true" className="text-muted-foreground">·</span> : null}
-              <span className="font-semibold">{originalKey ? keyName(shiftKey(originalKey, key)) : 'Key'}</span>
-              {key !== 0 && <span className="text-xs">{`${key > 0 ? '+' : ''}${key}`}</span>}
+              <span>{tempoText}</span>
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+              <span className="font-semibold">{keyText}</span>
             </span>
           }
         >
           <div className="space-y-3 text-slate-300">
-            <p className="text-xs text-muted-foreground">
-              Move the whole song up or down to find a key the singer is comfortable in. The tempo stays the same and the chords follow.
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              <button type="button" aria-label="One semitone lower" disabled={key <= -MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))} className="size-9 rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
-                −
-              </button>
-              <div className="text-center" aria-live="polite">
-                <div className="text-lg font-medium text-foreground">{originalKey ? keyName(shiftKey(originalKey, key)) : `${key > 0 ? '+' : ''}${key}`}</div>
-                <div className="text-xs text-muted-foreground">
-                  {key === 0 ? 'Original key' : `${originalKey ? `from ${keyName(originalKey)}, ` : ''}${key > 0 ? '+' : ''}${key} semitone${Math.abs(key) === 1 ? '' : 's'}`}
-                </div>
-              </div>
-              <button type="button" aria-label="One semitone higher" disabled={key >= MAX_KEY_SHIFT} onClick={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))} className="size-9 rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40">
-                +
-              </button>
-            </div>
-            {key !== 0 && (
-              <button type="button" onClick={() => setKey(0)} className="text-highlight underline underline-offset-2">
-                Back to the original key
+            <Stepper
+              label="Tempo"
+              value={tempoText}
+              changed={tempo !== 1}
+              onLower={() => setTempo(stepTempo(tempo, music?.bpm, -1))}
+              onHigher={() => setTempo(stepTempo(tempo, music?.bpm, 1))}
+              lowerDisabled={tempo <= MIN_TEMPO + 1e-6}
+              higherDisabled={tempo >= MAX_TEMPO - 1e-6}
+            />
+            <Stepper
+              label="Key"
+              value={key !== 0 && !originalKey ? `${key > 0 ? '+' : ''}${key}` : keyText}
+              changed={key !== 0}
+              onLower={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))}
+              onHigher={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))}
+              lowerDisabled={key <= -MAX_KEY_SHIFT}
+              higherDisabled={key >= MAX_KEY_SHIFT}
+            />
+            {(key !== 0 || tempo !== 1) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setKey(0)
+                  setTempo(1)
+                }}
+                className="text-xs text-highlight underline underline-offset-2"
+              >
+                Reset
               </button>
             )}
-            {editing && <p className="text-xs text-amber-300">Chords show the recording's own key while you edit.</p>}
           </div>
         </Popover>
       )}
@@ -758,10 +779,7 @@ export default function PracticePage() {
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span>
-                Follow the song
-                <span className="block text-xs text-muted-foreground">Lyrics and Chords scroll as it plays</span>
-              </span>
+              <span>Follow the song</span>
               {toggle(prefs.follow, (follow) => setPrefs((p) => ({ ...p, follow })), 'Follow the song')}
             </div>
           </div>
@@ -1038,6 +1056,28 @@ export default function PracticePage() {
               )}
           </>
         )}
+    </div>
+  )
+}
+
+/** A value with − and + on either side, for the Tempo & Key panel. A changed value is highlighted. */
+function Stepper(props: { label: string; value: string; changed: boolean; onLower: () => void; onHigher: () => void; lowerDisabled: boolean; higherDisabled: boolean }) {
+  const { label, value, changed, onLower, onHigher, lowerDisabled, higherDisabled } = props
+  const step = 'flex size-9 shrink-0 items-center justify-center rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
+  return (
+    <div>
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        <button type="button" aria-label={`${label} lower`} disabled={lowerDisabled} onClick={onLower} className={step}>
+          −
+        </button>
+        <output aria-live="polite" aria-label={label} className={`flex h-9 flex-1 items-center justify-center rounded-lg bg-background/60 text-base font-medium tabular-nums ${changed ? 'text-highlight' : 'text-foreground'}`}>
+          {value}
+        </output>
+        <button type="button" aria-label={`${label} higher`} disabled={higherDisabled} onClick={onHigher} className={step}>
+          +
+        </button>
+      </div>
     </div>
   )
 }
