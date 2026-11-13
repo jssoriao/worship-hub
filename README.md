@@ -29,7 +29,9 @@ pnpm lint
 pnpm test
 ```
 
-Open http://127.0.0.1:5173 (not `localhost`: sign-in only trusts the address in `APP_URL`). The
+Open http://127.0.0.1:5173 (not `localhost`: sign-in only trusts the address in `APP_URL`). Sign-in
+asks Cloudflare Turnstile whether you are human; in development it uses Cloudflare's test keys, which always pass
+(`TURNSTILE_SECRET_KEY` in `.dev.vars`). The
 Worker reads and writes a **local R2** kept in `.wrangler/state` of the main checkout, shared by every
 git worktree, and never touches the production bucket. Put songs there with a dev publish:
 

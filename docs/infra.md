@@ -17,6 +17,7 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 | Neon project `worship-hub` (branch `production`), database `worship_hub` (production: people, churches, members, sessions, songs, arrangements). URLs in `.prod.vars` (gitignored): `DATABASE_OWNER_URL` (owner) and `DATABASE_URL` (app role, also the Worker secret) | Neon, standalone account | Dashboard: create project; create database `worship_hub` (owner `neondb_owner`) and copy the owner's pooled connection string to it; then `pnpm db:migrate --target prod` and `pnpm db:app-role --target prod` | Dashboard: delete project |
 | Postgres role `worship_hub_worker` on each branch: the app's login, data access only (select/insert/update/delete on the app's tables, also on tables added later; no DDL, no create database/role) | Neon (SQL, not the console: console roles join `neon_superuser`, which the owner cannot remove) | `pnpm db:app-role [--target prod]` (also rotates the password); for prod then `pnpm exec wrangler secret put DATABASE_URL` | `drop owned by worship_hub_worker; drop role worship_hub_worker;` as the owner (after pointing the Worker elsewhere) |
 | Neon branch `development` of project `worship-hub` (child of `production`, database `worship_hub`; development only). Pooled URL in `.dev.vars` (gitignored) | Neon | Dashboard > Branches > Create branch `development`, parent `production`, "Branch data and schema", auto-delete Never; create database `worship_hub` (Dashboard > Databases, owner `neondb_owner`), then `pnpm db:migrate` and `pnpm db:app-role` | Dashboard > Branches > `development` > Delete |
+| Cloudflare Turnstile widget "Worship Hub sign-in" (hostname `worshiphub.jssoriao.dev`, mode Managed): the human check before a sign-in code is sent. Site key (public) in `.env.production` (`VITE_TURNSTILE_SITE_KEY`), secret key as the Worker secret `TURNSTILE_SECRET_KEY` | Cloudflare dashboard: Turnstile | Dashboard: Turnstile > Add widget; then the site key into `.env.production` and `pnpm exec wrangler secret put TURNSTILE_SECRET_KEY` (before deploying code that needs it: without it no code can be requested) | Remove the captcha plugin first (`src/api/auth-options.ts`), then delete the widget |
 | Resend domain `mail.jssoriao.dev` + API key | Resend, DNS records in Cloudflare | Dashboard: Domains > Add domain, add the records it lists in Cloudflare DNS | Dashboard: delete domain and key, remove the DNS records |
 | Budget alert | Cloudflare dashboard: Billing, Billable usage | Dashboard: Add Budget Alert | Dashboard |
 
@@ -27,6 +28,7 @@ Cloudflare account: the owner's personal account. Run `pnpm exec wrangler whoami
 | `DATABASE_URL` | Pooled connection string of the app role `worship_hub_worker` on `production` (the `DATABASE_URL` line of `.prod.vars`); never the owner | `pnpm exec wrangler secret put DATABASE_URL` | `pnpm exec wrangler secret delete DATABASE_URL` |
 | `BETTER_AUTH_SECRET` | Random string: `openssl rand -base64 32`. Changing it signs everyone out | `pnpm exec wrangler secret put BETTER_AUTH_SECRET` | same pattern |
 | `RESEND_API_KEY` | Resend API key with sending access | `pnpm exec wrangler secret put RESEND_API_KEY` | same pattern |
+| `TURNSTILE_SECRET_KEY` | Secret key of the Turnstile widget. Missing = every request for a sign-in code is refused (fails closed). Development uses Cloudflare's always-passing test secret (`.dev.vars.example`) | `pnpm exec wrangler secret put TURNSTILE_SECRET_KEY` | same pattern |
 
 Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `vars`.
 
@@ -136,7 +138,7 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 
 ## Notes
 
-- Sign-in is invite-only. People are rows in the Neon `users` table and belong to churches through `members` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members.
+- Sign-in is invite-only. People are rows in the Neon `users` table and belong to churches through `members` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members. Asking for a code needs a Cloudflare Turnstile token (usually invisible; the server checks it with Cloudflare, plus the action `sign-in` and this site's hostname) and is limited to 3 a minute per IP (Better Auth).
 - Removing a member deletes their sessions in that church. Song routes read the `members` row (memoised 30 s), so access to songs ends within 30 s; other session data may live up to 5 minutes (signed session cookie cache).
 - Audio is stored once in R2 and served by the Worker with Range support, only to signed-in members. There are no egress fees.
 - `wrangler r2 object put` rejects files over 300 MiB. Stems are far below that.

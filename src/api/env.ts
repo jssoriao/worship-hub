@@ -12,4 +12,6 @@ export type Bindings = {
   DATABASE_URL: string
   /** Secret: Resend API key (sending access is enough). */
   RESEND_API_KEY: string
+  /** Secret: Cloudflare Turnstile secret key of the sign-in widget (development: Cloudflare's test secret). */
+  TURNSTILE_SECRET_KEY: string
 }

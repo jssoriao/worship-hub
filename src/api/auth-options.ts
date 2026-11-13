@@ -7,7 +7,7 @@
  * are added with `pnpm churches add` / `pnpm members add` only (no self sign-up, no user-created churches).
  */
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { emailOTP, organization } from 'better-auth/plugins'
+import { captcha, emailOTP, organization } from 'better-auth/plugins'
 import type { Db } from '../db/client.ts'
 import * as schema from '../db/schema/index.ts'
 import { ac, roles } from '../shared/permissions.ts'
@@ -34,7 +34,21 @@ export type AuthDeps = {
   sendCode: (email: string, code: string) => void
   /** Keeps work running after the response is sent (ctx.waitUntil in the Worker). */
   background: (task: Promise<unknown>) => void
+  /**
+   * Cloudflare Turnstile secret: asking for a sign-in code then needs a token from the widget on the
+   * sign-in page (header x-captcha-response), so scripts cannot make the site send mail. An empty
+   * secret refuses every request for a code (fails closed). Leave it out only where no HTTP request
+   * arrives (the CLI, schema tests).
+   */
+  turnstileSecret?: string
 }
+
+/** The endpoint that sends a sign-in code: the one worth protecting from scripts. */
+export const CAPTCHA_ENDPOINTS = ['/email-otp/send-verification-otp']
+/** The widget's action on the sign-in page (checked by the server, so a token from elsewhere is refused). */
+export const CAPTCHA_ACTION = 'sign-in'
+/** Cloudflare's test secrets (they report no action and hostname example.com), used in development and tests. */
+const isTestSecret = (secret: string) => /^[123]x0{31}AA$/.test(secret)
 
 type Adapter = {
   findMany<T>(args: { model: string; where?: { field: string; value: unknown }[]; sortBy?: { field: string; direction: 'asc' | 'desc' }; limit?: number }): Promise<T[]>
@@ -104,6 +118,18 @@ export function authOptions(deps: AuthDeps) {
     },
 
     plugins: [
+      ...(deps.turnstileSecret === undefined
+        ? []
+        : [
+            captcha({
+              provider: 'cloudflare-turnstile' as const,
+              secretKey: deps.turnstileSecret,
+              endpoints: CAPTCHA_ENDPOINTS,
+              // a real widget must have been solved on this site's own address, for this action; Cloudflare's
+              // test keys report neither, so development checks only that a token was sent and accepted
+              ...(isTestSecret(deps.turnstileSecret) ? {} : { expectedAction: CAPTCHA_ACTION, allowedHostnames: [new URL(deps.baseURL).hostname] }),
+            }),
+          ]),
       organization({
         ac,
         roles,
