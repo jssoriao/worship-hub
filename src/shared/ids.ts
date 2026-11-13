@@ -24,6 +24,8 @@ export const ID_PREFIX = {
   invitation: 'inv',
   song: 'song',
   arrangement: 'arr',
+  joinLink: 'link',
+  joinRequest: 'jreq',
 } as const
 export type IdKind = keyof typeof ID_PREFIX
 

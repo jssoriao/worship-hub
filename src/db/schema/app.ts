@@ -1,6 +1,7 @@
 /**
  * The app's own tables. A song belongs to one church (organization) and is never shared; an
- * arrangement belongs to a song, so it is scoped to the church through it.
+ * arrangement belongs to a song, so it is scoped to the church through it. Join links let people add
+ * themselves to a church (src/api/join.ts).
  */
 import { boolean, index, jsonb, numeric, pgTable, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
 import { organizations, users } from './auth.ts'
@@ -43,4 +44,47 @@ export const arrangements = pgTable(
     updatedAt: at('updated_at').notNull().defaultNow(),
   },
   (t) => [index('arrangements_song_id_idx').on(t.songId)],
+)
+
+/**
+ * A link that adds whoever opens it to a church, with a role. Only a SHA-256 hash of the link's secret
+ * is kept, so the table alone never gives a working link. A single-use link ends when it is used.
+ */
+export const joinLinks = pgTable(
+  'join_links',
+  {
+    id: pk('joinLink'),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    singleUse: boolean('single_use').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: at('created_at').notNull().defaultNow(),
+    expiresAt: at('expires_at').notNull(),
+    /** how many people joined with it */
+    uses: smallint('uses').notNull().default(0),
+    usedBy: text('used_by').references(() => users.id, { onDelete: 'set null' }),
+    usedAt: at('used_at'),
+    revokedAt: at('revoked_at'),
+  },
+  (t) => [index('join_links_organization_id_idx').on(t.organizationId)],
+)
+
+/**
+ * Someone who opened a join link and asked for a sign-in code: for a short while this address may get a
+ * code and get an account (see auth-options.ts), though it has none yet.
+ */
+export const joinRequests = pgTable(
+  'join_requests',
+  {
+    id: pk('joinRequest'),
+    linkId: text('link_id')
+      .notNull()
+      .references(() => joinLinks.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    expiresAt: at('expires_at').notNull(),
+  },
+  (t) => [index('join_requests_email_idx').on(t.email)],
 )

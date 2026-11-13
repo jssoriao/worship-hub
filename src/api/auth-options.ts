@@ -2,15 +2,19 @@
  * Better Auth configuration. The tables are Drizzle tables in src/db/schema/auth.ts, created by the
  * app's migrations; test/auth-schema.test.ts checks they match what this configuration needs.
  *
- * Invite-only, emailed 6-digit code only: there is no password sign-in and no self sign-up.
- * A church is a Better Auth organization; people are in it through `member` rows. Churches and members
- * are added with `pnpm churches add` / `pnpm members add` only (no self sign-up, no user-created churches).
+ * Invite-only, emailed 6-digit code only: there is no password sign-in and no open sign-up.
+ * A church is a Better Auth organization; people are in it through `member` rows. Churches are added
+ * with `pnpm churches add`; people with `pnpm members add`, in Members, or by opening a join link
+ * (src/api/join.ts). A sign-in may create an account only for an address that came through a working
+ * join link in the last few minutes (the user create hook below); every other new address is refused.
  */
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { APIError } from 'better-auth/api'
 import { captcha, emailOTP, organization } from 'better-auth/plugins'
 import type { Db } from '../db/client.ts'
 import * as schema from '../db/schema/index.ts'
 import { ac, roles } from '../shared/permissions.ts'
+import { hasJoinRequest } from './data.ts'
 import { ID_PREFIX, newId, type IdKind } from '../shared/ids.ts'
 
 /** The id kind of a Better Auth model; a model without one (a new plugin table) needs a prefix in ID_PREFIX first. */
@@ -70,6 +74,15 @@ export function authOptions(deps: AuthDeps) {
       },
     },
     databaseHooks: {
+      user: {
+        create: {
+          // the only way to a new account: a join link opened lately with this address
+          before: async (user: { email: string }) => {
+            // answered as a wrong code, so a refused sign-up looks like any failed sign-in
+            if (!(await hasJoinRequest(deps.db, user.email))) throw new APIError('BAD_REQUEST', { message: 'Invalid OTP' })
+          },
+        },
+      },
       session: {
         create: {
           // Sign in lands in the person's (earliest) church. Several churches: the app offers a switcher.
@@ -142,9 +155,10 @@ export function authOptions(deps: AuthDeps) {
         expiresIn: CODE_MINUTES * 60,
         // Wrong guesses allowed per code; after that the code is dead and a new one is needed
         allowedAttempts: 3,
-        // Blocks account creation when a code is redeemed. The sender below still checks
-        // membership itself, so strangers never get an email.
-        disableSignUp: true,
+        // A redeemed code may create an account, but only the user create hook above lets one be made
+        // (join links). The sender decides who gets an email at all (auth.ts: people with an account
+        // or a join request), so strangers never get one.
+        disableSignUp: false,
         storeOTP: 'hashed',
         sendVerificationOTP: async ({ email, otp, type }) => {
           // Only sign-in codes exist in this app; password reset and email change are not enabled

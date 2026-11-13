@@ -1,11 +1,13 @@
 /**
- * The only module with queries for church data (songs, arrangements, membership).
+ * The only module with queries for church data (songs, arrangements, membership, join links).
  *
  * Tenancy rule: every function takes the church (`orgId`) first and every query is restricted to it.
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
  */
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
-import { accounts, arrangements, members, sessions, songs, users } from '../db/schema/index.ts'
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { customAlphabet } from 'nanoid'
+import { accounts, arrangements, joinLinks, joinRequests, members, organizations, sessions, songs, users } from '../db/schema/index.ts'
+import { ID_ALPHABET } from '../shared/ids.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
 
@@ -334,5 +336,188 @@ export async function deleteArrangement(db: Db, orgId: string, songId: string, i
     .where(and(eq(arrangements.id, id), inArray(arrangements.songId, songOfChurch(db, orgId, songId))))
     .returning({ id: arrangements.id })
   return rows.length > 0
+}
+
+// ---------------------------------------------------------------- join links
+/** How long a link works: a link for one person 3 days, a shared one 1 day. */
+export const JOIN_LINK_HOURS = { single: 72, shared: 24 } as const
+/** How long after opening a link someone may get a sign-in code and an account (see auth-options.ts). */
+export const JOIN_REQUEST_MINUTES = 30
+/** The secret in a link (/join/<token>): 32 of [0-9a-z], about 165 bits. */
+export const JOIN_TOKEN = /^[0-9a-z]{32}$/
+const newToken = customAlphabet(ID_ALPHABET, 32)
+/** What is stored instead of the secret: its SHA-256, hex. */
+export async function hashToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+export interface JoinLinkRow {
+  id: string
+  role: Role
+  singleUse: boolean
+  createdBy: string | null
+  createdAt: string
+  expiresAt: string
+  uses: number
+}
+const linkColumns = {
+  id: joinLinks.id,
+  role: joinLinks.role,
+  singleUse: joinLinks.singleUse,
+  createdBy: users.name,
+  createdAt: joinLinks.createdAt,
+  expiresAt: joinLinks.expiresAt,
+  uses: joinLinks.uses,
+}
+const toLink = (r: { id: string; role: string; singleUse: boolean; createdBy: string | null; createdAt: Date; expiresAt: Date; uses: number }): JoinLinkRow => ({
+  ...r,
+  role: r.role as Role,
+  createdAt: iso(r.createdAt),
+  expiresAt: iso(r.expiresAt),
+})
+/** A link still works: not turned off, not expired, and (for one person) not used. */
+const working = () => and(isNull(joinLinks.revokedAt), gt(joinLinks.expiresAt, sql`now()`), or(eq(joinLinks.singleUse, false), isNull(joinLinks.usedAt)))
+/** A new link for the church. The secret is returned once, here; only its hash is kept. */
+export async function createJoinLink(db: Db, orgId: string, input: { role: Role; singleUse: boolean; createdBy: string }): Promise<{ link: JoinLinkRow; token: string }> {
+  const token = newToken()
+  const hours = input.singleUse ? JOIN_LINK_HOURS.single : JOIN_LINK_HOURS.shared
+  const [row] = await db
+    .insert(joinLinks)
+    .values({
+      organizationId: orgId,
+      role: input.role,
+      singleUse: input.singleUse,
+      tokenHash: await hashToken(token),
+      createdBy: input.createdBy,
+      expiresAt: sql`now() + make_interval(hours => ${hours})`,
+    })
+    .returning({ id: joinLinks.id })
+  return { link: (await listJoinLinks(db, orgId)).find((l) => l.id === row.id)!, token }
+}
+/** The church's links that still work, newest first. */
+export async function listJoinLinks(db: Db, orgId: string): Promise<JoinLinkRow[]> {
+  const rows = await db
+    .select(linkColumns)
+    .from(joinLinks)
+    .leftJoin(users, eq(users.id, joinLinks.createdBy))
+    .where(and(eq(joinLinks.organizationId, orgId), working()))
+    .orderBy(desc(joinLinks.createdAt))
+  return rows.map(toLink)
+}
+/** The link's role, for checking who may turn it off; null when the church has no such working link. */
+export async function joinLinkRole(db: Db, orgId: string, linkId: string): Promise<Role | null> {
+  const [row] = await db
+    .select({ role: joinLinks.role })
+    .from(joinLinks)
+    .where(and(eq(joinLinks.organizationId, orgId), eq(joinLinks.id, linkId), working()))
+  return isRole(row?.role) ? row.role : null
+}
+/** How long a link that has ended (expired, used up or turned off) is kept, so Members can still show who joined. */
+export const JOIN_LINK_KEEP_DAYS = 7
+/**
+ * Deletes this church's links that ended more than JOIN_LINK_KEEP_DAYS ago (their join requests go with
+ * them), and every join request past its time. Runs when the church's links are listed.
+ */
+export async function deleteStaleJoinData(db: Db, orgId: string): Promise<void> {
+  // a link ended at the earliest of: its expiry, being turned off, being used up (one-person links only set used_at)
+  await db.delete(joinLinks).where(
+    and(
+      eq(joinLinks.organizationId, orgId),
+      sql`least(${joinLinks.expiresAt}, coalesce(${joinLinks.revokedAt}, 'infinity'::timestamptz), coalesce(${joinLinks.usedAt}, 'infinity'::timestamptz)) < now() - make_interval(days => ${JOIN_LINK_KEEP_DAYS})`,
+    ),
+  )
+  await db.delete(joinRequests).where(sql`${joinRequests.expiresAt} <= now()`)
+}
+/** Turns a link off (and drops its pending sign-ins). False when the church has no such working link. */
+export async function revokeJoinLink(db: Db, orgId: string, linkId: string): Promise<boolean> {
+  const done = await db
+    .update(joinLinks)
+    .set({ revokedAt: sql`now()` })
+    .where(and(eq(joinLinks.organizationId, orgId), eq(joinLinks.id, linkId), working()))
+    .returning({ id: joinLinks.id })
+  if (done.length > 0) await db.delete(joinRequests).where(eq(joinRequests.linkId, linkId))
+  return done.length > 0
+}
+/** Why a link does not work: unknown, turned off, already used (one person), or past its time. */
+export type LinkProblem = 'missing' | 'off' | 'used' | 'expired'
+export type FoundLink = { id: string; orgId: string; church: string; role: Role; singleUse: boolean }
+type LinkState = { id: string; orgId: string; church: string; role: string; singleUse: boolean; revoked: boolean; used: boolean; expired: boolean }
+const problemOf = (r: LinkState | undefined): LinkProblem | null =>
+  !r || !isRole(r.role) ? 'missing' : r.revoked ? 'off' : r.singleUse && r.used ? 'used' : r.expired ? 'expired' : null
+const linkState = {
+  id: joinLinks.id,
+  orgId: joinLinks.organizationId,
+  church: organizations.name,
+  role: joinLinks.role,
+  singleUse: joinLinks.singleUse,
+  revoked: sql<boolean>`${joinLinks.revokedAt} is not null`,
+  used: sql<boolean>`${joinLinks.usedAt} is not null`,
+  expired: sql<boolean>`${joinLinks.expiresAt} <= now()`,
+}
+/**
+ * The link a secret belongs to, found by its hash. This is the one lookup without a church: the
+ * secret is what says which church, as a session does elsewhere.
+ */
+export async function findJoinLink(db: Db, token: string): Promise<FoundLink | LinkProblem> {
+  if (!JOIN_TOKEN.test(token)) return 'missing'
+  const [row] = await db
+    .select(linkState)
+    .from(joinLinks)
+    .innerJoin(organizations, eq(organizations.id, joinLinks.organizationId))
+    .where(eq(joinLinks.tokenHash, await hashToken(token)))
+  const problem = problemOf(row)
+  return problem ?? { id: row.id, orgId: row.orgId, church: row.church, role: row.role as Role, singleUse: row.singleUse }
+}
+/** Someone opened the link and is about to ask for a code at this address. */
+export async function addJoinRequest(db: Db, linkId: string, email: string): Promise<void> {
+  await db.delete(joinRequests).where(sql`${joinRequests.expiresAt} <= now()`)
+  await db.insert(joinRequests).values({ linkId, email, expiresAt: sql`now() + make_interval(mins => ${JOIN_REQUEST_MINUTES})` })
+}
+/** Whether this address came through a working link lately: only then may it get a code without an account. */
+export async function hasJoinRequest(db: Db, email: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: joinRequests.id })
+    .from(joinRequests)
+    .innerJoin(joinLinks, eq(joinLinks.id, joinRequests.linkId))
+    .where(and(eq(joinRequests.email, email.trim().toLowerCase()), gt(joinRequests.expiresAt, sql`now()`), working()))
+    .limit(1)
+  return rows.length > 0
+}
+/**
+ * Adds the signed-in person to the link's church with the link's role, and uses the link up when it is
+ * for one person. Someone already in the church keeps their role and leaves the link unused.
+ * All or nothing; the link row is locked, so a single-use link can never let in two people.
+ */
+export async function joinWithLink(db: Db, token: string, user: { id: string; email: string }): Promise<{ orgId: string; already: boolean } | LinkProblem> {
+  if (!JOIN_TOKEN.test(token)) return 'missing'
+  const tokenHash = await hashToken(token)
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select(linkState)
+      .from(joinLinks)
+      .innerJoin(organizations, eq(organizations.id, joinLinks.organizationId))
+      .where(eq(joinLinks.tokenHash, tokenHash))
+      .for('update', { of: joinLinks })
+    const problem = problemOf(row)
+    if (problem) return problem
+    const [added] = await tx
+      .insert(members)
+      .values({ organizationId: row.orgId, userId: user.id, role: row.role })
+      .onConflictDoNothing({ target: [members.organizationId, members.userId] })
+      .returning({ id: members.id })
+    if (added) {
+      await tx
+        .update(joinLinks)
+        .set({ uses: sql`${joinLinks.uses} + 1`, ...(row.singleUse ? { usedAt: sql`now()`, usedBy: user.id } : {}) })
+        .where(eq(joinLinks.id, row.id))
+      // an account made by the sign-in has no name yet: start with the address's first part
+      await tx
+        .update(users)
+        .set({ name: user.email.split('@')[0] })
+        .where(and(eq(users.id, user.id), eq(users.name, '')))
+    }
+    await tx.delete(joinRequests).where(eq(joinRequests.email, user.email.trim().toLowerCase()))
+    return { orgId: row.orgId, already: !added }
+  })
 }
 

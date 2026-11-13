@@ -5,8 +5,8 @@ in sync, and mute / solo / adjust volume per stem. It is an installable PWA (iOS
 Charts, services, lineups and volunteer assignments are planned.
 
 The app runs at `worshiphub.jssoriao.dev`. One site serves every church
-(tenant); each church has its own songs, members and roles. Access is invite only: people sign in
-with a 6-digit code emailed to the address on the team list, and land in their church (several
+(tenant); each church has its own songs, members and roles. Access is invite only (added by an admin, or
+through a join link an admin sends): people sign in with a 6-digit code emailed to the address on the team list, and land in their church (several
 churches: a switcher at the top of the sidebar). Each church can have its own colours, app name and
 logo (see Churches and roles).
 
@@ -202,6 +202,14 @@ Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the pag
 
 - An **owner** can give, change and remove any role. An **admin** can only manage members and editors.
 - Nobody can change their own role or remove themselves, so a church always keeps its owner.
+- **Join links** (`src/api/links.ts`, `/api/church/links`): instead of typing someone's email, make a link
+  for one person (works once, 3 days) or a shared one (anyone with it, 1 day), with a role (owners up to
+  admin, admins up to editor). Whoever opens it sees "Join <church> as <role>", enters their email, signs
+  in with the emailed code, and is in the church with that role (`/join/<token>`, `src/api/join.ts`,
+  `JoinPage`). A link's address is shown once when it is made (only a hash of it is stored); working links
+  are listed and can be turned off. An expired, used or turned-off link shows a page saying so, and its
+  row is deleted a week after it ended (when the list is loaded). If a link stops working between the
+  code and the join, the account the code made is removed again.
 - Removing someone ends their sessions in that church. A person left in no church is deleted, unless
   they are the platform admin. The change applies within about 30 seconds (the Worker's membership
   cache) on every server, at once on the one that handled the request.

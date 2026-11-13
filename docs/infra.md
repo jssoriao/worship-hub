@@ -132,13 +132,15 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
   removed afterwards; they are in git history (#24, #28).
 - 2026-11-13: prefixed ids (`<prefix>_<24 chars>`, every table). Dev re-copied with `pnpm db:move --from neondb
   --replace` (new ids, references rewritten), its local R2 files moved with `pnpm r2:rekey`, then `--delete-old`.
+- 2026-11-13: migration `0001_join_links` (new tables `join_links`, `join_requests`; nothing else changes, so the
+  previous Worker runs on it). Applied to dev by hand; production by the deploy workflow.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
   name: Worker `worship-hub`, bucket `worship-hub` (copied inside Cloudflare by a temporary Worker; the old bucket and that Worker were then deleted), address
   `worshiphub.jssoriao.dev`. The previous address redirects (`src/redirect/`).
 
 ## Notes
 
-- Sign-in is invite-only. People are rows in the Neon `users` table and belong to churches through `members` rows, so `pnpm members add` is the only way in. The sign-in endpoint answers identically for members and strangers and only emails members. Asking for a code needs a Cloudflare Turnstile token (usually invisible; the server checks it with Cloudflare, plus the action `sign-in` and this site's hostname) and is limited to 3 a minute per IP (Better Auth).
+- Sign-in is invite-only. People are rows in the Neon `users` table and belong to churches through `members` rows: they get there by `pnpm members add`, the Members page, or a join link (`join_links`, only a SHA-256 hash of each link's secret is stored). The sign-in endpoint answers identically for members and strangers and only emails people with an account, or an address that opened a working join link in the last 30 minutes (`join_requests`); only those can get an account at sign-in (Better Auth user create hook). Asking for a code needs a Cloudflare Turnstile token (usually invisible; the server checks it with Cloudflare, plus the action `sign-in` and this site's hostname) and is limited to 3 a minute per IP (Better Auth).
 - Removing a member deletes their sessions in that church. Song routes read the `members` row (memoised 30 s), so access to songs ends within 30 s; other session data may live up to 5 minutes (signed session cookie cache).
 - Audio is stored once in R2 and served by the Worker with Range support, only to signed-in members. There are no egress fees.
 - `wrangler r2 object put` rejects files over 300 MiB. Stems are far below that.

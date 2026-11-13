@@ -30,10 +30,12 @@ of a resource name. The app's previous address redirects to the current one (`sr
 ## Auth model
 
 - Better Auth, emailed 6-digit code only (email OTP plugin). Started as a magic link, but a link that signs in on GET gets burned by mail scanners, and a confirm tap was an extra step. The code is typed in the same tab, so it also works when the email is on another device. 10-minute expiry, 3 wrong guesses kill the code.
-- Invite-only: sign-up disabled. The `users` table is the allowlist; `members` rows say which church and role.
-- A church is a Better Auth organization (organization plugin). Churches and members are added only by
-  CLI scripts (`pnpm churches add`, `pnpm members add --church --role`): nobody signs up and nobody
-  creates a church in the app. The Worker closes every organization endpoint except set-active, list,
+- Invite-only: no open sign-up. The `users` table is the allowlist; `members` rows say which church and role.
+  The one way to a new account at sign-in is a join link: the address must have opened a working link in
+  the last 30 minutes (`join_requests`; Better Auth's user create hook refuses every other address).
+- A church is a Better Auth organization (organization plugin). Churches are added only by the CLI
+  (`pnpm churches add`); people by the CLI (`pnpm members add --church --role`), the Members page, or a
+  join link (one person: once, 3 days; shared: 1 day; role up to admin). Nobody creates a church in the app. The Worker closes every organization endpoint except set-active, list,
   get-active-member(-role) and has-permission.
 - After sign-in the person lands in their (earliest) church (`session.activeOrganizationId`, set by a
   session-create hook). Someone in several churches gets a switcher in the sidebar; the device remembers
