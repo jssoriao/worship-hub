@@ -106,8 +106,10 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
   playing; the sidebar links back with `?song=` of the open song), `/charts`, `/arrange`.
   `src/web/lib/now-playing*.ts(x)` shares song/playing state and a transport from Practice.
-- Practice player: `TransportBar`, drawn into the bottom dock (song + facts, skip/play/seek, click, key
-  (the key letter) and view-settings popovers, Edit), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
+- Practice player: `TransportBar`, drawn into the bottom dock (seek line on its top edge; song + facts;
+  volume popover (master gain, `KeyBus.master`), back, stop (`StemEngine.stop`: to the start), play, forward,
+  repeat (plays again from the start at the end), time and bar; click, "bpm · key" (Key popover) and
+  view-settings popovers, Edit; volume and repeat remembered per device), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
   Chords, Shapes (`src/web/components/player/`). `Popover` (play-bar panels, on the shadcn popover).
 - Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are

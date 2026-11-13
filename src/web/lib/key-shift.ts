@@ -18,6 +18,8 @@ export class KeyBus {
   readonly stems: GainNode
   /** where the click plays into */
   readonly click: GainNode
+  /** everything heard goes through this on its way out: the master volume */
+  readonly master: GainNode
   private dry: GainNode
   private wet: GainNode
   private clickDelay: DelayNode
@@ -38,9 +40,11 @@ export class KeyBus {
     this.wet = ctx.createGain()
     this.wet.gain.value = 0
     this.clickDelay = ctx.createDelay(1)
-    this.stems.connect(this.dry).connect(ctx.destination)
-    this.wet.connect(ctx.destination)
-    this.click.connect(this.clickDelay).connect(ctx.destination)
+    this.master = ctx.createGain()
+    this.master.connect(ctx.destination)
+    this.stems.connect(this.dry).connect(this.master)
+    this.wet.connect(this.master)
+    this.click.connect(this.clickDelay).connect(this.master)
   }
 
   private load(): Promise<StretchNode> {
