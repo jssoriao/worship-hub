@@ -49,6 +49,7 @@ of a resource name. The app's previous address redirects to the current one (`sr
 - The Worker never trusts a role from the cookie: it reads the `members` row (memoised 30 s per isolate,
   positive answers only), so a removed member loses song access within 30 s.
 - Always answer "if that email is registered, we sent a code" so membership does not leak.
+- Asking for a code needs a Cloudflare Turnstile token (Better Auth's captcha plugin, on `/email-otp/send-verification-otp` only), so scripts cannot make the site send mail; plus Better Auth's limit of 3 a minute per IP.
 - Short link expiry (about 10 min), single use, rate limited per email and IP.
 - Long sessions (about 30 days). httpOnly, Secure, SameSite cookies.
 - Neon connection string and secrets live in Worker secrets, never in `VITE_*` vars. The Worker connects as

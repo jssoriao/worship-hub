@@ -57,6 +57,8 @@ function createAuth(env: Bindings) {
       secret: env.BETTER_AUTH_SECRET,
       db: requestDb,
       background,
+      // missing in an environment = '' = no code can be requested there (fails closed)
+      turnstileSecret: env.TURNSTILE_SECRET_KEY ?? '',
       sendCode: (email, code) => {
         const { env: requestEnv, db } = current()
         // Always answer the same way and send in the background, so neither the response nor its

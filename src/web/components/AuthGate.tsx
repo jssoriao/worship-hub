@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
+import { Turnstile, type TurnstileHandle } from './Turnstile'
 
 const CODE_LENGTH = 6
 // Must match CODE_MINUTES in src/api/auth-options.ts
@@ -67,12 +68,30 @@ function LoginScreen() {
   const [codeSent, setCodeSent] = useState(pending !== null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // the human check's token (Turnstile): needed to ask for a code, and good for one request
+  const [token, setToken] = useState<string | null>(null)
+  const [checkFailed, setCheckFailed] = useState(false)
+  const check = useRef<TurnstileHandle>(null)
+  const checking = !token && !checkFailed
+  const human = (
+    <Turnstile
+      ref={check}
+      onToken={(t) => {
+        setToken(t)
+        if (t) setCheckFailed(false)
+      }}
+      onUnavailable={() => setCheckFailed(true)}
+    />
+  )
 
   const requestCode = async () => {
+    if (!token) return
     setBusy(true)
     setError(null)
-    const { error: failure } = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: 'sign-in' })
+    const { error: failure } = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: 'sign-in' }, { headers: { 'x-captcha-response': token } })
     setBusy(false)
+    // a token works once: get the next one ready
+    check.current?.reset()
     if (!failure) {
       setCode('')
       setCodeSent(true)
@@ -83,9 +102,14 @@ function LoginScreen() {
     setError(
       failure.status === 429
         ? 'Too many attempts. Wait a minute and try again.'
-        : "Couldn't send the code. Check the address and your connection, then try again.",
+        : failure.status === 400 || failure.status === 403
+          ? "The security check didn't pass. Try again in a moment."
+          : "Couldn't send the code. Check the address and your connection, then try again.",
     )
   }
+  const checkNote = checkFailed && (
+    <ErrorNote>The security check couldn't load. Check your connection, or allow challenges.cloudflare.com if a content blocker is on, then reload.</ErrorNote>
+  )
 
   const submitEmail = (e: FormEvent) => {
     e.preventDefault()
@@ -140,8 +164,8 @@ function LoginScreen() {
           {error && <ErrorNote>{error}</ErrorNote>}
         </form>
         <div className="mt-4 flex justify-between text-sm">
-          <Button variant="link" className="h-auto p-0 text-highlight" disabled={busy} onClick={() => void requestCode()}>
-            Send a new code
+          <Button variant="link" className="h-auto p-0 text-highlight" disabled={busy || !token} onClick={() => void requestCode()}>
+            {checking ? 'Checking…' : 'Send a new code'}
           </Button>
           <Button
             variant="link"
@@ -155,6 +179,8 @@ function LoginScreen() {
             Use a different email
           </Button>
         </div>
+        {human}
+        {checkNote}
       </AuthScreen>
     )
   }
@@ -177,10 +203,12 @@ function LoginScreen() {
           onChange={(e) => setEmail(e.target.value)}
           className="h-11"
         />
-        <Button type="submit" size="lg" disabled={busy || email.trim() === ''} className="mt-3 w-full">
-          {busy ? 'Sending…' : 'Email me a code'}
+        <Button type="submit" size="lg" disabled={busy || email.trim() === '' || !token} className="mt-3 w-full">
+          {busy ? 'Sending…' : checking ? 'Checking you are not a bot…' : 'Email me a code'}
         </Button>
+        {human}
         {error && <ErrorNote>{error}</ErrorNote>}
+        {checkNote}
       </form>
     </AuthScreen>
   )
