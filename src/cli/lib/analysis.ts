@@ -8,11 +8,13 @@
  *     beats:    [[t, n], ...]                         n = beat in the bar (1 starts a bar)
  *     chords:   [[t, end, basic, simple, complex, bass], ...]   bass "" when none; "N" = no chord
  *     sections: [[t, end, label], ...]
- *     lines:    [[t, end, [[word, t, end], ...]], ...]
+ *     lines:    [[t, end, [[word, t, end, doubt?], ...]], ...]    doubt: the score in percent of a word the
+ *                                                                speech-to-text was unsure of (src/shared/doubt.ts)
  *   }
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { doubtOf } from '../../shared/doubt.ts'
 
 export const ANALYSIS_FILE = 'analysis.json'
 
@@ -23,9 +25,15 @@ export interface Analysis {
   beats: [number, number][]
   chords: [number, number, string, string, string, string][]
   sections: [number, number, string][]
-  lines: [number, number, [string, number, number][]][]
+  lines: [number, number, ([string, number, number] | [string, number, number, number])[]][]
 }
 
+type StoredWord = Analysis['lines'][number][2][number]
+/** The word with its doubt (a score under DOUBT_BELOW, in percent) when it has one. */
+const withDoubt = (word: [string, number, number], score: unknown): StoredWord => {
+  const d = doubtOf(score)
+  return d === null ? word : [...word, d]
+}
 const ms = (s: unknown) => (typeof s === 'number' && Number.isFinite(s) ? Math.round(s * 1000) : 0)
 
 function read(dir: string, name: string): unknown {
@@ -66,7 +74,7 @@ export function buildAnalysis(songDir: string): Analysis | null {
     lines: Array.isArray(lyrics)
       ? (lyrics as C[])
           .filter((l) => Array.isArray(l.words))
-          .map((l) => [ms(l.start), ms(l.end), (l.words as C[]).map((w) => [str(w.word), ms(w.start), ms(w.end)] as [string, number, number])])
+          .map((l) => [ms(l.start), ms(l.end), (l.words as C[]).map((w) => withDoubt([str(w.word), ms(w.start), ms(w.end)], w.score))])
       : [],
   }
 }
@@ -82,4 +90,33 @@ export function currentAnalysis(songDir: string): Analysis | null {
     }
   }
   return buildAnalysis(songDir)
+}
+
+/**
+ * Adds the doubts of the raw lyrics (Music.AI's lyrics.json) to an analysis that was made before they
+ * were kept, or edited since. A word gets its doubt only when it is still what Music.AI heard: the same
+ * text starting within 40 ms. A word someone retyped or moved is left alone (a person has been there).
+ * Words that already have a doubt keep it. Returns a new analysis and how many words were flagged.
+ */
+export function addDoubts(current: Analysis, rawLyrics: unknown): { analysis: Analysis; flagged: number } {
+  type RawWord = { word?: unknown; start?: unknown; score?: unknown }
+  const heard = (Array.isArray(rawLyrics) ? (rawLyrics as { words?: unknown }[]) : [])
+    .flatMap((l) => (Array.isArray(l.words) ? (l.words as RawWord[]) : []))
+    .filter((w) => typeof w.word === 'string' && typeof w.start === 'number')
+    .map((w) => ({ text: w.word as string, t: ms(w.start), doubt: doubtOf(w.score) }))
+    .filter((w) => w.doubt !== null)
+    .sort((a, b) => a.t - b.t)
+  let flagged = 0
+  const lines = current.lines.map(([t, end, words]) => [
+    t,
+    end,
+    words.map((w): StoredWord => {
+      if (w.length === 4) return w
+      const hit = heard.find((h) => Math.abs(h.t - w[1]) <= 40 && h.text === w[0])
+      if (!hit) return w
+      flagged++
+      return [w[0], w[1], w[2], hit.doubt!]
+    }),
+  ]) as Analysis['lines']
+  return { analysis: { ...current, lines }, flagged }
 }

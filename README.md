@@ -177,6 +177,14 @@ Worker then replaces `analysis.json` and keeps the version it replaced in
 uploads an analysis only when there is none online yet (or with `--analysis`), so it never
 overwrites edits made in the app.
 
+**Checking unsure words.** Music.AI scores every lyric word. Words under 0.4 keep their score in
+`analysis.json` (a fourth number in the word, percent) and show in the Lyrics edit mode with a wavy
+underline; **N lines to check** steps through those lines: *Listen* plays the line, *Approve* trusts it,
+saving a retyped line or deleting it also clears it, *Skip* leaves it for later. For songs analysed before
+this, `pnpm songs:doubts "<song>" --church <slug> [--target prod]` adds the scores from
+`songs/<song>/analysis/raw/lyrics.json` to the analysis that is online (the version before goes to the
+history; a word someone retyped or moved is not flagged; running it again changes nothing).
+
 ### Churches and roles
 
 A church is a Better Auth organization; songs (stems included) belong to one church. Roles per church

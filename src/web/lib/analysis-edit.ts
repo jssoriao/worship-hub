@@ -103,7 +103,8 @@ function matchWords(old: string[], next: string[]): ([number, number] | null)[] 
 /**
  * Replaces the words of line `index` with `text`, keeping the song's timing: an unchanged word
  * keeps its exact time, a changed word takes the time of the word(s) it replaces, and an added
- * word sits right after the word before it. The line's start and end follow its words.
+ * word sits right after the word before it. The line's start and end follow its words. Retyping a
+ * line also checks it: none of its words are flagged as doubtful any more.
  */
 export function setLineText(a: SongAnalysis, index: number, text: string): SongAnalysis {
   const line = a.lines[index]
@@ -130,6 +131,21 @@ export function setLineText(a: SongAnalysis, index: number, text: string): SongA
   const next: Line = { t: timed[0].t, end: timed[timed.length - 1].end, words: timed }
   const lines = [...a.lines]
   lines[index] = next
+  return { ...a, lines }
+}
+
+/** Whether a line has a word the speech-to-text was unsure of (and nobody has checked yet). */
+export const hasDoubt = (line: Line) => line.words.some((w) => w.doubt !== undefined)
+
+/** How many lines are waiting to be checked. */
+export const doubtfulLines = (a: SongAnalysis) => a.lines.filter(hasDoubt).length
+
+/** Marks line `index` as checked: its words are trusted as they are. */
+export function approveLine(a: SongAnalysis, index: number): SongAnalysis {
+  const line = a.lines[index]
+  if (!line || !hasDoubt(line)) return a
+  const lines = [...a.lines]
+  lines[index] = { ...line, words: line.words.map(({ doubt: _doubt, ...word }) => word) }
   return { ...a, lines }
 }
 
@@ -169,7 +185,7 @@ export function toStored(a: SongAnalysis) {
     beats: a.beats.map((b) => [ms(b.t), b.n]),
     chords: a.chords.map((c) => [ms(c.t), ms(c.end), c.basic, c.simple, c.complex, c.bass]),
     sections: a.sections.map((s) => [ms(s.t), ms(s.end), s.label]),
-    lines: a.lines.map((l) => [ms(l.t), ms(l.end), l.words.map((w) => [w.w, ms(w.t), ms(w.end)])]),
+    lines: a.lines.map((l) => [ms(l.t), ms(l.end), l.words.map((w) => (w.doubt === undefined ? [w.w, ms(w.t), ms(w.end)] : [w.w, ms(w.t), ms(w.end), Math.round(w.doubt * 100)]))]),
   }
 }
 

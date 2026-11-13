@@ -25,6 +25,8 @@ export interface Word {
   w: string
   t: number
   end: number
+  /** the speech-to-text's score (0..1) when it was unsure of this word; none once it is sure or a person has checked it */
+  doubt?: number
 }
 export interface Line {
   t: number
@@ -69,7 +71,8 @@ async function getAnalysis(url: string): Promise<SongAnalysis | null> {
   return raw ? parseAnalysis(raw) : null
 }
 
-function parseAnalysis(raw: Raw): SongAnalysis {
+/** The analysis from its stored form (see toStored in analysis-edit.ts). */
+export function parseAnalysis(raw: Raw): SongAnalysis {
   return {
     key: str(raw.key),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : 0,
@@ -79,7 +82,7 @@ function parseAnalysis(raw: Raw): SongAnalysis {
     lines: arr(raw.lines).map((l) => ({
       t: sec(l[0]),
       end: sec(l[1]),
-      words: arr(l[2]).map((w) => ({ w: str(w[0]), t: sec(w[1]), end: sec(w[2]) })),
+      words: arr(l[2]).map((w) => ({ w: str(w[0]), t: sec(w[1]), end: sec(w[2]), ...(typeof w[3] === 'number' ? { doubt: w[3] / 100 } : {}) })),
     })),
   }
 }
