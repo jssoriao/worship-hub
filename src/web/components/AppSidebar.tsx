@@ -28,7 +28,7 @@ import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
-import { PAGES } from '../lib/pages'
+import { PAGES, pageShown } from '../lib/pages'
 import { DEFAULT_THEME } from '../lib/theme'
 
 
@@ -178,7 +178,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Pages</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {PAGES.filter((p) => !p.admin || mayManage).map((p) => {
+              {PAGES.filter((p) => pageShown(p, { mayManage, role: church.role })).map((p) => {
                 const active = p.end ? pathname === p.to : pathname === p.to || pathname.startsWith(`${p.to}/`)
                 const playingHere = p.to === '/practice' && now.playing
                 return (

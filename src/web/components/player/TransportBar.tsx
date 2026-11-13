@@ -62,9 +62,10 @@ export function TransportBar(props: Props) {
   const iconBtn = `${iconBase} text-secondary-foreground hover:bg-accent hover:text-accent-foreground`
 
   return (
-    <div>
+    <div className="relative">
       {onPracticePage && view && onView && (
-        <nav aria-label="Views" className="pointer-events-none mb-3 flex justify-center">
+        // floats over the page just above the bar, taking no room of its own
+        <nav aria-label="Views" className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center">
           <div className="surface-glass pointer-events-auto flex items-center gap-1 rounded-full border p-1">
             {VIEWS.map(([v, label]) => (
               <button
@@ -109,7 +110,7 @@ export function TransportBar(props: Props) {
             className="absolute inset-0 w-full cursor-pointer opacity-0"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
             {onPracticePage ? (
@@ -190,7 +191,7 @@ export function TransportBar(props: Props) {
                 {loop && <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-current" />}
               </button>
             </div>
-            <p className="text-[11px] tabular-nums text-muted-foreground">
+            <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
               <span className="font-mono">
                 {fmt(shownPos)} / {fmt(duration)}
               </span>

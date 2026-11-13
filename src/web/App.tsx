@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './components/AppSidebar'
+import { useChurch } from './lib/church-context'
 import { PAGES } from './lib/pages'
 import { useNowPlaying } from './lib/now-playing-context'
 import { PlayerSlotContext } from './lib/player-slot'
@@ -28,13 +29,14 @@ function PlayerDock({ onSlot }: { onSlot: (el: HTMLElement | null) => void }) {
  */
 export default function App() {
   const { pathname } = useLocation()
+  const church = useChurch()
   const onPractice = pathname === '/practice' || pathname.startsWith('/practice/')
   const main = useRef<HTMLElement>(null)
   const shownPath = useRef<string | null>(null)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const now = useNowPlaying()
   useEffect(() => {
-    const name = PAGES.find((p) => p.to === pathname)?.label ?? (onPractice ? 'Practice' : 'Not found')
+    const name = PAGES.find((p) => p.to === pathname && (!p.owner || church.role === 'owner'))?.label ?? (onPractice ? 'Practice' : 'Not found')
     document.title = pathname === '/' ? 'Worship Hub' : `${name} · Worship Hub`
     // Moving to another page starts it at the top and moves a screen reader to it (a link click
     // would otherwise leave focus on a link that is no longer on screen). Opening the app on a
@@ -44,7 +46,7 @@ export default function App() {
     if (!moved) return
     window.scrollTo(0, 0)
     main.current?.focus({ preventScroll: true })
-  }, [pathname, onPractice])
+  }, [pathname, onPractice, church.role])
   return (
     <PlayerSlotContext.Provider value={slot}>
       <SidebarProvider defaultOpen={!/(?:^|; )sidebar_state=false/.test(document.cookie)}>
@@ -65,7 +67,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/charts" element={<ChartsPage />} />
-            <Route path="/arrange" element={<ArrangePage />} />
+            {/* owners only for now: it is not ready for everyone (the link is hidden too, pages.ts) */}
+            <Route path="/arrange" element={church.role === 'owner' ? <ArrangePage /> : <NotFoundPage />} />
             <Route path="/members" element={<MembersPage />} />
             {/* shown by the PracticePage above */}
             <Route path="/practice/*" element={null} />

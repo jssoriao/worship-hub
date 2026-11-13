@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
-import { PAGES } from '../lib/pages'
+import { PAGES, pageShown } from '../lib/pages'
 
 const ABOUT: Record<string, string> = {
   '/practice': "Play a song's stems together. Mute, solo and balance each part.",
@@ -68,7 +68,7 @@ export default function HomePage() {
         </Card>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PAGES.filter((p) => p.to !== '/' && (!p.admin || mayManage)).map((p) => (
+        {PAGES.filter((p) => p.to !== '/' && pageShown(p, { mayManage, role: church.role })).map((p) => (
           <Shortcut key={p.to} to={p.to === '/practice' ? practice : p.to} title={p.label} icon={p.icon}>
             {ABOUT[p.to] ?? ''}
           </Shortcut>

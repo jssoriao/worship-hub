@@ -23,6 +23,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `pnpm dlx shadcn@<pinned> view <name>` and point the import there). Local changes to ui/ files are marked
   "adapted" (pill buttons with the brand gradient, `type="button"` by default, glass cards, readable destructive
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
+- Arrange is owner-only for now (not ready for others): `PAGES[].owner` + `pageShown` (`src/web/lib/pages.ts`) hide its
+  sidebar and Home link, and `/arrange` shows Not found to anyone but an owner (UI only; its API is unchanged).
 - Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts`, account with sign-out;
   folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
   title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom
@@ -125,7 +127,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   volume popover (master gain, `KeyBus.master`), back, stop (`StemEngine.stop`: to the start), play, forward,
   repeat (plays again from the start at the end; tinted with a dot when on), time and bar; click, a
   "143 bpm · E" button (Tempo & Key panel: − value + for each, Reset) and view-settings popovers, Edit;
-  volume and repeat remembered per device, tempo and key per song), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
+  volume and repeat remembered per device, tempo and key per song; the key shows its move, "E +3" / "E (+3)"; the click
+  is controlled only from its popover, no Click lane), views Stems (`StemTimeline` on wide screens, `StemRow` list on phones), Lyrics,
   Chords, Shapes (`src/web/components/player/`). `Popover` (play-bar panels, on the shadcn popover).
 - Charts: `src/web/lib/chart.ts` parses ChordPro (`{cue: m:ss}` ties a section to the stems), `ChartPages`
   shows sheets, `ChartEditor` edits (editors and up; Worker PUT `chart.pro`). Chart-only songs are

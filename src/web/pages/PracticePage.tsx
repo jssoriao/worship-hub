@@ -659,7 +659,9 @@ export default function PracticePage() {
     </button>
   )
   const originalKey = parseKey(analysis?.key || music?.key || '')
-  const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`
+  // how far the key moved, "+3" or "-2" ("" in the recording's own key)
+  const keyMoved = key === 0 ? '' : `${key > 0 ? '+' : ''}${key}`
+  const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : keyMoved || 'Key'
   const tempoText = music?.bpm ? `${Math.round(music.bpm * tempo)} bpm` : `${Math.round(tempo * 100)}%`
   const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
   const tools = (
@@ -694,7 +696,7 @@ export default function PracticePage() {
       )}
       {stems.length > 0 && (
         <Popover
-          label={`Tempo ${tempoText} · key ${keyText}`}
+          label={`Tempo ${tempoText} · key ${keyText}${originalKey && keyMoved ? ` (${keyMoved})` : ''}`}
           title="Tempo & Key"
           active={key !== 0 || tempo !== 1}
           className="rounded-full border border-input px-3"
@@ -703,6 +705,7 @@ export default function PracticePage() {
               <span>{tempoText}</span>
               <span aria-hidden="true" className="text-muted-foreground">·</span>
               <span className="font-semibold">{keyText}</span>
+              {originalKey && keyMoved && <span className="text-xs text-highlight">{keyMoved}</span>}
             </span>
           }
         >
@@ -718,7 +721,7 @@ export default function PracticePage() {
             />
             <Stepper
               label="Key"
-              value={key !== 0 && !originalKey ? `${key > 0 ? '+' : ''}${key}` : keyText}
+              value={originalKey && keyMoved ? `${keyText} (${keyMoved})` : keyText}
               changed={key !== 0}
               onLower={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))}
               onHigher={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))}
@@ -919,16 +922,6 @@ export default function PracticePage() {
                   onPatch={patch}
                   analysis={heard}
                   level={prefs.level}
-                  click={
-                    music && music.beats.length > 0
-                      ? {
-                          on: click.on,
-                          volume: click.volume,
-                          onToggle: () => setClick((c) => ({ ...c, on: !c.on })),
-                          onVolume: (v) => setClick((c) => ({ ...c, volume: v })),
-                        }
-                      : undefined
-                  }
                 />
               </div>
             )}
