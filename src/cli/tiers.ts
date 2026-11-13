@@ -106,3 +106,68 @@ export function offeredTiers(statuses: TierStatus[]): { id: string; bytes?: numb
     return [{ id: tier.id, ...(bytes ? { bytes } : {}) }]
   })
 }
+
+/**
+ * Per file name (decoded) and quality: the `src` fingerprints in a manifest's JSON text, i.e. the
+ * source file each published copy was made from (see fileHash). Older manifests have none.
+ */
+export function sourcesFromManifest(text: string): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {}
+  try {
+    const stems = (JSON.parse(text) as { stems?: unknown } | null)?.stems
+    if (!Array.isArray(stems)) return out
+    for (const s of stems as ({ file?: unknown; src?: unknown } | null)[]) {
+      if (typeof s?.file !== 'string' || !s.src || typeof s.src !== 'object') continue
+      let file: string = s.file
+      try {
+        file = decodeURIComponent(s.file)
+      } catch {
+        // keep it as written
+      }
+      for (const [tier, hash] of Object.entries(s.src)) {
+        if (typeof hash === 'string' && /^[0-9a-f]{8,64}$/.test(hash)) (out[file] ??= {})[tier] = hash
+      }
+    }
+  } catch {
+    // not a manifest
+  }
+  return out
+}
+
+/** An object in the bucket, as listed (R2's etag is the MD5 of the bytes for a single-part upload). */
+export interface Listed {
+  size: number
+  etag: string
+}
+
+/**
+ * Whether a file of a song is online already, so a publish can skip it (and its encoding):
+ *   'record'  this machine's .publish-state.json says this exact source was uploaded there
+ *   'r2'      the bucket has it: the original with the same bytes (MD5 = etag), or a re-encoded copy
+ *             the manifest says was made from this same source (or whose bytes match a local encode)
+ *   null      upload it
+ * `listed` is undefined when the bucket could not be listed (the local R2): then only the record counts.
+ * The hashes are functions so a file is only read when the answer depends on it.
+ */
+export function alreadyOnline(o: {
+  force: boolean
+  recorded: boolean
+  original: boolean
+  listed: Map<string, Listed> | undefined
+  key: string
+  sourceMd5: () => string
+  sourceHash: () => string
+  /** the `src` the manifest in the bucket has for this file and quality */
+  onlineSource?: string
+  /** MD5 of a re-encoded copy made earlier on this machine, if there is one */
+  cachedMd5?: () => string | undefined
+}): 'record' | 'r2' | null {
+  if (o.force) return null
+  if (o.recorded) return 'record'
+  const object = o.listed?.get(o.key)
+  if (!object || object.size <= 0) return null
+  const etag = object.etag.replace(/"/g, '')
+  if (o.original) return o.sourceMd5() === etag ? 'r2' : null
+  if (o.onlineSource && o.onlineSource === o.sourceHash()) return 'r2'
+  return o.cachedMd5?.() === etag ? 'r2' : null
+}
