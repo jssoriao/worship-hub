@@ -20,7 +20,8 @@ interface Props {
  * play from that beat.
  */
 export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onSection }: Props) {
-  const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; t: number; value: string } | null>(null)
+  // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet
+  const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; t: number; value: string; empty?: boolean } | null>(null)
   // the song's chords, for quick picks
   const used = useMemo(() => [...new Set(analysis.chords.map((c) => chordName(c, 'complex')).filter(Boolean))].sort(), [analysis.chords])
   const bars = useMemo(() => {
@@ -102,7 +103,8 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                     type="button"
                     onClick={() =>
                       editing
-                        ? setOpen({ kind: 'chord', bar: i, t: b.t, value: chordName(chordAt(analysis, b.t + 0.02), 'complex') })
+                        ? // a blank beat opens blank: the chord of the beat before it is still sounding, but it is not this beat's
+                          setOpen({ kind: 'chord', bar: i, t: b.t, value: b.name ? chordName(chordAt(analysis, b.t + 0.02), 'complex') : '', empty: !b.name })
                         : onSeek(b.t)
                     }
                     aria-label={`Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`}
@@ -120,13 +122,14 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
             <div className="pl-8">
               {open.kind === 'chord' ? (
                 <EditPopover
-                  title={`Chord from bar ${i + 1}, beat ${bars[i].findIndex((b) => b.t === open.t) + 1}`}
+                  title={`${open.empty ? 'New chord at' : 'Chord from'} bar ${i + 1}, beat ${bars[i].findIndex((b) => b.t === open.t) + 1}`}
                   initial={open.value}
                   placeholder="e.g. D/F#"
                   suggestions={used}
                   actions={[{ label: 'No chord', onClick: () => (onChord?.(open.t, ''), setOpen(null)) }]}
                   onSave={(v) => {
-                    onChord?.(open.t, v)
+                    // saving a blank beat as it is changes nothing ("No chord" is its own button)
+                    if (!(open.empty && v.trim() === '')) onChord?.(open.t, v)
                     setOpen(null)
                   }}
                   onCancel={() => setOpen(null)}

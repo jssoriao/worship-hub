@@ -247,7 +247,8 @@ export default function PracticePage() {
     setEditError('')
     void listVersions(songId).then(setVersions)
   }
-  // Esc leaves edit mode; a box that is open (a chord, a line, a window) takes the Esc first
+  // Esc leaves edit mode, but a box that is open (a chord, a line, a window) takes the Esc first. This listens
+  // in the capture phase, before that box handles the key and closes itself, so it can still see that it was open.
   useEffect(() => {
     if (!editing) return
     const onKey = (e: KeyboardEvent) => {
@@ -255,8 +256,8 @@ export default function PracticePage() {
       e.preventDefault()
       leaveEditing()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
   })
   const onLine = (index: number, text: string) =>
     change((a) => {

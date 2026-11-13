@@ -22,6 +22,16 @@ export function EditPopover({ title, initial, placeholder, suggestions = [], act
     input.current?.focus()
     input.current?.select()
   }, [])
+  // Esc closes this box wherever the focus is (a quick pick, a button), and only this box
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onCancel()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
   return (
     <div role="dialog" aria-label={title} className="mt-1 rounded-xl border border-primary/40 bg-card p-2 shadow-xl shadow-black/50">
       <p className="mb-1 text-xs text-muted-foreground">{title}</p>
@@ -37,7 +47,6 @@ export function EditPopover({ title, initial, placeholder, suggestions = [], act
           value={value}
           placeholder={placeholder}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && onCancel()}
           aria-label={title}
           className="h-8 w-auto flex-1"
         />
