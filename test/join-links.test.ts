@@ -139,6 +139,19 @@ describe('joining', () => {
     expect((await join(token, null)).status).toBe(200)
   })
 
+  it('does not leave an account in no church when the link stops working after the code', async () => {
+    const token = await makeLink('owner', 'member', true)
+    // the account the code made, in no church; meanwhile the link was turned off
+    await pg.query('update join_links set revoked_at = now()')
+    const res = await join(token, as('newbie', 'none'), 'POST', '/finish')
+    expect(res.status).toBe(410)
+    expect((await pg.query(`select 1 from users where id = 'newbie'`)).rows).toHaveLength(0)
+    // someone who is in a church is not touched
+    const again = await join(token, as('bob', B), 'POST', '/finish')
+    expect(again.status).toBe(410)
+    expect((await pg.query(`select 1 from users where id = 'bob'`)).rows).toHaveLength(1)
+  })
+
   it('refuses a link that was turned off', async () => {
     const token = await makeLink('owner', 'member', false)
     await pg.query('update join_links set revoked_at = now()')
@@ -157,6 +170,48 @@ describe('joining', () => {
     await pg.query('update join_links set revoked_at = now()')
     expect(await hasJoinRequest(db, 'new.person@example.com')).toBe(false)
     expect((await join(token, null, 'POST', '/start', { email: 'x@example.com' })).status).toBe(410)
+  })
+})
+
+describe('cleaning up', () => {
+  const rows = async () => (await pg.query<{ role: string }>('select role from join_links order by role')).rows.map((r) => r.role)
+
+  it('deletes links a week after they ended, whichever way, and keeps the rest', async () => {
+    await makeLink('owner', 'member', false) // fine
+    await makeLink('owner', 'editor', false) // expired 2 days ago: kept
+    await makeLink('owner', 'admin', false) // expired 8 days ago: deleted
+    await makeLink('owner', 'member', true) // used 8 days ago: deleted (not expired yet)
+    await makeLink('owner', 'editor', true) // turned off 8 days ago: deleted
+    const set = (role: string, singleUse: boolean, change: string) =>
+      pg.query(`update join_links set ${change} where role = '${role}' and single_use = ${singleUse}`)
+    await set('editor', false, `expires_at = now() - interval '2 days'`)
+    await set('admin', false, `expires_at = now() - interval '8 days'`)
+    await set('member', true, `used_at = now() - interval '8 days'`)
+    await set('editor', true, `revoked_at = now() - interval '8 days'`)
+    expect(await rows()).toHaveLength(5)
+    await links(as('owner'), 'GET')
+    expect(await rows()).toEqual(['editor', 'member'])
+  })
+
+  it('removes join requests with their link, and any that ran out', async () => {
+    const token = await makeLink('owner', 'member', false)
+    await join(token, null, 'POST', '/start', { email: 'one@example.com' })
+    await join(token, null, 'POST', '/start', { email: 'two@example.com' })
+    await pg.query(`update join_requests set expires_at = now() - interval '1 minute' where email = 'one@example.com'`)
+    await links(as('owner'), 'GET')
+    expect((await pg.query<{ email: string }>('select email from join_requests')).rows).toEqual([{ email: 'two@example.com' }])
+    await pg.query(`update join_links set expires_at = now() - interval '8 days'`)
+    await links(as('owner'), 'GET')
+    expect((await pg.query('select 1 from join_requests')).rows).toHaveLength(0)
+  })
+
+  it("only touches the signed-in church's links", async () => {
+    await makeLink('owner', 'member', false)
+    await pg.query(`update join_links set expires_at = now() - interval '8 days'`)
+    await links(as('bob', B), 'GET')
+    expect(await rows()).toHaveLength(1)
+    await links(as('owner'), 'GET')
+    expect(await rows()).toHaveLength(0)
   })
 })
 

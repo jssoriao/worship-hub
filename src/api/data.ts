@@ -412,6 +412,22 @@ export async function joinLinkRole(db: Db, orgId: string, linkId: string): Promi
     .where(and(eq(joinLinks.organizationId, orgId), eq(joinLinks.id, linkId), working()))
   return isRole(row?.role) ? row.role : null
 }
+/** How long a link that has ended (expired, used up or turned off) is kept, so Members can still show who joined. */
+export const JOIN_LINK_KEEP_DAYS = 7
+/**
+ * Deletes this church's links that ended more than JOIN_LINK_KEEP_DAYS ago (their join requests go with
+ * them), and every join request past its time. Runs when the church's links are listed.
+ */
+export async function deleteStaleJoinData(db: Db, orgId: string): Promise<void> {
+  // a link ended at the earliest of: its expiry, being turned off, being used up (one-person links only set used_at)
+  await db.delete(joinLinks).where(
+    and(
+      eq(joinLinks.organizationId, orgId),
+      sql`least(${joinLinks.expiresAt}, coalesce(${joinLinks.revokedAt}, 'infinity'::timestamptz), coalesce(${joinLinks.usedAt}, 'infinity'::timestamptz)) < now() - make_interval(days => ${JOIN_LINK_KEEP_DAYS})`,
+    ),
+  )
+  await db.delete(joinRequests).where(sql`${joinRequests.expiresAt} <= now()`)
+}
 /** Turns a link off (and drops its pending sign-ins). False when the church has no such working link. */
 export async function revokeJoinLink(db: Db, orgId: string, linkId: string): Promise<boolean> {
   const done = await db

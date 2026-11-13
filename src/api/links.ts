@@ -6,7 +6,8 @@
  *   POST   /api/church/links  {role, singleUse}    a new link; its address is in this answer only
  *   DELETE /api/church/links/<id>                  turn a link off
  *
- * A link for one person works for 3 days, a shared one for 1 day. Roles follow Members: owners make
+ * A link for one person works for 3 days, a shared one for 1 day; a week after a link ends its row is
+ * deleted (when the list is loaded). Roles follow Members: owners make
  * links up to admin, admins up to editor. No link makes owners.
  */
 import { Hono } from 'hono'
@@ -32,7 +33,9 @@ export const links = new Hono<AppEnv>({ strict: false })
   .use('/', only('GET', 'POST'))
   .get('/', need({ member: ['create'] }), async (c) => {
     const tenant = c.get('tenant')
-    return c.json({ links: await data.listJoinLinks(c.get('deps').db, tenant.orgId), roles: linkRoles(tenant.role) })
+    const { db } = c.get('deps')
+    await data.deleteStaleJoinData(db, tenant.orgId)
+    return c.json({ links: await data.listJoinLinks(db, tenant.orgId), roles: linkRoles(tenant.role) })
   })
   .post('/', need({ member: ['create'] }), body(newLink), async (c) => {
     const tenant = c.get('tenant')

@@ -207,7 +207,9 @@ Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the pag
   admin, admins up to editor). Whoever opens it sees "Join <church> as <role>", enters their email, signs
   in with the emailed code, and is in the church with that role (`/join/<token>`, `src/api/join.ts`,
   `JoinPage`). A link's address is shown once when it is made (only a hash of it is stored); working links
-  are listed and can be turned off. An expired, used or turned-off link shows a page saying so.
+  are listed and can be turned off. An expired, used or turned-off link shows a page saying so, and its
+  row is deleted a week after it ended (when the list is loaded). If a link stops working between the
+  code and the join, the account the code made is removed again.
 - Removing someone ends their sessions in that church. A person left in no church is deleted, unless
   they are the platform admin. The change applies within about 30 seconds (the Worker's membership
   cache) on every server, at once on the one that handled the request.

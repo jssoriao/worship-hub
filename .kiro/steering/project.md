@@ -73,7 +73,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   AuthGate), then POST finish (session) adds the member (`data.joinWithLink`, row locked; already a member =
   unchanged, link unused) and the page sets the active church. Better Auth `disableSignUp` is false, but its
   user create hook (auth-options.ts) refuses any address without a live join request, and auth.ts only
-  emails codes to accounts or join requests.
+  emails codes to accounts or join requests. Ended links (expired, used up, off) are deleted 7 days later and
+  expired join requests at once, whenever the church's links are listed (`data.deleteStaleJoinData`); a failed
+  finish removes the account the code made if it is in no church (`removePersonIfChurchless`).
 
 ## Layout
 - `src/web/lib/bytestream.ts` (`ByteStream`, `download`): a file that arrives over time; consumers

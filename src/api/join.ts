@@ -57,6 +57,10 @@ export const join = new Hono<AppEnv>({ strict: false })
     const user = session.response?.user
     if (!user?.email) return fail(c, 401, 'Sign in first')
     const joined = await data.joinWithLink(db, c.req.param('token'), { id: user.id, email: user.email })
-    if (typeof joined === 'string') return problem(c, joined)
+    if (typeof joined === 'string') {
+      // the link stopped working after the code made their account: do not leave an account in no church
+      await data.removePersonIfChurchless(db, user.id, '')
+      return problem(c, joined)
+    }
     return c.json(joined)
   })
