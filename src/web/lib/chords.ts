@@ -65,6 +65,16 @@ export function transposeChord(chord: string, semitones: number, flats: boolean)
   return root + m[3] + bass
 }
 
+/** The same chord spelled with sharps or flats: respellChord('G#m7/D#', true) -> 'Abm7/Eb'. */
+export function respellChord(chord: string, flats: boolean): string {
+  const m = CHORD.exec(chord.trim())
+  if (!m) return chord
+  const names = flats ? FLATS : SHARPS
+  // a natural note is spelled the same either way (keeps "E#" or "Cb" out of the names list)
+  const name = (letter: string, accidental: string) => (accidental ? names[pitch(letter, accidental)] : letter)
+  return name(m[1], m[2]) + m[3] + (m[4] ? `/${name(m[4], m[5] ?? '')}` : '')
+}
+
 /** A chord as a Nashville number in `key` (degrees of the major scale; minor keys count from their relative major). */
 export function chordNumber(chord: string, key: Key): string {
   const m = CHORD.exec(chord.trim())

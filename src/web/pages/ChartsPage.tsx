@@ -10,9 +10,11 @@ import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
 import { PageHeader } from '../components/PageHeader'
 import { resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
+import { fetchAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { call, songFile, songsApi } from '../lib/api'
 import { useChurch } from '../lib/church-context'
 import { activeSection, parseChart } from '../lib/chart'
+import { chartFromAnalysis } from '../lib/chart-from-analysis'
 import { useNowPlaying } from '../lib/now-playing-context'
 import { fetchLibrary, fetchSongMusic, type LibrarySong, type SongMusic } from '../lib/sources'
 
@@ -30,6 +32,8 @@ export default function ChartsPage() {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [follow, setFollow] = useState(true)
   const [editing, setEditing] = useState(false)
+  // open the editor with a chart built from the analysis (not saved until the editor saves it)
+  const [startBuilt, setStartBuilt] = useState(false)
   // editing and adding songs follow the person's permissions in this church
   const church = useChurch()
   const mayEdit = church.can({ content: ['edit'] })
@@ -82,6 +86,33 @@ export default function ChartsPage() {
     }
   }, [songId, hasStems])
   const songMusic = music.id === songId ? music.music : undefined
+
+  // the analysis (lyrics, chords, sections), for editors to build a chart from
+  const [analysis, setAnalysis] = useState<{ id: string; analysis: SongAnalysis | null }>({ id: '', analysis: null })
+  useEffect(() => {
+    if (!songId || !hasStems || !mayEdit) return
+    let live = true
+    fetchAnalysis(songId)
+      .then((a) => live && setAnalysis({ id: songId, analysis: a && a.lines.length + a.chords.length > 0 ? a : null }))
+      .catch(() => live && setAnalysis({ id: songId, analysis: null }))
+    return () => {
+      live = false
+    }
+  }, [songId, hasStems, mayEdit])
+  const songAnalysis = analysis.id === songId ? analysis.analysis : null
+  const songInfo = library?.find((s) => s.id === songId)
+  const build = useMemo(
+    () =>
+      songAnalysis
+        ? (level: ChordLevel, quickChords: boolean) =>
+            chartFromAnalysis(songAnalysis, { title: songInfo?.title, artist: songInfo?.artist ?? undefined, level, quickChords })
+        : undefined,
+    [songAnalysis, songInfo],
+  )
+  const edit = (fromAnalysis = false) => {
+    setStartBuilt(fromAnalysis)
+    setEditing(true)
+  }
   const syncing = chart !== null && songId === now.songId
   const hasCues = chart?.sections.some((s) => s.t !== null) ?? false
 
@@ -121,7 +152,7 @@ export default function ChartsPage() {
       setAdding(false)
       setNewTitle('')
       setPicked(song.id)
-      setEditing(true)
+      edit()
     } catch (err) {
       setAddError(err instanceof Error ? err.message : String(err))
     }
@@ -205,16 +236,32 @@ export default function ChartsPage() {
           {mayEdit && (
             <>
               {' '}
-              <Button variant="link" className="h-auto p-0 text-highlight" onClick={() => setEditing(true)}>
+              <Button variant="link" className="h-auto p-0 text-highlight" onClick={() => edit()}>
                 Create one
               </Button>
+              {build && (
+                <>
+                  {' or '}
+                  <Button variant="link" className="h-auto p-0 text-highlight" onClick={() => edit(true)}>
+                    build it from the analysis
+                  </Button>
+                </>
+              )}
             </>
           )}
         </Empty>
       )}
 
       {editing && loaded?.id === songId && (
-        <ChartEditor key={songId} initial={text ?? TEMPLATE} syncing={songId === now.songId} onSave={save} onCancel={() => setEditing(false)} />
+        <ChartEditor
+          key={songId}
+          initial={text ?? TEMPLATE}
+          syncing={songId === now.songId}
+          onSave={save}
+          onCancel={() => setEditing(false)}
+          build={build}
+          startBuilt={startBuilt}
+        />
       )}
 
       {chart && !editing && (
@@ -234,7 +281,7 @@ export default function ChartsPage() {
             playing={playing}
             actions={
               mayEdit && (
-                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <Button variant="outline" size="sm" onClick={() => edit()}>
                   Edit
                 </Button>
               )
