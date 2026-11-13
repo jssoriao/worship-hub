@@ -136,6 +136,8 @@ export class StemEngine {
   /** where stems and click play into (and the key they sound in), made again for a new context */
   private bus: KeyBus | null = null
   private semitones = 0
+  /** master volume, 0..1 */
+  private volume = 1
   private clickSounds: { ctx: AudioContext; accent: AudioBuffer; beat: AudioBuffer } | null = null
   /** the clicks as heard: the song's beats, or mapped through the timeline (plus a count-in) */
   private clicks: ClickBeat[] = []
@@ -174,6 +176,7 @@ export class StemEngine {
         this.onKeyError?.(e)
       }
       if (this.semitones !== 0) void this.bus.setSemitones(this.semitones)
+      this.bus.master.gain.value = this.volume
     }
     return this.bus
   }
@@ -184,6 +187,11 @@ export class StemEngine {
     void this.keyBus.setSemitones(semitones)
   }
 
+  /** The master volume (0..1): stems and click together. */
+  setVolume(volume: number) {
+    this.volume = Math.min(1, Math.max(0, volume))
+    this.keyBus.master.gain.setTargetAtTime(this.volume, this.ctx.currentTime, 0.01)
+  }
   private static createContext(sampleRate?: number): AudioContext {
     const Ctor =
       window.AudioContext ??
@@ -608,6 +616,12 @@ export class StemEngine {
     this.halt()
   }
 
+  /** Stops and goes back to the start. */
+  stop() {
+    this.pause()
+    this.gen++ // nothing still starting may play from where it was
+    this.pausedAt = 0
+  }
   async seek(seconds: number) {
     const wasPlaying = this.intent
     const t = Math.min(Math.max(seconds, 0), this.duration)

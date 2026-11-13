@@ -44,6 +44,7 @@ function shiftedKey(name: string, semitones: number): string {
 }
 
 const CLICK_KEY = 'worship-hub:click'
+const PLAYBACK_KEY = 'worship-hub:playback'
 const VIEW_KEY = 'worship-hub:practice-view'
 
 type View = 'stems' | 'lyrics' | 'chords' | 'shapes'
@@ -75,6 +76,16 @@ function savedKey(songId: string): number {
   return Math.max(-MAX_KEY_SHIFT, Math.min(MAX_KEY_SHIFT, wrapped))
 }
 
+/** Master volume and repeat on this device: full volume, no repeat at first. */
+function savedPlayback(): { volume: number; loop: boolean } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLAYBACK_KEY) ?? 'null') as { volume?: unknown; loop?: unknown } | null
+    const volume = typeof raw?.volume === 'number' && raw.volume >= 0 && raw.volume <= 1 ? raw.volume : 1
+    return { volume, loop: raw?.loop === true }
+  } catch {
+    return { volume: 1, loop: false }
+  }
+}
 function savedClick(): { on: boolean; volume: number } {
   try {
     const raw = JSON.parse(localStorage.getItem(CLICK_KEY) ?? 'null') as { on?: unknown; volume?: unknown } | null
@@ -147,6 +158,9 @@ export default function PracticePage() {
   /** the music of the song being loaded, until it has loaded */
   const nextMusic = useRef<SongMusic | undefined>(undefined)
   const [click, setClick] = useState(savedClick)
+  const [playback, setPlayback] = useState(savedPlayback)
+  // read when the song ends, from the engine's callback
+  const loopRef = useRef(playback.loop)
   // the key the stems sound in, in semitones from the recording; remembered per song on this device
   const [key, setKey] = useState(0)
   const keyRef = useRef(0)
@@ -218,8 +232,10 @@ export default function PracticePage() {
     if (!engineRef.current) {
       const e = new StemEngine()
       e.onEnded = () => {
-        setPlaying(false)
         setPos(0)
+        // repeat: straight back to the start
+        if (loopRef.current) void e.play()
+        else setPlaying(false)
       }
       e.onError = (err) => setError(err instanceof Error ? err.message : 'Playback error.')
       // parts of combined stems download when first used
@@ -259,6 +275,16 @@ export default function PracticePage() {
     }
   }, [click])
 
+  // master volume and repeat follow their settings, which this device remembers
+  useEffect(() => {
+    engineRef.current?.setVolume(playback.volume)
+    loopRef.current = playback.loop
+    try {
+      localStorage.setItem(PLAYBACK_KEY, JSON.stringify(playback))
+    } catch {
+      // storage blocked: the setting just is not remembered
+    }
+  }, [playback])
   // the key follows its setting, which this device remembers for each song
   useEffect(() => {
     keyRef.current = key
@@ -339,6 +365,7 @@ export default function PracticePage() {
       setMusic(nextMusic.current)
       engine.setBeats(clickBeats(nextMusic.current))
       engine.setClick(click.on, click.volume)
+      engine.setVolume(playback.volume)
       updateMix(restore && restore.mix.length === infos.length ? restore.mix : infos.map(defaultMix))
       setDuration(engine.duration)
       setTitle(songTitle)
@@ -480,6 +507,13 @@ export default function PracticePage() {
     }
   }
 
+  const stop = () => {
+    const engine = engineRef.current
+    if (!engine) return
+    engine.stop()
+    setPlaying(false)
+    setPos(0)
+  }
   /** Downloads the whole song (every part) and keeps it on this device, ready to play with no connection. */
   const keepOffline = async () => {
     const engine = engineRef.current
@@ -586,8 +620,8 @@ export default function PracticePage() {
   const tierBytes = tiers.find((t) => t.id === tier)?.bytes
   const stemsView = prefs.view === 'stems' || !analysis
   const facts = [
-    // the key has its own button in the play bar (with the stems loaded), so it is not repeated here
-    describeMusic(music && key !== 0 && music.key ? { ...music, key: shiftedKey(music.key, key) } : music, { key: stems.length === 0 }),
+    // tempo and key have their own button in the play bar (with the stems loaded), so they are not repeated here
+    describeMusic(music && key !== 0 && music.key ? { ...music, key: shiftedKey(music.key, key) } : music, { key: stems.length === 0, bpm: stems.length === 0 }),
     stems.length > 0 && `${stems.length} stems`,
     anySolo && 'solo active',
     playing && buffering && 'Buffering…',
@@ -647,11 +681,14 @@ export default function PracticePage() {
           label={key === 0 ? 'Key: original' : `Key: ${key > 0 ? '+' : ''}${key} semitones`}
           title="Key"
           active={key !== 0}
+          className="rounded-full border border-input px-3"
           button={
-            // the key itself, big, with what it is (or how far it moved) under it
-            <span className="flex min-w-7 flex-col items-center leading-none">
-              <span className="text-base font-semibold tabular-nums">{originalKey ? keyName(shiftKey(originalKey, key)) : key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>
-              {originalKey && <span className="mt-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">{key === 0 ? 'Key' : `${key > 0 ? '+' : ''}${key}`}</span>}
+            // tempo and key, the key with how far it moved
+            <span className="flex items-baseline gap-1.5 whitespace-nowrap text-sm tabular-nums">
+              {music?.bpm ? <span>{Math.round(music.bpm)} bpm</span> : null}
+              {music?.bpm ? <span aria-hidden="true" className="text-muted-foreground">·</span> : null}
+              <span className="font-semibold">{originalKey ? keyName(shiftKey(originalKey, key)) : 'Key'}</span>
+              {key !== 0 && <span className="text-xs">{`${key > 0 ? '+' : ''}${key}`}</span>}
             </span>
           }
         >
@@ -985,6 +1022,11 @@ export default function PracticePage() {
                   duration={duration}
                   onToggle={() => void togglePlay()}
                   onSeek={(t) => void seekTo(t)}
+                  onStop={stop}
+                  loop={playback.loop}
+                  onLoop={(loop) => setPlayback((p) => ({ ...p, loop }))}
+                  volume={playback.volume}
+                  onVolume={(volume) => setPlayback((p) => ({ ...p, volume }))}
                   bar={barLabel}
                   view={analysis ? prefs.view : undefined}
                   onView={(view) => setPrefs((p) => ({ ...p, view }))}

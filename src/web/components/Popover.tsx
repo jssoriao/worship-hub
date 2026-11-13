@@ -14,13 +14,15 @@ interface Props {
   /** button style when its feature is on (the click, say) */
   active?: boolean
   className?: string
+  /** which edge of the button the panel lines up with */
+  align?: 'start' | 'center' | 'end'
 }
 
 /**
  * A play-bar button with a small panel above it. Radix handles focus, Escape, a tap outside and
  * keeping the panel on screen.
  */
-export function Popover({ label, button, title, children, active = false, className }: Props) {
+export function Popover({ label, button, title, children, active = false, className, align = 'end' }: Props) {
   return (
     <Root>
       <PopoverTrigger asChild>
@@ -33,7 +35,7 @@ export function Popover({ label, button, title, children, active = false, classN
           {button}
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="top" align="end" aria-label={title} className="w-72 p-3 text-sm">
+      <PopoverContent side="top" align={align} aria-label={title} className="w-72 p-3 text-sm">
         <p className="mb-2 font-medium">{title}</p>
         {children}
       </PopoverContent>
