@@ -30,7 +30,7 @@ interface Props {
   onSave: (text: string) => Promise<void>
   onCancel: () => void
   /** a chart made from the song's analysis; absent when the song has none */
-  build?: (level: ChordLevel) => string
+  build?: (level: ChordLevel, quickChords: boolean) => string
   /** open with a chart built from the analysis instead of `initial` (still to be saved) */
   startBuilt?: boolean
 }
@@ -45,7 +45,8 @@ const LEVELS: [ChordLevel, string][] = [
 export default function ChartEditor({ initial, syncing, onSave, onCancel, build, startBuilt }: Props) {
   const { getTransport } = useNowPlaying()
   const [level, setLevel] = useState<ChordLevel>('simple')
-  const [text, setText] = useState(() => (startBuilt && build ? build('simple') : initial))
+  const [quick, setQuick] = useState(false)
+  const [text, setText] = useState(() => (startBuilt && build ? build('simple', false) : initial))
   // the text the last build made: replacing it again needs no confirmation
   const [built, setBuilt] = useState(() => (startBuilt && build ? text : null))
   const [confirming, setConfirming] = useState(false)
@@ -89,7 +90,7 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel, build,
     if (!build) return
     const blank = text.trim() === '' || text === TEMPLATE || text === built
     if (!force && !blank) return setConfirming(true)
-    const next = build(level)
+    const next = build(level, quick)
     setText(next)
     setBuilt(next)
     setConfirming(false)
@@ -117,6 +118,10 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel, build,
                 </option>
               ))}
             </NativeSelect>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground" title="Passing chords shorter than about a beat and a half">
+              <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} disabled={saving} className="size-4 accent-primary" />
+              Quick chords
+            </label>
             <Button variant="outline" onClick={() => rebuild()} disabled={saving || confirming} title="Write the chart from the song's analysis: sections, lyrics and chords">
               {built === null && initial === TEMPLATE ? 'Build from analysis' : 'Rebuild from analysis'}
             </Button>

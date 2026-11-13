@@ -104,7 +104,8 @@ export default function ChartsPage() {
   const build = useMemo(
     () =>
       songAnalysis
-        ? (level: ChordLevel) => chartFromAnalysis(songAnalysis, { title: songInfo?.title, artist: songInfo?.artist ?? undefined, level })
+        ? (level: ChordLevel, quickChords: boolean) =>
+            chartFromAnalysis(songAnalysis, { title: songInfo?.title, artist: songInfo?.artist ?? undefined, level, quickChords })
         : undefined,
     [songAnalysis, songInfo],
   )

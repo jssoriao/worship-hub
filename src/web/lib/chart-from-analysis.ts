@@ -9,6 +9,9 @@
  *   {end_of_verse}
  *
  * - A chord goes in front of the word sung when it changes (a long word is split where it changes).
+ * - A line starts with the chord already playing only when it is not the last chord written (and in
+ *   a section's first line), so a chord held across lines is written once.
+ * - Quick chords (shorter than about a beat and a half) are left out unless asked for.
  * - Chords between sung lines become chord-only lines, a few per line.
  * - Every section gets a `{cue}` from where it starts, so the chart follows the stems.
  * - Chords are spelled for the key (G# becomes Ab in a song in Ab).
@@ -24,12 +27,16 @@ export interface BuildOptions {
   level?: ChordLevel
   /** lines with more words are split at their longest pause */
   maxWords?: number
+  /** keep chords shorter than about a beat and a half (passing chords); left out by default */
+  quickChords?: boolean
 }
 
 /** a chord this much before a word (in seconds) is played for that word */
 const LEAD = 0.25
 /** chords per chord-only line */
 const PER_LINE = 4
+/** a chord lasting less than this many beats is a quick (passing) chord */
+const QUICK_BEATS = 1.5
 
 type Change = { t: number; name: string }
 type Section = { t: number; label: string }
@@ -40,11 +47,12 @@ export function chartFromAnalysis(a: SongAnalysis, opts: BuildOptions = {}): str
   const key = parseKey(a.key)
   const spell = (name: string) => (key ? respellChord(name, prefersFlats(key)) : name)
 
-  const changes: Change[] = []
+  const spelled: Change[] = []
   for (const c of chordChanges(a, level)) {
     const name = spell(c.name)
-    if (changes[changes.length - 1]?.name !== name) changes.push({ t: c.t, name })
+    if (spelled[spelled.length - 1]?.name !== name) spelled.push({ t: c.t, name })
   }
+  const changes = opts.quickChords ? spelled : withoutQuick(spelled, (QUICK_BEATS * 60) / (a.bpm > 0 ? a.bpm : 100))
   const lines = a.lines
     .map((l) => l.words.map((w) => ({ ...w, w: clean(w.w) })).filter((w) => w.w !== ''))
     .filter((words) => words.length > 0)
@@ -92,22 +100,44 @@ function sectionBody(lines: Word[][], chords: Change[], sounding: (t: number) =>
     for (let i = 0; i < names.length; i += PER_LINE) out.push(names.slice(i, i + PER_LINE).map((n) => `[${n}]`).join(' '))
   }
   let ci = 0
+  // the last chord written in this section ("" before the first)
+  let last = ''
   for (const words of lines) {
     const start = words[0].t
     const end = words[words.length - 1].end
     const gap: string[] = []
     while (ci < chords.length && chords[ci].t + LEAD < start) gap.push(chords[ci++].name)
     // a lone chord before the line is the one it starts on, and is written on its first word
-    if (gap.length > 1 || (gap.length === 1 && gap[0] !== sounding(start))) chordLines(gap)
+    if (gap.length > 1 || (gap.length === 1 && gap[0] !== sounding(start))) {
+      chordLines(gap)
+      last = gap[gap.length - 1]
+    }
     const mine: Change[] = []
     while (ci < chords.length && chords[ci].t < end) mine.push(chords[ci++])
-    out.push(sungLine(words, mine, sounding(start)))
+    const playing = sounding(start)
+    const restate = playing !== last ? playing : ''
+    out.push(sungLine(words, mine, restate))
+    last = mine.length > 0 ? mine[mine.length - 1].name : restate || last
   }
   chordLines(chords.slice(ci).map((c) => c.name))
   return out
 }
 
-/** "[D]Words of the [G]line". The chord already sounding is written on the first word when no change falls there. */
+/**
+ * Leaves out chords shorter than `min` seconds (to the next change); the chord before one goes on
+ * through it, and joins the next when that is the same chord (A, quick G, A -> A).
+ */
+function withoutQuick(changes: Change[], min: number): Change[] {
+  const out: Change[] = []
+  changes.forEach((c, i) => {
+    const next = changes[i + 1]
+    if (next && next.t - c.t < min) return
+    if (out[out.length - 1]?.name !== c.name) out.push(c)
+  })
+  return out
+}
+
+/** "[D]Words of the [G]line". `sounding` (the chord playing, when it needs writing) goes on the first word when no change falls there. */
 function sungLine(words: Word[], chords: Change[], sounding: string): string {
   const at = words.map((): Change[] => [])
   for (const c of chords) at[wordFor(words, c.t)].push(c)

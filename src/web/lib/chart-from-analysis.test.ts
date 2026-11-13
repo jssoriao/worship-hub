@@ -96,7 +96,33 @@ describe('chartFromAnalysis', () => {
   it('writes the chords between sung lines on their own lines, a few per line', () => {
     const chords = ['D', 'G', 'A', 'Bm', 'G', 'D'].map((n, i) => chord(4 + i, 5 + i, n))
     const text = chartFromAnalysis(song({ chords: [chord(0, 4, 'A'), ...chords], lines: [line(0, 'aa bb'), line(12, 'cc dd')] }))
-    expect(text).toContain('[A]aa bb\n[D] [G] [A] [Bm]\n[G] [D]\n[D]cc dd')
+    // the line goes on with the last chord written, so it is not written again
+    expect(text).toContain('[A]aa bb\n[D] [G] [A] [Bm]\n[G] [D]\ncc dd')
+  })
+
+  it('writes a chord held across lines once, but again at the start of the next section', () => {
+    const text = chartFromAnalysis(
+      song({
+        sections: [
+          { t: 0, end: 10, label: 'Verse' },
+          { t: 10, end: 20, label: 'Chorus' },
+        ],
+        chords: [chord(0, 6, 'D'), chord(6, 20, 'G')],
+        lines: [line(0, 'aa bb'), line(3, 'cc dd'), line(6, 'ee ff'), line(8, 'gg hh'), line(10, 'ii jj')],
+      }),
+    )
+    expect(text).toContain('[D]aa bb\ncc dd\n[G]ee ff\ngg hh\n{end_of_verse}')
+    expect(text).toContain('{cue: 0:10.0}\n[G]ii jj')
+  })
+
+  it('leaves out quick chords unless asked, joining the chords around them', () => {
+    // 120 bpm: a beat is 0.5 s, so the 0.5 s G is quick and the 1 s Bm is not
+    const a = song({
+      chords: [chord(0, 2, 'D'), chord(2, 2.5, 'G'), chord(2.5, 4, 'D'), chord(4, 5, 'Bm'), chord(5, 8, 'A')],
+      lines: [line(0, 'aa bb cc dd ee ff')],
+    })
+    expect(chartFromAnalysis(a)).toContain('[D]aa bb cc dd [Bm]ee [A]ff')
+    expect(chartFromAnalysis(a, { quickChords: true })).toContain('[D]aa bb [G]c[D]c dd [Bm]ee [A]ff')
   })
 
   it('places a change inside a held word where it falls', () => {
