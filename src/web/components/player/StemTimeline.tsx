@@ -25,7 +25,6 @@ interface Props {
   onPatch: (index: number, patch: Partial<MixState>) => void
   analysis: SongAnalysis | null
   level: ChordLevel
-  click?: { on: boolean; volume: number; onToggle: () => void; onVolume: (v: number) => void }
 }
 
 const LANE_COLOURS = ['bg-primary/60', 'bg-sky-800/70', 'bg-indigo-800/70', 'bg-violet-800/70', 'bg-fuchsia-900/70', 'bg-amber-800/70']
@@ -35,7 +34,7 @@ const LANE_COLOURS = ['bg-primary/60', 'bg-sky-800/70', 'bg-indigo-800/70', 'bg-
  * ruler, lanes for sections, chords and lyrics, then a slim row per stem (volume, M/S, waveform),
  * all under one playhead. Tap any lane to play from there. For wide screens.
  */
-export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatch, analysis, level, click }: Props) {
+export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatch, analysis, level }: Props) {
   const [open, setOpen] = useState<Set<number>>(new Set())
 
   // fill the window from where the box starts down to the play bar (the dock, App.tsx); the stems scroll inside it
@@ -47,8 +46,8 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
       const el = box.current
       if (!el) return
       const top = el.getBoundingClientRect().top + window.scrollY
-      // the dock holds the play bar and the views above it; keep a small gap over them
-      const reserve = (dock?.getBoundingClientRect().height ?? 0) + 12
+      // the dock is the play bar; the views float over the bottom of the box, so only a small gap is kept
+      const reserve = (dock?.getBoundingClientRect().height ?? 0) + 8
       setHeight(Math.max(240, Math.floor(window.innerHeight - top - reserve)))
     }
     fit()
@@ -179,7 +178,7 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
         </div>
       )}
 
-      <div ref={box} style={{ height }} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card/60">
+      <div ref={box} style={{ height }} className="flex flex-col overflow-hidden rounded-[6px] border border-border bg-card/60">
         {/* the song lanes stay put; the same gutter as the stems below keeps them lined up */}
         {analysis && (
           <div className="relative shrink-0 overflow-y-hidden [scrollbar-gutter:stable]">
@@ -233,23 +232,6 @@ export function StemTimeline({ rows, byIndex, duration, position, onSeek, onPatc
             {open.has(r.index) && r.parts.map((p) => byIndex.get(p)).map((p) => (p ? row(p, true) : null))}
           </div>
         ))}
-
-        {click && (
-          <div className="flex h-12 items-stretch">
-            <div className="flex w-56 shrink-0 items-center gap-2 border-r border-border px-2">
-              <span className="w-4" />
-              <span className={`flex-1 text-sm font-medium ${click.on ? '' : 'text-muted-foreground'}`}>Click</span>
-              <input type="range" min={0} max={1} step={0.01} value={click.volume} aria-label="Click volume" onChange={(e) => click.onVolume(Number(e.target.value))} className="w-20 accent-primary" />
-              <button aria-pressed={click.on} aria-label={click.on ? 'Click on: turn off' : 'Click off: turn on'} onClick={click.onToggle} className={`h-6 rounded px-1.5 text-xs font-bold ${click.on ? 'bg-primary text-white' : 'bg-accent text-slate-300'}`}>
-                {click.on ? 'On' : 'Off'}
-              </button>
-            </div>
-            <div className="relative min-w-0 flex-1 cursor-pointer" onClick={seekAt} aria-hidden="true">
-              {analysis &&
-                bars.map((b, i) => <span key={i} className={`absolute top-3 bottom-3 w-px ${click.on ? 'bg-slate-500' : 'bg-slate-700'}`} style={{ left: pct(b[0].t) }} />)}
-            </div>
-          </div>
-        )}
 
         {playhead}
         </div>

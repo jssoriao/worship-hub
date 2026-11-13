@@ -58,12 +58,14 @@ export function TransportBar(props: Props) {
   // while the seek bar is dragged it shows where you are going, and seeks when you let go
   const [drag, setDrag] = useState<number | null>(null)
   const shownPos = drag ?? position
-  const iconBtn = 'flex size-9 items-center justify-center rounded-full text-secondary-foreground outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring'
+  const iconBase = 'relative flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  const iconBtn = `${iconBase} text-secondary-foreground hover:bg-accent hover:text-accent-foreground`
 
   return (
-    <div>
+    <div className="relative">
       {onPracticePage && view && onView && (
-        <nav aria-label="Views" className="pointer-events-none mb-3 flex justify-center">
+        // floats over the page just above the bar, taking no room of its own
+        <nav aria-label="Views" className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center">
           <div className="surface-glass pointer-events-auto flex items-center gap-1 rounded-full border p-1">
             {VIEWS.map(([v, label]) => (
               <button
@@ -108,7 +110,7 @@ export function TransportBar(props: Props) {
             className="absolute inset-0 w-full cursor-pointer opacity-0"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
             {onPracticePage ? (
@@ -135,14 +137,11 @@ export function TransportBar(props: Props) {
                 className="size-9 rounded-full px-0"
                 button={<VolumeIcon level={volume} />}
               >
-                <label className="block text-slate-300">
-                  <span className="flex justify-between text-xs text-muted-foreground">
-                    <span>Everything you hear</span>
-                    <span className="tabular-nums">{Math.round(volume * 100)}%</span>
-                  </span>
-                  <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="mt-1 w-full accent-primary" />
+                <label className="flex items-center gap-3 text-slate-300">
+                  <span className="sr-only">Volume</span>
+                  <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="w-full accent-primary" />
+                  <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{Math.round(volume * 100)}%</span>
                 </label>
-                <p className="mt-2 text-xs text-muted-foreground">Each stem has its own volume in the Stems view.</p>
               </Popover>
               <button type="button" aria-label={`Back ${SKIP} seconds`} title={`Back ${SKIP} seconds`} onClick={() => onSeek(Math.max(0, position - SKIP))} className={iconBtn}>
                 <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
@@ -183,14 +182,16 @@ export function TransportBar(props: Props) {
                 aria-pressed={loop}
                 title={loop ? 'Repeat: on' : 'Repeat: off'}
                 onClick={() => onLoop(!loop)}
-                className={`${iconBtn} ${loop ? 'text-highlight' : ''}`}
+                // on: tinted and with a dot under it, so it reads as switched on at a glance
+                className={loop ? `${iconBase} bg-primary/20 text-highlight hover:bg-primary/30` : iconBtn}
               >
                 <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 9V8a3 3 0 0 1 3-3h9M13.5 2.5 16 5l-2.5 2.5M16 11v1a3 3 0 0 1-3 3H4M6.5 17.5 4 15l2.5-2.5" />
                 </svg>
+                {loop && <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-current" />}
               </button>
             </div>
-            <p className="text-[11px] tabular-nums text-muted-foreground">
+            <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
               <span className="font-mono">
                 {fmt(shownPos)} / {fmt(duration)}
               </span>

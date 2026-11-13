@@ -29,6 +29,9 @@ export class SupersededError extends Error {}
 
 const CHUNK_SEC = 8 // decoded PCM chunk size
 const AHEAD_SEC = 20 // how far ahead to decode + schedule
+/** tempo range: 70 % to 130 % of the recording */
+export const MIN_TEMPO = 0.7
+export const MAX_TEMPO = 1.3
 const PUMP_MS = 250
 const STALL_MARGIN_SEC = 1 // pause for buffering when downloaded audio runs this close to the playhead
 const RESUME_AHEAD_SEC = 6 // and carry on once this much is downloaded ahead of it
@@ -136,6 +139,8 @@ export class StemEngine {
   /** where stems and click play into (and the key they sound in), made again for a new context */
   private bus: KeyBus | null = null
   private semitones = 0
+  /** tempo: how fast the song plays, 1 = as recorded (plain playback only, not timelines) */
+  private rate = 1
   /** master volume, 0..1 */
   private volume = 1
   private clickSounds: { ctx: AudioContext; accent: AudioBuffer; beat: AudioBuffer } | null = null
@@ -172,10 +177,12 @@ export class StemEngine {
     if (this.bus?.ctx !== this._ctx) {
       this.bus = new KeyBus(this._ctx)
       this.bus.onError = (e) => {
-        this.semitones = 0 // it plays in the original key then
+        // it plays in the original key and tempo then (a tempo change without the shifter changes the pitch)
+        this.semitones = 0
+        if (this.rate !== 1) this.setTempo(1)
         this.onKeyError?.(e)
       }
-      if (this.semitones !== 0) void this.bus.setSemitones(this.semitones)
+      if (this.shift !== 0) void this.bus.setSemitones(this.shift)
       this.bus.master.gain.value = this.volume
     }
     return this.bus
@@ -184,7 +191,29 @@ export class StemEngine {
   /** Plays the stems this many semitones up (+) or down (-), at the same tempo. 0 is the original key. */
   setKey(semitones: number) {
     this.semitones = semitones
-    void this.keyBus.setSemitones(semitones)
+    void this.keyBus.setSemitones(this.shift)
+  }
+  /** What the shifter does: the key, plus undoing the pitch change that the tempo's playback rate makes. */
+  private get shift() {
+    return this.semitones - 12 * Math.log2(this.rate)
+  }
+  /**
+   * Plays the song faster (> 1) or slower (< 1) at the same pitch: 1.1 is 10 % faster. Stems play at that
+   * rate and the key shifter takes the pitch back. Arrangement timelines always play at 1.
+   */
+  setTempo(rate: number) {
+    const r = this.segments ? 1 : Math.min(MAX_TEMPO, Math.max(MIN_TEMPO, rate))
+    if (r === this.rate) return
+    const wasPlaying = this.playing
+    const at = this.position
+    if (this.playing) this.halt()
+    this.rate = r
+    void this.keyBus.setSemitones(this.shift)
+    this.pausedAt = at
+    if (wasPlaying) void this.play()
+  }
+  get tempo() {
+    return this.rate
   }
 
   /** The master volume (0..1): stems and click together. */
@@ -240,7 +269,8 @@ export class StemEngine {
   }
 
   get position() {
-    const p = this.playing ? this.ctx.currentTime - this.startedAt : this.pausedAt
+    // song time runs `rate` times as fast as the clock
+    const p = this.playing ? (this.ctx.currentTime - this.startedAt) * this.rate : this.pausedAt
     return Math.min(Math.max(p, 0), this.duration)
   }
 
@@ -590,7 +620,7 @@ export class StemEngine {
     this.setBuffering(false)
     const sr = this.ctx.sampleRate
     // snap to a sample frame so every chunk boundary lands on an exact frame
-    this.startedAt = Math.round((this.ctx.currentTime + 0.08 - offset) * sr) / sr
+    this.startedAt = Math.round((this.ctx.currentTime + 0.08 - offset / this.rate) * sr) / sr
     this.playing = true
     this.nextChunk = k0
     this.nextUnit = u0
@@ -805,12 +835,12 @@ export class StemEngine {
   /** Queues the clicks of the next CLICK_AHEAD_SEC. Beats that are already past are skipped. */
   private scheduleClicks(pos: number) {
     if (this.clicks.length === 0) return
-    const until = Math.min(pos + CLICK_AHEAD_SEC, this.duration)
+    const until = Math.min(pos + CLICK_AHEAD_SEC * this.rate, this.duration)
     const now = this.ctx.currentTime + 0.005
     const out = this.clickOn ? this.clickOut() : null
     while (this.nextBeat < this.clicks.length && this.clicks[this.nextBeat].t < until) {
       const beat = this.clicks[this.nextBeat++]
-      const when = this.startedAt + beat.t
+      const when = this.startedAt + beat.t / this.rate
       // off: the beat is passed over, so turning the click on carries on from where the song is
       if (!out || when < now) continue
       const src = this.ctx.createBufferSource()
@@ -837,6 +867,11 @@ export class StemEngine {
     const at = this.position
     if (this.playing) this.halt()
     this.segments = segments && segments.length > 0 ? segments.map((s) => ({ ...s })) : null
+    if (this.segments && this.rate !== 1) {
+      // timelines play at the recorded tempo (their scheduling has no rate)
+      this.rate = 1
+      void this.keyBus.setSemitones(this.shift)
+    }
     this.lead = this.segments ? Math.max(0, lead) : 0
     this.leadBeats = this.segments ? leadBeats : []
     this.buildUnits()
@@ -988,17 +1023,19 @@ export class StemEngine {
   }
 
   private schedule(t: Track, buf: AudioBuffer, k: number) {
-    let when = this.startedAt + k * this.chunkSec
+    // clock time of the chunk's start; at another tempo each chunk lasts chunkSec / rate on the clock
+    let when = this.startedAt + (k * this.chunkSec) / this.rate
     let offset = 0
     const now = this.ctx.currentTime + 0.005
     if (when < now) {
       // late (or first chunk after a seek): start mid-chunk to stay in sync
-      offset = now - when
+      offset = (now - when) * this.rate
       when = now
       if (offset >= buf.duration) return
     }
     const src = this.ctx.createBufferSource()
     src.buffer = buf
+    src.playbackRate.value = this.rate
     src.connect(t.gain)
     src.start(when, offset)
     src.onended = () => {
