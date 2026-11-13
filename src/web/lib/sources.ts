@@ -215,9 +215,9 @@ function musicOf(raw: unknown): SongMusic | undefined {
 }
 
 /** "Key D · 130 BPM · 4/4", leaving out what is not known. */
-export function describeMusic(music: SongMusic | undefined): string {
+export function describeMusic(music: SongMusic | undefined, { key = true }: { key?: boolean } = {}): string {
   if (!music) return ''
-  return [music.key && `Key ${music.key}`, music.bpm && `${Math.round(music.bpm)} BPM`, music.meter && `${music.meter}/4`].filter(Boolean).join(' · ')
+  return [key && music.key && `Key ${music.key}`, music.bpm && `${Math.round(music.bpm)} BPM`, music.meter && `${music.meter}/4`].filter(Boolean).join(' · ')
 }
 
 /** Key and tempo of a library song, for pages that do not load its stems (Charts). */

@@ -33,8 +33,9 @@ const PAPER_MIN_WIDTH = 600 // narrower screens (phones) use the screen itself a
 const FIT_STEPS = Array.from({ length: 35 }, (_, i) => Math.round((2.3 - i * 0.05) * 100) / 100) // 2.3 … 0.6
 
 const PAPER_COLOURS: Record<Paper, CSSProperties> = {
-  light: { '--chord': '#0f766e', '--muted': '#64748b', '--line': '#cbd5e1', '--hover': '#f1f5f9', '--active': 'rgb(13 148 136 / 0.12)' } as CSSProperties,
-  dark: { '--chord': '#5eead4', '--muted': '#94a3b8', '--line': '#334155', '--hover': '#1e293b', '--active': 'rgb(45 212 191 / 0.12)' } as CSSProperties,
+  // chords in the church's brand colour: darkened on white paper, the light --highlight on dark paper
+  light: { '--chord': 'color-mix(in oklch, var(--brand) 72%, black)', '--muted': '#64748b', '--line': '#cbd5e1', '--hover': '#f1f5f9', '--active': 'color-mix(in oklch, var(--brand) 12%, transparent)' } as CSSProperties,
+  dark: { '--chord': 'var(--highlight)', '--muted': '#94a3b8', '--line': '#334155', '--hover': '#1e293b', '--active': 'color-mix(in oklch, var(--brand) 16%, transparent)' } as CSSProperties,
 }
 
 /**

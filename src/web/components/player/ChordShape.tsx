@@ -97,12 +97,12 @@ function Piano({ name }: { name: string }) {
     <svg viewBox="0 0 100 52" role="img" aria-label={`${name} on piano: ${noteName(chord.bass, chord.flats)} in the bass, ${chord.notes.map((n) => noteName(n, chord.flats)).join(' ')}`} className="block h-auto w-full">
       {keys.flatMap((oct, o) =>
         WHITE.map((pc, i) => (
-          <rect key={`w${o}${pc}`} x={(o * 7 + i) * ww} y={0} width={ww - 0.6} height={40} rx={1} fill={lit.has(oct + pc) ? '#14b8a6' : 'white'} stroke="#94a3b8" strokeWidth={0.4} />
+          <rect key={`w${o}${pc}`} x={(o * 7 + i) * ww} y={0} width={ww - 0.6} height={40} rx={1} fill={lit.has(oct + pc) ? 'var(--brand)' : 'white'} stroke="#94a3b8" strokeWidth={0.4} />
         )),
       )}
       {keys.flatMap((oct, o) =>
         BLACK.map(([pc, after]) => (
-          <rect key={`b${o}${pc}`} x={(o * 7 + after) * ww - ww * 0.3} y={0} width={ww * 0.6} height={25} rx={0.8} fill={lit.has(oct + pc) ? '#0d9488' : '#1e293b'} />
+          <rect key={`b${o}${pc}`} x={(o * 7 + after) * ww - ww * 0.3} y={0} width={ww * 0.6} height={25} rx={0.8} fill={lit.has(oct + pc) ? 'color-mix(in oklch, var(--brand) 70%, black)' : '#1e293b'} />
         )),
       )}
       <text x={25} y={50} fontSize={6} textAnchor="middle" fill="#475569">
