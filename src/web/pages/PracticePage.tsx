@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useNavigate } from 'react-router'
+import { useBlocker, useLocation, useNavigate } from 'react-router'
 import { usePlayerSlot } from '../lib/player-slot'
 import { audioCache } from '../lib/audio-cache'
 import { MAX_TEMPO, MIN_TEMPO, StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
@@ -20,6 +20,7 @@ import { Alert } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
 import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
+import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
 import { LyricsView } from '../components/player/LyricsView'
 import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
@@ -176,36 +177,88 @@ export default function PracticePage() {
   const mayEdit = church.can({ content: ['edit'] })
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<SongAnalysis | null>(null)
-  const [editStatus, setEditStatus] = useState('')
+  // a failed save or a version that would not open; nothing else is written in the edit bar
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  // the Versions window: open, and what it lists (null while loading)
+  const [versionsOpen, setVersionsOpen] = useState(false)
   const [versions, setVersions] = useState<AnalysisVersion[] | null>(null)
+  // "Save your changes?" is open (Done, Esc, or another page or song asked to leave)
+  const [asking, setAsking] = useState(false)
   const shown = draft ?? analysis
   // what is read while playing: chords and key as they sound (editing shows the recording's own)
   const heard = useMemo(() => (shown && !editing ? transposeAnalysis(shown, key) : shown), [shown, editing, key])
   const change = (f: (a: SongAnalysis) => SongAnalysis) => {
     if (!shown) return
     setDraft(f(shown))
-    setEditStatus('')
+    setEditError('')
   }
-  const stopEditing = () => {
-    if (draft && !window.confirm('Discard your changes?')) return
+  /** Ends edit mode and drops what was not saved (callers have asked first). */
+  const exitEdit = () => {
     setDraft(null)
     setEditing(false)
+    setVersionsOpen(false)
     setVersions(null)
-    setEditStatus('')
+    setEditError('')
+    setAsking(false)
   }
-  const saveDraft = async () => {
-    if (!draft || !songId) return
-    setEditStatus('Saving…')
+  /** Done or Esc: leave edit mode, asking first when there are unsaved changes. */
+  const leaveEditing = () => (draft ? setAsking(true) : exitEdit())
+  // Edit mode belongs to the page it was started on: another page, another song or Back asks first when
+  // there are unsaved changes (the prompt is the one below), and otherwise just ends it
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => draft !== null && (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search))
+  const blocked = blocker.state === 'blocked'
+  // closing or reloading the tab with unsaved edits would lose them: let the browser ask first
+  useEffect(() => {
+    if (!draft) return
+    const ask = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', ask)
+    return () => window.removeEventListener('beforeunload', ask)
+  }, [draft])
+  /** Saves the draft; true when it is saved. */
+  const saveDraft = async (): Promise<boolean> => {
+    if (!draft || !songId) return false
+    setSavingEdit(true)
+    setEditError('')
     try {
       await saveAnalysis(songId, draft)
       setAnalysis(draft)
       setDraft(null)
-      setEditStatus('Saved')
-      setVersions(null)
+      return true
     } catch (e) {
-      setEditStatus(`Could not save: ${e instanceof Error ? e.message : String(e)}`)
+      setEditError(`Could not save: ${e instanceof Error ? e.message : String(e)}`)
+      return false
+    } finally {
+      setSavingEdit(false)
     }
   }
+  /** From "Save your changes?": go on (leave edit mode, and carry on to the page that was asked for). */
+  const goOn = () => {
+    exitEdit()
+    if (blocked) blocker.proceed()
+  }
+  const stay = () => {
+    setAsking(false)
+    if (blocked) blocker.reset()
+  }
+  const showVersions = () => {
+    setVersionsOpen(true)
+    setVersions(null)
+    setEditError('')
+    void listVersions(songId).then(setVersions)
+  }
+  // Esc leaves edit mode, but a box that is open (a chord, a line, a window) takes the Esc first. This listens
+  // in the capture phase, before that box handles the key and closes itself, so it can still see that it was open.
+  useEffect(() => {
+    if (!editing) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return
+      e.preventDefault()
+      leaveEditing()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  })
   const onLine = (index: number, text: string) =>
     change((a) => {
       const bar = text.indexOf('|')
@@ -404,6 +457,11 @@ export default function PracticePage() {
   const playerSlot = usePlayerSlot()
   const navigate = useNavigate()
   const onPracticePage = pathname === '/practice' || pathname.startsWith('/practice/')
+  // Practice stays mounted behind other pages: coming back must not find edit mode still open
+  if (editing && !onPracticePage) {
+    setEditing(false)
+    setDraft(null)
+  }
   const wanted = songFromAddress(new URLSearchParams(search).get('song'))
   const onFile = (file: File | undefined) => {
     if (!file) return
@@ -803,6 +861,19 @@ export default function PracticePage() {
       )}
     </>
   )
+  // Save / Discard / Versions / Done: under the toolbar, and stuck to the top of the window when the page is scrolled
+  const editBar =
+    shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') ? (
+      <EditBar
+        dirty={draft !== null}
+        saving={savingEdit}
+        error={versionsOpen || asking || blocked ? '' : editError}
+        onSave={() => void saveDraft()}
+        onDiscard={() => (setDraft(null), setEditError(''))}
+        onVersions={showVersions}
+        onDone={leaveEditing}
+      />
+    ) : null
   // on phones the three controls share one row, so they get smaller there
   const small = `${buttonVariants({ variant: 'outline', size: 'sm' })} max-sm:px-2.5 max-sm:text-xs`
   // nothing chosen or loading: show only a centred search
@@ -832,6 +903,8 @@ export default function PracticePage() {
   return (
     <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-3' : 'pb-48 md:pb-40'}`}>
         {/* the title, and once a song is open: the song, its quality, offline, another zip */}
+        {/* in edit mode the whole top bar goes (title, sidebar button, song controls): the edit bar takes its place */}
+        {!editing && (
         <PageHeader
           title="Practice"
           actions={
@@ -886,6 +959,7 @@ export default function PracticePage() {
             )
           }
         />
+        )}
         {notInChurch && wanted === '' && (
           <Alert className="mt-3">That song is not in this church.</Alert>
         )}
@@ -940,61 +1014,22 @@ export default function PracticePage() {
               </div>
             )}
 
-            {shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') && (
-              <div className="mt-2 rounded-xl border border-primary/40 bg-primary/10 p-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-auto text-highlight">
-                    {prefs.view === 'chords' ? 'Tap a beat to set its chord, a bar number for its section.' : 'Tap a line to fix its words.'}
-                  </span>
-                  <button type="button" disabled={!draft} onClick={() => void saveDraft()} className="rounded-lg border border-highlight/70 px-3 py-1 text-highlight disabled:opacity-40">
-                    Save changes
-                  </button>
-                  <button type="button" disabled={!draft} onClick={() => (setDraft(null), setEditStatus(''))} className="rounded-lg border border-slate-600 px-3 py-1 disabled:opacity-40">
-                    Discard changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => (versions ? setVersions(null) : void listVersions(songId).then(setVersions))}
-                    aria-expanded={versions !== null}
-                    className="rounded-lg border border-slate-600 px-3 py-1"
-                  >
-                    Versions
-                  </button>
-                  <button type="button" onClick={stopEditing} className="rounded-lg border border-slate-600 px-3 py-1">
-                    Done
-                  </button>
-                </div>
-                <p role="status" className="mt-1 text-xs text-muted-foreground">
-                  {editStatus || (draft ? 'Not saved yet' : '')}
-                </p>
-                {versions && (
-                  <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                    {versions.length === 0 && <li className="text-xs text-muted-foreground">No earlier versions yet: they are kept each time someone saves.</li>}
-                    {versions.map((v) => (
-                      <li key={v.file} className="flex items-center gap-2 text-xs">
-                        <span className="flex-1 text-slate-300">
-                          {new Date(v.savedAt).toLocaleString()} {v.savedBy && <span className="text-muted-foreground">· {v.savedBy}</span>}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Open the version of ${new Date(v.savedAt).toLocaleString()}`}
-                          className="rounded border border-slate-600 px-2 py-0.5"
-                          onClick={() =>
-                            void fetchAnalysisVersion(songId, v.file).then((a) => {
-                              if (!a) return setEditStatus('Could not open that version')
-                              setDraft(a)
-                              setEditStatus('An earlier version: Save to bring it back')
-                            })
-                          }
-                        >
-                          Open
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+            {editBar}
+            <VersionsDialog
+              open={versionsOpen}
+              versions={versions}
+              error={editError}
+              onClose={() => setVersionsOpen(false)}
+              onOpenVersion={(file) =>
+                void fetchAnalysisVersion(songId, file).then((a) => {
+                  if (!a) return setEditError('Could not open that version')
+                  setEditError('')
+                  setDraft(a)
+                  setVersionsOpen(false)
+                })
+              }
+            />
+            <UnsavedDialog open={asking || blocked} saving={savingEdit} error={editError} onSave={() => void saveDraft().then((saved) => saved && goOn())} onDiscard={goOn} onCancel={stay} />
             {heard && prefs.view === 'lyrics' && (
               <LyricsView
                 analysis={heard}
@@ -1039,7 +1074,8 @@ export default function PracticePage() {
                   volume={playback.volume}
                   onVolume={(volume) => setPlayback((p) => ({ ...p, volume }))}
                   bar={barLabel}
-                  view={analysis ? prefs.view : undefined}
+                  // no view tabs in edit mode: it belongs to the page it was started on
+                  view={analysis && !editing ? prefs.view : undefined}
                   onView={(view) => setPrefs((p) => ({ ...p, view }))}
                   tools={tools}
                   // away from Practice: the views make no sense, and the title leads back
