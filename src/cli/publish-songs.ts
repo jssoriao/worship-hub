@@ -41,20 +41,24 @@
  * combined stem live in the manifest, so you can reorganise the local folders and publish with
  * --manifest-only without uploading any audio again. Keep the file names unchanged for that.
  *
- * Uploads are remembered in .publish-state.json (gitignored): a file already uploaded from an
- * unchanged source is skipped, so publishing again costs no data. Delete the file or use --force
- * to upload everything again. --manifest-only lists only the qualities recorded there as complete.
+ * A file that is online already is skipped (and not re-encoded), so publishing again costs no data,
+ * from any machine. For production the bucket itself says so: the song's files are listed first (one
+ * request), an original counts as there when R2's etag is its MD5, and a re-encoded copy when the
+ * manifest's `src` says it was made from the same source file. .publish-state.json (gitignored) is
+ * this machine's record of its own uploads: it saves that check, and it is all the local R2 has.
+ * --force uploads everything again.
  */
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ANALYSIS_FILE, currentAnalysis } from './lib/analysis.ts'
-import { CHART_FILE, MIME, TIERS, cachedVariant, fileHash, isDir, listSongs, manifest, songMusic, stemFiles, tierPath, tierSizes, variantFile } from './lib/song-files.ts'
+import { CHART_FILE, MIME, TIERS, cachedVariant, fileHash, fileMd5, isDir, listSongs, manifest, songMusic, stemFiles, tierPath, tierSizes, variantFile } from './lib/song-files.ts'
 import { openDb } from '../db/client.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
 import { churchBySlug, ensureSong, songIdByTitle, userIdByEmail } from './lib/songs-db.ts'
-import { offeredTiers, parseTierList, pickVersion, tiersFromManifest, versionsFromManifest, type TierStatus } from './tiers.ts'
+import { WranglerStore } from './lib/r2.ts'
+import { alreadyOnline, offeredTiers, parseTierList, pickVersion, sourcesFromManifest, tiersFromManifest, versionsFromManifest, type Listed, type TierStatus } from './tiers.ts'
 
 const BUCKET = 'worship-hub'
 // Every key is spelled out in full (churches/<churchId>/songs/<songId>/...), see rootOf below
@@ -144,12 +148,8 @@ function run(wranglerArgs: string[], capture = false) {
   return spawnSync(wrangler, wranglerArgs, { stdio: capture ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'inherit', 'inherit'], encoding: 'utf8' })
 }
 
-/** Uploads one object. With a `stamp` it is skipped when that exact upload is already recorded. */
+/** Uploads one object, and with a `stamp` records it (the audio; the caller has checked it is needed). */
 function put(key: string, file: string, contentType: string, s?: string) {
-  if (s && !force && recorded(key, s)) {
-    console.log(`  = ${PREFIX}${key} (already uploaded)`)
-    return
-  }
   console.log(`  ${PREFIX}${key}`)
   if (dryRun) return
   const result = run(['r2', 'object', 'put', `${BUCKET}/${PREFIX}${key}`, '--file', file, '--content-type', contentType, ...where])
@@ -168,7 +168,25 @@ function put(key: string, file: string, contentType: string, s?: string) {
  */
 function remoteManifest(songRoot: string) {
   const result = run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/stems/manifest.json`, ...where, '--pipe'], true)
-  return result.status === 0 ? { tiers: tiersFromManifest(result.stdout), versions: versionsFromManifest(result.stdout) } : { tiers: [], versions: {} }
+  return result.status === 0
+    ? { tiers: tiersFromManifest(result.stdout), versions: versionsFromManifest(result.stdout), sources: sourcesFromManifest(result.stdout) }
+    : { tiers: [], versions: {}, sources: {} }
+}
+
+/**
+ * The song's audio in the bucket (key -> size and etag), so a file already there is not uploaded
+ * again, whatever this machine's record says. Production only: the local R2 has no listing outside
+ * `wrangler dev`, and it lives on this machine, so its record is complete. Undefined if listing fails.
+ */
+const store = remote ? new WranglerStore(BUCKET) : undefined
+async function listedAudio(songRoot: string): Promise<Map<string, Listed> | undefined> {
+  if (!store) return undefined
+  try {
+    return new Map((await store.list(`${PREFIX}${songRoot}/stems/`)).map((o) => [o.key.slice(PREFIX.length), { size: o.size, etag: o.etag }]))
+  } catch (error) {
+    console.log(`  (could not list the bucket: ${error instanceof Error ? error.message : error}; going by this machine's record only)`)
+    return undefined
+  }
 }
 
 // ---------------------------------------------------------------- songs
@@ -208,9 +226,12 @@ try {
     console.log(`\n${song.title} -> ${remote ? '' : 'local R2: '}${songRoot}${dryRun ? ' (dry run)' : ''}`)
     const songDir = path.join(root, song.dir)
     const stems = stemFiles(songDir).map((stem) => ({ stem, src: path.join(songDir, ...stem.parts) }))
-    // what is online already (from the manifest in the bucket), and sizes known without encoding
-    const { tiers: online, versions: onlineVersions } = remoteManifest(songRoot)
+    // what is online already (the manifest and the files in the bucket), and sizes known without encoding
+    const { tiers: online, versions: onlineVersions, sources: onlineSources } = remoteManifest(songRoot)
+    const listed = await listedAudio(songRoot)
     const known = tierSizes(songDir)
+    // per file name and quality: the source fingerprint for the new manifest (see manifest())
+    const sources: Record<string, Record<string, string>> = {}
     const statuses: TierStatus[] = []
     // for the fingerprints: the file of each selected quality, and which were uploaded in this run
     const fileOf: Record<string, string[]> = {}
@@ -219,45 +240,85 @@ try {
     for (const tier of TIERS) {
       const q = tier.q
       const label = `${tier.id} (${q === null ? 'files as they are' : `VBR q${q}`})`
-      const items = stems.map(({ stem, src }) => ({
-        src,
-        key: `${songRoot}/stems/${tierPath(tier.id, stem.base)}`,
-        s: stamp(src, q),
-        type: q === null ? (MIME[path.extname(src).slice(1).toLowerCase()] ?? 'application/octet-stream') : 'audio/mpeg',
-      }))
+      const items = stems.map(({ stem, src }) => {
+        const key = `${songRoot}/stems/${tierPath(tier.id, stem.base)}`
+        const s = stamp(src, q)
+        return {
+          stem,
+          src,
+          key,
+          s,
+          type: q === null ? (MIME[path.extname(src).slice(1).toLowerCase()] ?? 'application/octet-stream') : 'audio/mpeg',
+          // online already? (this machine's record, else the bucket); see alreadyOnline in tiers.ts
+          online: alreadyOnline({
+            force,
+            recorded: recorded(key, s),
+            original: q === null,
+            listed,
+            key,
+            sourceMd5: () => fileMd5(src),
+            sourceHash: () => fileHash(src),
+            onlineSource: onlineSources[stem.base]?.[tier.id],
+            cachedMd5: () => {
+              const cached = q === null ? undefined : cachedVariant(src, q)
+              return cached ? fileMd5(cached) : undefined
+            },
+          }),
+        }
+      })
       const status: TierStatus = {
         id: tier.id,
-        complete: items.every((it) => recorded(it.key, it.s)),
+        complete: items.every((it) => it.online !== null || (!force && recorded(it.key, it.s))),
         remote: online.find((t) => t.id === tier.id),
         known: known.find((t) => t.id === tier.id)?.bytes,
       }
       statuses.push(status)
+      // a quality left as it is keeps the sources the manifest already had for it
+      for (const it of items) {
+        const kept = onlineSources[it.stem.base]?.[tier.id]
+        if (kept) (sources[it.stem.base] ??= {})[tier.id] = kept
+      }
 
       if (!wantedTiers.includes(tier.id)) {
         console.log(`  ${label}: not selected (--tiers)${status.complete || status.remote ? ', stays online' : ''}`)
         continue
       }
       if (q === null) for (const { src } of items) if (fs.statSync(src).size > MAX_BYTES) throw new Error(`Too large for wrangler upload (300 MiB): ${src}`)
-      // the encoded copies (cached); a dry run does not encode
-      const files = dryRun || q === null ? items.map((it) => it.src) : await Promise.all(items.map((it) => variantFile(it.src, q)))
-      const sizes = files.map((f) => fs.statSync(f).size)
-      const measured = !(dryRun && q !== null)
-      const todo = items.map((it) => force || !recorded(it.key, it.s))
-      const todoBytes = sizes.reduce((n, size, i) => n + (todo[i] ? size : 0), 0)
+      const todo = items.map((it) => it.online === null && !manifestOnly)
+      // encode only what will be uploaded (cached in the temp folder); a dry run does not encode
+      const files: (string | undefined)[] = await Promise.all(
+        items.map((it, i) => (q === null ? it.src : todo[i] && !dryRun ? variantFile(it.src, q) : cachedVariant(it.src, q))),
+      )
+      // a file's size: the local copy when there is one, else what the bucket has
+      const sizes = items.map((it, i) => (files[i] ? fs.statSync(files[i]!).size : listed?.get(it.key)?.size))
+      const allSized = sizes.every((n) => typeof n === 'number')
+      const todoBytes = sizes.reduce<number>((n, size, i) => n + (todo[i] ? (size ?? 0) : 0), 0)
+      const fromRecord = items.filter((it) => it.online === 'record').length
+      const fromBucket = items.filter((it) => it.online === 'r2').length
       console.log(
         `  ${label}: ${items.length} files` +
-          (measured ? `, ${mb(sizes.reduce((a, b) => a + b, 0))}` : '') +
-          (manifestOnly ? ' [audio skipped: --manifest-only]' : measured ? `, to upload: ${todo.filter(Boolean).length} files, ${mb(todoBytes)}` : ''),
+          (allSized ? `, ${mb(sizes.reduce<number>((a, b) => a + (b ?? 0), 0))}` : '') +
+          (fromRecord + fromBucket ? `, online already: ${fromRecord + fromBucket}${fromBucket ? ` (${fromBucket} found in the bucket)` : ''}` : '') +
+          (manifestOnly ? ' [audio skipped: --manifest-only]' : `, to upload: ${todo.filter(Boolean).length} files${allSized || !dryRun ? `, ${mb(todoBytes)}` : ''}`),
       )
-      if (!manifestOnly) items.forEach((it, i) => put(it.key, files[i], it.type, it.s))
-      if (measured) {
-        status.bytes = sizes.reduce((a, b) => a + b, 0)
-        fileOf[tier.id] = files
-        uploadedNow[tier.id] = todo.map((t) => t && !dryRun && !manifestOnly)
-      }
-      // uploaded now, or (manifest-only) recorded by an earlier publish; a dry run assumes it works
-      status.complete = dryRun ? !manifestOnly || status.complete : items.every((it) => recorded(it.key, it.s))
+      items.forEach((it, i) => {
+        if (todo[i]) return put(it.key, files[i]!, it.type, it.s)
+        // found in the bucket: remember it here too, so the next publish on this machine needs no check
+        if (it.online === 'r2' && !dryRun) {
+          state[stateKey(it.key)] = it.s
+          const v = onlineVersions[it.stem.base]?.[tier.id] ?? (q === null ? fileHash(it.src) : files[i] ? fileHash(files[i]!) : undefined)
+          if (v) state[`${stateKey(it.key)}#v`] = v
+          saveState()
+        }
+      })
+      if (allSized) status.bytes = sizes.reduce<number>((a, b) => a + (b ?? 0), 0)
+      fileOf[tier.id] = files.map((f) => f ?? '')
+      uploadedNow[tier.id] = todo.map((t) => t && !dryRun)
+      // uploaded now, or online already; a dry run assumes the uploads work
+      status.complete = items.every((it, i) => it.online !== null || (todo[i] && (dryRun || recorded(it.key, it.s))))
       if (!status.complete) console.log(`  ! ${tier.id} is not fully uploaded, so the manifest will not offer it`)
+      // this quality's copies were made from (or are) the current source files
+      if (status.complete) for (const it of items) (sources[it.stem.base] ??= {})[tier.id] = fileHash(it.src)
     }
 
     const tiers = offeredTiers(statuses)
@@ -268,7 +329,7 @@ try {
     for (const t of tiers) {
       const q = TIERS.find((x) => x.id === t.id)?.q ?? null
       stems.forEach(({ stem, src }, i) => {
-        const file = fileOf[t.id]?.[i]
+        const file = fileOf[t.id]?.[i] || undefined
         const cached = q === null ? src : cachedVariant(src, q)
         const hash = pickVersion({
           uploadedNow: uploadedNow[t.id]?.[i] ?? false,
@@ -282,7 +343,7 @@ try {
     }
     const manifestFile = path.join(tmp, 'manifest.json')
     // waveforms go in the manifest so the app can draw stems it has not downloaded (needs ffmpeg)
-    fs.writeFileSync(manifestFile, JSON.stringify(manifest(songDir, song.title, true, tiers, versions)))
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest(songDir, song.title, true, tiers, versions, sources)))
     console.log('  manifest')
     put(`${songRoot}/stems/manifest.json`, manifestFile, 'application/json')
     // the analysis (chords, beats, sections, timed lyrics), when the song has been through songs:analyse.

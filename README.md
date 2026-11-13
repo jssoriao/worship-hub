@@ -38,8 +38,10 @@ pnpm songs:publish "Song Folder" --church <slug>    # dev: the dev database (its
 pnpm songs:publish "Song Folder" --church <slug> --target prod   # production database + the real bucket
 ```
 
-Dev and production never share ids or files. Dev uploads are remembered apart from production ones
-in `.publish-state.json`.
+Dev and production never share ids or files. A file that is online already is never uploaded (or
+re-encoded) again, from any computer: for production the bucket is checked (the original by its MD5,
+re-encoded copies by the source the manifest names, `src`). `.publish-state.json` is this computer's
+record of its own uploads (dev ones apart): it saves that check, and it is all the local R2 has.
 
 **A database on your machine instead of Neon** (needs Docker). Set `DATABASE_URL` and `DATABASE_OWNER_URL`
 in `.dev.vars` to `postgres://postgres:postgres@localhost:5432/worship_hub`, then:
@@ -276,7 +278,7 @@ pnpm songs:publish --church <slug> --target prod   # upload ./songs to R2 (add a
                               # without --target prod it publishes to the dev database and the local R2 instead
 pnpm songs:publish ... --tiers=standard   # upload only some qualities: standard (q4), saver (q6), original; default all three
 pnpm songs:publish ... --manifest-only    # regroup, or add fingerprints, without re-uploading audio (file names must not change)
-                              # uploads are remembered in .publish-state.json, so re-running costs no data
+                              # what is online already is skipped (checked in the bucket), so re-running costs no data
 pnpm churches list            # churches (tenants)
 pnpm members list [--church <slug>]
 pnpm members add a@b.com "Name" --church <slug> --role member|editor|admin|owner

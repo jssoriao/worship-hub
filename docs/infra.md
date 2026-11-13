@@ -104,7 +104,7 @@ pnpm songs:publish --church <slug> --target prod                  # every song i
 pnpm songs:publish "Song Folder" --church <slug> --target prod    # one song: finds or creates its row, uploads under its id
 pnpm songs:publish --church <slug> --dry-run                      # list what would be uploaded (new layout keys)
 pnpm songs:publish ... --tiers=standard   # only some qualities: standard (q4), saver (q6), original; comma list; default all
-pnpm songs:publish ... --force            # upload audio again even if .publish-state.json says it is there
+pnpm songs:publish ... --force            # upload audio again even if it is online already (in the bucket or .publish-state.json)
 pnpm songs:publish ... --manifest-only    # manifests only (regroup folders without re-uploading audio); needs ffmpeg for waveforms
 pnpm songs:analyse "Song Folder" --church <slug> --target prod    # Music.AI; only the platform admin (checked by git user.email)
 pnpm songs:pack "Song Folder"        # write packs/<slug>.zip: manifest.json + audio, for "Open zip"
@@ -142,6 +142,10 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 - `wrangler r2 object put` rejects files over 300 MiB. Stems are far below that.
 - Each song is stored in three qualities: `stems/<file>` (original), `stems/standard/<file>` (VBR q4) and `stems/saver/<file>` (VBR q6), re-encoded with ffmpeg at publish time (about 141 + 61 + 43 MB for a 12-stem song). R2 charges for storage only (egress is free), so the extra copies cost cents. `.publish-state.json` (gitignored) records what was uploaded from which source, so publishing again skips unchanged files; a fresh clone without it uploads everything again.
 - Every file in a manifest has a fingerprint per quality (`v`, the first 16 hex characters of the SHA-256 of the uploaded bytes). It is written when the file is uploaded (and remembered in `.publish-state.json` as `<key>#v`) and kept when the manifest is rewritten, so a file's address never changes unless its content does. Songs published before this get theirs by running `pnpm songs:publish --manifest-only` (it uploads a few KB and no audio).
+- Each file in a manifest also names the source it was made from, per quality (`src`, the same kind of
+  fingerprint, of the local source file). `songs:publish --target prod` lists the song's files in the bucket first and skips
+  a file that is there: an original whose R2 etag is its MD5, a re-encoded copy whose `src` matches the current source. So
+  any computer with the song folders publishes only what is new; `.publish-state.json` only saves that check.
 - The Worker caches fingerprinted audio at the Cloudflare edge (Cache API, `caches.default`, key = file + fingerprint, after the session check). Nothing to set up or pay for; it needs the custom domain (it does not work on workers.dev). Browsers also keep the audio for a year (`immutable`). If a file ever has to be replaced, upload it and publish again: the new content gets a new fingerprint, so nothing stale is served.
 - Deleting a song: an admin's `DELETE /songs/<songId>` removes the row (and its arrangements) and every R2 object under its prefix. There is no button for it yet.
 - Local testing: copy `.dev.vars.example` to `.dev.vars` and fill it in (gitignored). Run `pnpm dev:api` (`wrangler dev --infer-origin-from-routes=false`; without that flag the Worker sees `worshiphub.jssoriao.dev` as its origin and Better Auth rejects local requests with `INVALID_ORIGIN`) and `pnpm dev`, open http://127.0.0.1:5173. `.dev.vars` points at the dev database. Seed the local R2 emulator with `wrangler r2 object put worship-hub/churches/<churchId>/songs/<songId>/stems/<file> --file <path> --local` (ids from `pnpm churches list` and `.dev-song-ids.json`).

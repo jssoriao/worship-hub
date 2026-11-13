@@ -271,6 +271,9 @@ export function manifest(
   tiers?: { id: string; bytes?: number }[],
   /** per file name and tier: the fingerprint of the file's content (see fileHash) */
   versions?: Record<string, Record<string, string>>,
+  /** per file name and tier: the fingerprint of the source file that copy was made from, so another
+   * machine can tell what is published already without re-encoding (see alreadyOnline in tiers.ts) */
+  sources?: Record<string, Record<string, string>>,
 ) {
   const music = songMusic(songDir)
   return {
@@ -280,6 +283,7 @@ export function manifest(
     stems: stemFiles(songDir).map((f) => {
       const peaks = withPeaks ? peaksFor(path.join(songDir, ...f.parts)) : null
       const v = versions?.[f.base]
+      const src = sources?.[f.base]
       return {
         file: encodeURIComponent(f.base),
         name: f.base.replace(AUDIO, '').replace(/_+/g, ' ').trim(),
@@ -287,6 +291,7 @@ export function manifest(
         ...(f.mix ? { mix: true } : {}),
         ...(peaks ? { peaks } : {}),
         ...(v && Object.keys(v).length ? { v } : {}),
+        ...(src && Object.keys(src).length ? { src } : {}),
       }
     }),
   }
@@ -356,6 +361,19 @@ const hashes = new Map<string, string>()
  * Fingerprint of a file's content: the start of its SHA-256 in hex. It goes into the file's address
  * (?v=...), so the same address always means the same bytes and the file can be cached for good.
  */
+const md5s = new Map<string, string>()
+/** MD5 of a file (hex), which is what R2 reports as the etag of a single-part upload. Cached per file version. */
+export function fileMd5(file: string): string {
+  const st = fs.statSync(file)
+  const key = `${file}:${st.size}:${st.mtimeMs}`
+  let hash = md5s.get(key)
+  if (!hash) {
+    hash = crypto.createHash('md5').update(fs.readFileSync(file)).digest('hex')
+    md5s.set(key, hash)
+  }
+  return hash
+}
+
 export function fileHash(file: string): string {
   const st = fs.statSync(file)
   const key = `${file}:${st.size}:${st.mtimeMs}`
