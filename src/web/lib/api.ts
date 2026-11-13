@@ -14,6 +14,10 @@ const client = hc<AppType>(origin, { init: { cache: 'no-store' } })
 export const songsApi = client.songs
 /** /api/church/members: the active church's people. */
 export const membersApi = client.api.church.members
+/** /api/church/links: the active church's join links. */
+export const linksApi = client.api.church.links
+/** /api/join/<token>: joining a church through a link. */
+export const joinApi = client.api.join
 /** An answer that was not ok. `message` is the server's `{ error }` (written for people) unless replaced. */
 export class ApiError extends Error {
   readonly status: number

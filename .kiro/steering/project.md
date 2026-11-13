@@ -58,13 +58,22 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   editors), owner (+ church settings, admins/owners). Code checks permissions (`can`), never role names.
 - Platform super admin: `users.platform_admin`, outside churches. Only they run Music.AI (credits) and
   manage any church from the CLI. It does not bypass church membership in the Worker.
-- Churches and people are added only by the CLI: `pnpm churches add <slug> <name> [--owner <email>]`,
-  `pnpm members add <email> [name] --church <slug> --role <role>`, `pnpm members platform-admin`.
-  No sign-up and no church creation in the app; the Worker closes every organization endpoint except
+- Churches are added only by the CLI: `pnpm churches add <slug> <name> [--owner <email>]`; people by
+  `pnpm members add <email> [name] --church <slug> --role <role>` (`pnpm members platform-admin`), Members, or
+  a join link. No open sign-up and no church creation in the app; the Worker closes every organization endpoint except
   set-active, list, get-active-member(-role) and has-permission.
 - Admins and owners also manage people in the app (`/api/church/members`, `src/api/members.ts`): owners any
   role, admins only member and editor; nobody changes or removes themselves; removal ends the person's
   sessions in that church and deletes an account left in no church (not the platform admin).
+- Join links (`join_links`, `src/api/links.ts` `/api/church/links`, `src/web/components/JoinLinks.tsx` in Members):
+  one person (single use, 3 days) or shared (1 day), role up to admin (admins up to editor); only the secret's
+  SHA-256 is stored, the address is shown once. `/join/<token>` (`src/web/pages/JoinPage.tsx`, outside the app
+  in main.tsx; `src/api/join.ts`): GET shows church + role (404 unknown, 410 expired/used/off), POST start
+  {email} adds a 30-minute `join_requests` row, then the normal emailed-code sign-in (`EmailCodeSignIn` in
+  AuthGate), then POST finish (session) adds the member (`data.joinWithLink`, row locked; already a member =
+  unchanged, link unused) and the page sets the active church. Better Auth `disableSignUp` is false, but its
+  user create hook (auth-options.ts) refuses any address without a live join request, and auth.ts only
+  emails codes to accounts or join requests.
 
 ## Layout
 - `src/web/lib/bytestream.ts` (`ByteStream`, `download`): a file that arrives over time; consumers
@@ -149,7 +158,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 
 ## Auth model
 - Invite only, no passwords. People are `users` rows linked to churches by `members` rows.
-- The sign-in endpoint answers the same for members and strangers and only emails members.
+- The sign-in endpoint answers the same for members and strangers and only emails people with an account
+  or a live join request (a join link opened in the last 30 minutes).
 - Sessions last 30 days with a 5-minute signed cookie cache, but song routes read the `members` row
   (memoised 30 s), so removing a member or changing a role applies within 30 s.
 - After sign-in the person lands in their earliest church (`session.activeOrganizationId`).

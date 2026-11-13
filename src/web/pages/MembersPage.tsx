@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ROLE_NAMES, type Role } from '../../shared/permissions'
 import { Alert } from '@/components/ui/alert'
+import { JoinLinks } from '../components/JoinLinks'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -118,6 +119,8 @@ export default function MembersPage() {
         </form>
         </Card>
       )}
+
+      {list && roleOptions.length > 0 && <JoinLinks />}
 
       {!list && !error && (
         <p role="status" className="mt-6 text-sm text-muted-foreground">

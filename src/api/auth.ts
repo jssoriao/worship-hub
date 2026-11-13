@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth'
 import { eq } from 'drizzle-orm'
 import { dbOver, type Db } from '../db/client.ts'
 import { users } from '../db/schema/index.ts'
+import { hasJoinRequest } from './data.ts'
 import { routeLocalDb } from '../shared/local-neon.ts'
 import { authOptions } from './auth-options.ts'
 import type { Bindings } from './env.ts'
@@ -45,9 +46,10 @@ function background(task: Promise<unknown>) {
   store.ctx.waitUntil(safe)
 }
 
-async function isMember(db: Db, email: string): Promise<boolean> {
+/** People with an account, and people joining through a link right now, get codes; nobody else. */
+async function mayGetCode(db: Db, email: string): Promise<boolean> {
   const rows = await db.select({ id: users.id }).from(users).where(eq(users.email, email.trim().toLowerCase())).limit(1)
-  return rows.length > 0
+  return rows.length > 0 || (await hasJoinRequest(db, email))
 }
 
 function createAuth(env: Bindings) {
@@ -65,7 +67,7 @@ function createAuth(env: Bindings) {
         // timing reveals whether the address belongs to a member.
         background(
           (async () => {
-            if (await isMember(db, email)) await sendLoginEmail(requestEnv, email.trim().toLowerCase(), code)
+            if (await mayGetCode(db, email)) await sendLoginEmail(requestEnv, email.trim().toLowerCase(), code)
           })(),
         )
       },

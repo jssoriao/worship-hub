@@ -62,7 +62,19 @@ function savePending(email: string | null) {
   }
 }
 
-function LoginScreen() {
+interface SignInProps {
+  /** shown above the email field */
+  intro?: ReactNode
+  /** runs before a code is asked for; a thrown Error's message is shown and no code is sent */
+  beforeSend?: (email: string) => Promise<void>
+  /** after a good code; by default the app opens */
+  onSignedIn?: () => Promise<void>
+  /** the card's contents above the form (a heading), on both steps */
+  heading?: ReactNode
+}
+
+/** Email, then the emailed code. The sign-in screen, and the join page's sign-in (JoinPage). */
+export function EmailCodeSignIn({ intro, beforeSend, onSignedIn, heading }: SignInProps) {
   const [pending] = useState(loadPending)
   const [email, setEmail] = useState(pending ?? '')
   const [code, setCode] = useState('')
@@ -92,6 +104,16 @@ function LoginScreen() {
       return
     }
     setSending('send')
+    if (beforeSend) {
+      try {
+        await beforeSend(email.trim())
+      } catch (e) {
+        setBusy(false)
+        setSending(null)
+        setError(e instanceof Error ? e.message : String(e))
+        return
+      }
+    }
     const { error: failure } = await authClient.emailOtp.sendVerificationOtp({ email: email.trim(), type: 'sign-in' }, { headers: { 'x-captcha-response': token } })
     setBusy(false)
     setSending(null)
@@ -123,7 +145,13 @@ function LoginScreen() {
     const { error: failure } = await authClient.signIn.emailOtp({ email: email.trim(), otp: code })
     if (!failure) {
       savePending(null)
-      window.location.replace('/')
+      try {
+        if (onSignedIn) await onSignedIn()
+        else window.location.replace('/')
+      } catch (e) {
+        setBusy(false)
+        setError(e instanceof Error ? e.message : String(e))
+      }
       return
     }
     setBusy(false)
@@ -140,9 +168,10 @@ function LoginScreen() {
   if (codeSent) {
     return (
       <AuthScreen>
+        {heading}
         <p role="status" className="mb-4 text-sm text-slate-300">
-          If <span className="font-medium text-foreground">{email.trim()}</span> is on the team list, a {CODE_LENGTH}-digit code is on its
-          way. It works once and expires in {CODE_MINUTES} minutes. Check your spam folder if you don't see it.
+          {beforeSend ? 'A' : <>If <span className="font-medium text-foreground">{email.trim()}</span> is on the team list, a</>} {CODE_LENGTH}-digit code is on its
+          way{beforeSend && <> to <span className="font-medium text-foreground">{email.trim()}</span></>}. It works once and expires in {CODE_MINUTES} minutes. Check your spam folder if you don't see it.
         </p>
         <form onSubmit={submitCode}>
           <Label htmlFor="code" className="mb-1.5">
@@ -188,7 +217,8 @@ function LoginScreen() {
 
   return (
     <AuthScreen>
-      <p className="mb-4 text-sm text-muted-foreground">Sign in with the email address the team list has for you.</p>
+      {heading}
+      <p className="mb-4 text-sm text-muted-foreground">{intro ?? 'Sign in with the email address the team list has for you.'}</p>
       <form onSubmit={submitEmail}>
         <Label htmlFor="email" className="mb-1.5">
           Email
@@ -233,7 +263,7 @@ function Gate({ children }: { children: ReactNode }) {
   if (session) return children
   // Installed app opened without a connection: let zip mode work, the song library needs the network anyway
   if (error && !navigator.onLine) return children
-  return <LoginScreen />
+  return <EmailCodeSignIn />
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -241,12 +271,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 /** For screens outside the app shell (no church yet); inside the app, sign-out is in the account menu. */
-export function SignOutButton() {
+export function SignOutButton({ redirect = '/' }: { redirect?: string }) {
   return (
     <Button
       variant="outline"
       // songs saved on this device are for members: they go when the person signs out
-      onClick={() => void Promise.allSettled([authClient.signOut(), audioCache.clearAll()]).finally(() => window.location.replace('/'))}
+      onClick={() => void Promise.allSettled([authClient.signOut(), audioCache.clearAll()]).finally(() => window.location.replace(redirect))}
     >
       Sign out
     </Button>
