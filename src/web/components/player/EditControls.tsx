@@ -17,7 +17,7 @@ export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions, o
   onDone: () => void
 }) {
   return (
-    <div role="region" aria-label="Editing" className="surface-glass sticky top-2 z-30 mx-auto mt-2 w-fit max-w-full rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
+    <div role="region" aria-label="Editing" className="surface-glass sticky top-2 z-30 mx-auto w-fit max-w-full rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button size="sm" disabled={!dirty || saving} onClick={onSave}>
           {saving ? 'Saving…' : 'Save changes'}

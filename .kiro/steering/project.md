@@ -138,8 +138,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Analysis: `src/cli/analyse.ts` (`pnpm songs:analyse <song> --church <slug>`, Music.AI REST, no SDK;
   platform admin only; key in Keychain `musicai-worship-hub`) -> `songs/<song>/analysis/raw/`;
   `src/cli/lib/analysis.ts` -> `analysis.json`. `src/web/lib/analysis.ts`, `src/web/lib/chord-shapes.ts`.
-  Editing in Practice (edit mode belongs to the page it was started on, Lyrics or Chords): while it is on, the toolbar
-  controls (song search, quality, offline, zip) and the view tabs are hidden, and `EditBar` (Save changes, Discard
+  Editing in Practice (edit mode belongs to the page it was started on, Lyrics or Chords): while it is on, the whole top bar
+  (title, sidebar button, song search, quality, offline, zip) and the view tabs are hidden, and `EditBar` (Save changes, Discard
   changes, Versions, Done; no text, only a failed save shows one) is `sticky top-2`. Versions is a modal
   (`VersionsDialog`, `src/web/components/player/EditControls.tsx`; `ui/dialog.tsx`). Done, Esc, Back, another page or another
   song with unsaved changes opens "Save your changes?" (`UnsavedDialog`: Save / Don't save / Cancel); without changes

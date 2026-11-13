@@ -902,11 +902,12 @@ export default function PracticePage() {
   return (
     <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-3' : 'pb-48 md:pb-40'}`}>
         {/* the title, and once a song is open: the song, its quality, offline, another zip */}
+        {/* in edit mode the whole top bar goes (title, sidebar button, song controls): the edit bar takes its place */}
+        {!editing && (
         <PageHeader
           title="Practice"
-          // in edit mode the song cannot be changed from here: finish or leave editing first
           actions={
-            !blank && !editing && (
+            !blank && (
               <>
           {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full min-w-0 sm:w-72 lg:w-80" />}
           <div className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
@@ -957,6 +958,7 @@ export default function PracticePage() {
             )
           }
         />
+        )}
         {notInChurch && wanted === '' && (
           <Alert className="mt-3">That song is not in this church.</Alert>
         )}
