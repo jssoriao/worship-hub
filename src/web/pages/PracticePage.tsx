@@ -193,6 +193,13 @@ export default function PracticePage() {
     setVersions(null)
     setEditStatus('')
   }
+  // closing or reloading the tab with unsaved edits would lose them: let the browser ask first
+  useEffect(() => {
+    if (!draft) return
+    const ask = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', ask)
+    return () => window.removeEventListener('beforeunload', ask)
+  }, [draft])
   const saveDraft = async () => {
     if (!draft || !songId) return
     setEditStatus('Saving…')
@@ -803,6 +810,60 @@ export default function PracticePage() {
       )}
     </>
   )
+  // Save / Discard / Versions / Done float above the views (TransportBar), so they are in reach wherever you are in the song
+  const editBar =
+    shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') ? (
+      <div role="region" aria-label="Editing" className="surface-glass pointer-events-auto w-full max-w-2xl rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
+        {versions && (
+          <ul className="mb-2 max-h-48 space-y-1 overflow-y-auto border-b border-border pb-2">
+            {versions.length === 0 && <li className="text-xs text-muted-foreground">No earlier versions yet: they are kept each time someone saves.</li>}
+            {versions.map((v) => (
+              <li key={v.file} className="flex items-center gap-2 text-xs">
+                <span className="flex-1 text-slate-300">
+                  {new Date(v.savedAt).toLocaleString()} {v.savedBy && <span className="text-muted-foreground">· {v.savedBy}</span>}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Open the version of ${new Date(v.savedAt).toLocaleString()}`}
+                  className="rounded border border-slate-600 px-2 py-0.5"
+                  onClick={() =>
+                    void fetchAnalysisVersion(songId, v.file).then((a) => {
+                      if (!a) return setEditStatus('Could not open that version')
+                      setDraft(a)
+                      setEditStatus('An earlier version: Save to bring it back')
+                    })
+                  }
+                >
+                  Open
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <span role="status" className="mr-auto min-w-0 px-1 text-xs text-muted-foreground">
+            {editStatus || (draft ? 'Not saved yet' : 'Editing')}
+          </span>
+          <button type="button" disabled={!draft} onClick={() => void saveDraft()} className="rounded-lg border border-highlight/70 bg-primary/20 px-3 py-1 text-highlight disabled:opacity-40">
+            Save changes
+          </button>
+          <button type="button" disabled={!draft} onClick={() => (setDraft(null), setEditStatus(''))} className="rounded-lg border border-slate-600 px-3 py-1 disabled:opacity-40">
+            Discard changes
+          </button>
+          <button
+            type="button"
+            onClick={() => (versions ? setVersions(null) : void listVersions(songId).then(setVersions))}
+            aria-expanded={versions !== null}
+            className="rounded-lg border border-slate-600 px-3 py-1"
+          >
+            Versions
+          </button>
+          <button type="button" onClick={stopEditing} className="rounded-lg border border-slate-600 px-3 py-1">
+            Done
+          </button>
+        </div>
+      </div>
+    ) : null
   // on phones the three controls share one row, so they get smaller there
   const small = `${buttonVariants({ variant: 'outline', size: 'sm' })} max-sm:px-2.5 max-sm:text-xs`
   // nothing chosen or loading: show only a centred search
@@ -940,61 +1001,6 @@ export default function PracticePage() {
               </div>
             )}
 
-            {shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') && (
-              <div className="mt-2 rounded-xl border border-primary/40 bg-primary/10 p-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-auto text-highlight">
-                    {prefs.view === 'chords' ? 'Tap a beat to set its chord, a bar number for its section.' : 'Tap a line to fix its words.'}
-                  </span>
-                  <button type="button" disabled={!draft} onClick={() => void saveDraft()} className="rounded-lg border border-highlight/70 px-3 py-1 text-highlight disabled:opacity-40">
-                    Save changes
-                  </button>
-                  <button type="button" disabled={!draft} onClick={() => (setDraft(null), setEditStatus(''))} className="rounded-lg border border-slate-600 px-3 py-1 disabled:opacity-40">
-                    Discard changes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => (versions ? setVersions(null) : void listVersions(songId).then(setVersions))}
-                    aria-expanded={versions !== null}
-                    className="rounded-lg border border-slate-600 px-3 py-1"
-                  >
-                    Versions
-                  </button>
-                  <button type="button" onClick={stopEditing} className="rounded-lg border border-slate-600 px-3 py-1">
-                    Done
-                  </button>
-                </div>
-                <p role="status" className="mt-1 text-xs text-muted-foreground">
-                  {editStatus || (draft ? 'Not saved yet' : '')}
-                </p>
-                {versions && (
-                  <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                    {versions.length === 0 && <li className="text-xs text-muted-foreground">No earlier versions yet: they are kept each time someone saves.</li>}
-                    {versions.map((v) => (
-                      <li key={v.file} className="flex items-center gap-2 text-xs">
-                        <span className="flex-1 text-slate-300">
-                          {new Date(v.savedAt).toLocaleString()} {v.savedBy && <span className="text-muted-foreground">· {v.savedBy}</span>}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Open the version of ${new Date(v.savedAt).toLocaleString()}`}
-                          className="rounded border border-slate-600 px-2 py-0.5"
-                          onClick={() =>
-                            void fetchAnalysisVersion(songId, v.file).then((a) => {
-                              if (!a) return setEditStatus('Could not open that version')
-                              setDraft(a)
-                              setEditStatus('An earlier version: Save to bring it back')
-                            })
-                          }
-                        >
-                          Open
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
             {heard && prefs.view === 'lyrics' && (
               <LyricsView
                 analysis={heard}
@@ -1042,6 +1048,7 @@ export default function PracticePage() {
                   view={analysis ? prefs.view : undefined}
                   onView={(view) => setPrefs((p) => ({ ...p, view }))}
                   tools={tools}
+                  floating={editBar}
                   // away from Practice: the views make no sense, and the title leads back
                   onPracticePage={onPracticePage}
                 />,

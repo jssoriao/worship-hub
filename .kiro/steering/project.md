@@ -138,7 +138,10 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Analysis: `src/cli/analyse.ts` (`pnpm songs:analyse <song> --church <slug>`, Music.AI REST, no SDK;
   platform admin only; key in Keychain `musicai-worship-hub`) -> `songs/<song>/analysis/raw/`;
   `src/cli/lib/analysis.ts` -> `analysis.json`. `src/web/lib/analysis.ts`, `src/web/lib/chord-shapes.ts`.
-  Editing in Practice (`src/web/lib/analysis-edit.ts`; a changed word keeps the time of the word it
+  Editing in Practice: the Save changes / Discard changes / Versions / Done bar floats above the view tabs (`floating`
+  prop of `TransportBar`, built in PracticePage as `editBar`); edits stay in a draft in the browser until Save changes
+  (the Worker then replaces R2's analysis.json, not the database), and closing the tab with a draft asks first
+  (`src/web/lib/analysis-edit.ts`; a changed word keeps the time of the word it
   replaces); the Worker keeps each replaced version in `analysis/history/`.
 - `src/web/components/AuthGate.tsx`, `src/web/lib/auth-client.ts`: login form (email, then 6-digit code),
   sign-out. `AuthScreen` is the card the screens before the app share (sign-in, choosing a church).

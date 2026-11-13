@@ -42,6 +42,8 @@ interface Props {
   tools?: ReactNode
   /** false on other pages: the views are hidden and the title leads back to Practice */
   onPracticePage?: boolean
+  /** floats just above the views (the editing bar), so it is in reach wherever the page is scrolled */
+  floating?: ReactNode
 }
 
 const SKIP = 5
@@ -52,7 +54,7 @@ const SKIP = 5
  * it. It stays on every page while a song is open. On phones it takes two rows.
  */
 export function TransportBar(props: Props) {
-  const { title, facts, playing, buffering, position, duration, onToggle, onSeek, onStop, loop, onLoop, volume, onVolume, bar, view, onView, tools, onPracticePage = true } = props
+  const { title, facts, playing, buffering, position, duration, onToggle, onSeek, onStop, loop, onLoop, volume, onVolume, bar, view, onView, tools, onPracticePage = true, floating } = props
   const now = useNowPlaying()
   const church = useChurch()
   // while the seek bar is dragged it shows where you are going, and seeks when you let go
@@ -63,23 +65,28 @@ export function TransportBar(props: Props) {
 
   return (
     <div className="relative">
-      {onPracticePage && view && onView && (
+      {onPracticePage && ((view && onView) || floating) && (
         // floats over the page just above the bar, taking no room of its own
-        <nav aria-label="Views" className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center">
-          <div className="surface-glass pointer-events-auto flex items-center gap-1 rounded-full border p-1">
-            {VIEWS.map(([v, label]) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={view === v}
-                onClick={() => onView(v)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${view === v ? 'bg-brand-gradient text-primary-foreground' : 'text-secondary-foreground hover:bg-accent'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </nav>
+        <div className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex flex-col items-center gap-2 px-2">
+          {floating}
+          {view && onView && (
+            <nav aria-label="Views" className="flex justify-center">
+              <div className="surface-glass pointer-events-auto flex items-center gap-1 rounded-full border p-1">
+                {VIEWS.map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={view === v}
+                    onClick={() => onView(v)}
+                    className={`rounded-full px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 ${view === v ? 'bg-brand-gradient text-primary-foreground' : 'text-secondary-foreground hover:bg-accent'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+          )}
+        </div>
       )}
 
       <div role="region" aria-label="Playback" className="surface-glass relative rounded-none border-x-0 border-b-0 border-t">
