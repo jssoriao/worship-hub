@@ -25,7 +25,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
 - Arrange is owner-only for now (not ready for others): `PAGES[].owner` + `pageShown` (`src/web/lib/pages.ts`) hide its
   sidebar and Home link, and `/arrange` shows Not found to anyone but an owner (UI only; its API is unchanged).
-- Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts`, account with sign-out;
+- Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts` with no "Pages" label; the admin pages (Arrange, owners only for now, and Members) sit under a separator below the others and the separator only shows to people who see any of them; account with sign-out;
   folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
   title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom
   (`src/web/lib/player-slot.ts`, App.tsx), so the compact player stays on every page while a song is open.
