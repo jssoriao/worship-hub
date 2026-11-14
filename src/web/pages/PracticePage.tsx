@@ -26,7 +26,7 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { approveLine, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 
@@ -183,7 +183,7 @@ export default function PracticePage() {
   // the Versions window: open, and what it lists (null while loading)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [versions, setVersions] = useState<AnalysisVersion[] | null>(null)
-  // "Save your changes?" is open (Done, Esc, or another page or song asked to leave)
+  // "Save your changes?" is open (Esc, or another page or song asked to leave)
   const [asking, setAsking] = useState(false)
   const shown = draft ?? analysis
   // what is read while playing: chords and key as they sound (editing shows the recording's own)
@@ -202,7 +202,7 @@ export default function PracticePage() {
     setEditError('')
     setAsking(false)
   }
-  /** Done or Esc: leave edit mode, asking first when there are unsaved changes. */
+  /** Esc: leave edit mode, asking first when there are unsaved changes. */
   const leaveEditing = () => (draft ? setAsking(true) : exitEdit())
   // Edit mode belongs to the page it was started on: another page, another song or Back asks first when
   // there are unsaved changes (the prompt is the one below), and otherwise just ends it
@@ -252,7 +252,7 @@ export default function PracticePage() {
   useEffect(() => {
     if (!editing) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return
+      if (e.key !== 'Escape' || e.defaultPrevented || savingEdit || document.querySelector('[role="dialog"]')) return
       e.preventDefault()
       leaveEditing()
     }
@@ -570,6 +570,7 @@ export default function PracticePage() {
     const engine = engineRef.current
     if (!engine) return
     if (engine.isPlaying) {
+      listenUntil.current = null
       engine.pause()
       setPos(engine.position)
       setPlaying(false)
@@ -582,6 +583,7 @@ export default function PracticePage() {
   const stop = () => {
     const engine = engineRef.current
     if (!engine) return
+    listenUntil.current = null
     engine.stop()
     setPlaying(false)
     setPos(0)
@@ -614,18 +616,33 @@ export default function PracticePage() {
     refreshOffline()
   }
 
+  // where "Listen" stops (null = not listening to a line)
+  const listenUntil = useRef<number | null>(null)
   const seekTo = async (t: number) => {
     const engine = engineRef.current
     if (!engine) return
+    listenUntil.current = null
     await engine.seek(t)
     setPos(engine.position)
   }
 
-  /** Plays from `t` (starting playback if it is paused), to hear a line. */
-  const listenFrom = async (t: number) => {
+  /** Plays from `t` (starting playback if it is paused) and stops at `end`, to hear a line. */
+  const listenFrom = async (t: number, end: number) => {
     await seekTo(t)
+    listenUntil.current = end
     if (!engineRef.current?.isPlaying) await togglePlay()
   }
+  useEffect(() => {
+    if (listenUntil.current === null) return
+    if (playing && pos >= listenUntil.current) {
+      listenUntil.current = null
+      const engine = engineRef.current
+      if (!engine?.isPlaying) return
+      engine.pause()
+      setPos(engine.position)
+      setPlaying(false)
+    }
+  }, [pos, playing])
   const seekFraction = async (f: number) => {
     const engine = engineRef.current
     if (!engine) return
@@ -866,17 +883,16 @@ export default function PracticePage() {
       )}
     </>
   )
-  // Save / Discard / Versions / Done: under the toolbar, and stuck to the top of the window when the page is scrolled
+  // Save / Discard / Versions: under the toolbar, and stuck to the top of the window when the page is scrolled
   const editBar =
     shown && editing && (prefs.view === 'lyrics' || prefs.view === 'chords') ? (
       <EditBar
         dirty={draft !== null}
         saving={savingEdit}
         error={versionsOpen || asking || blocked ? '' : editError}
-        onSave={() => void saveDraft()}
-        onDiscard={() => (setDraft(null), setEditError(''))}
+        onSave={() => void saveDraft().then((saved) => saved && exitEdit())}
+        onDiscard={exitEdit}
         onVersions={showVersions}
-        onDone={leaveEditing}
       />
     ) : null
   // on phones the three controls share one row, so they get smaller there
@@ -1034,6 +1050,14 @@ export default function PracticePage() {
                 })
               }
             />
+            {savingEdit && (
+              <div role="status" aria-live="polite" className="fixed inset-0 z-[100] grid place-items-center bg-background/50 backdrop-blur-sm">
+                <div className="flex items-center gap-3 rounded-2xl border bg-card px-5 py-3 text-sm shadow-xl shadow-black/50">
+                  <span aria-hidden="true" className="size-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Saving…
+                </div>
+              </div>
+            )}
             <UnsavedDialog open={asking || blocked} saving={savingEdit} error={editError} onSave={() => void saveDraft().then((saved) => saved && goOn())} onDiscard={goOn} onCancel={stay} />
             {heard && prefs.view === 'lyrics' && (
               <LyricsView
@@ -1047,7 +1071,8 @@ export default function PracticePage() {
                 onDeleteLine={(i) => change((a) => deleteLine(a, i))}
                 onJoinLine={(i) => change((a) => joinWithNextLine(a, i))}
                 onApproveLine={(i) => change((a) => approveLine(a, i))}
-                onListen={(t) => void listenFrom(t)}
+                onListen={(t, end) => void listenFrom(t, end)}
+                onCopyLyrics={(from, to) => change((a) => copySectionLyrics(a, from, to))}
               />
             )}
             {heard && prefs.view === 'chords' && (
@@ -1060,6 +1085,7 @@ export default function PracticePage() {
                 editing={editing}
                 onChord={(t, name) => change((a) => setChordAt(a, t, name))}
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
+                onCopySection={(from, to) => change((a) => copySectionChords(a, from, to))}
               />
             )}
             {heard && prefs.view === 'shapes' && <ShapesView analysis={heard} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}

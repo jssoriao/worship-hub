@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
 import { barsOf, chordAt, chordName, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
 
@@ -12,6 +13,8 @@ interface Props {
   editing?: boolean
   onChord?: (t: number, name: string) => void
   onSection?: (t: number, label: string | null) => void
+  /** copy the chords of section `from` onto section `to` (indexes in the analysis' sections) */
+  onCopySection?: (from: number, to: number) => void
 }
 
 /**
@@ -19,9 +22,11 @@ interface Props {
  * of a bar), the box of the beat being played lit, section names where they start. Tap a box to
  * play from that beat.
  */
-export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onSection }: Props) {
+export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onSection, onCopySection }: Props) {
   // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet
   const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; t: number; value: string; empty?: boolean } | null>(null)
+  // the section heading (by bar) whose copy box is open
+  const [copying, setCopying] = useState<number | null>(null)
   // the song's chords, for quick picks
   const used = useMemo(() => [...new Set(analysis.chords.map((c) => chordName(c, 'complex')).filter(Boolean))].sort(), [analysis.chords])
   const bars = useMemo(() => {
@@ -54,6 +59,15 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
     return map
   }, [analysis.sections, starts])
 
+  // the section that starts in each bar, as an index in analysis.sections
+  const sectionIndexAt = useMemo(() => {
+    const map = new Map<number, number>()
+    analysis.sections.forEach((s, k) => {
+      const i = indexAt(starts, s.t + 0.3)
+      if (i >= 0 && !map.has(i)) map.set(i, k)
+    })
+    return map
+  }, [analysis.sections, starts])
   const bar = indexAt(starts, position)
   const beat = bar >= 0 ? indexAt(bars[bar], position) : -1
   const barRefs = useRef<(HTMLElement | null)[]>([])
@@ -70,9 +84,34 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
       {bars.map((beats, i) => [
         // a section name runs across the row, and its first bar starts on the left
         sectionAt.has(i) && (
-          <h3 key={`h${i}`} className="pb-0.5 pl-8 pt-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground lg:col-span-2">
-            {sectionAt.get(i)}
-          </h3>
+          <div key={`h${i}`} className="lg:col-span-2">
+            <h3 className="pb-0.5 pl-8 pt-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              {editing && onCopySection ? (
+                <button
+                  type="button"
+                  onClick={() => setCopying(copying === i ? null : i)}
+                  aria-label={`Section ${sectionAt.get(i)}: copy chords`}
+                  className="rounded uppercase tracking-[0.2em] text-highlight underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {sectionAt.get(i)}
+                </button>
+              ) : (
+                sectionAt.get(i)
+              )}
+            </h3>
+            {editing && onCopySection && copying === i && (
+              <div className="pl-8">
+                <EditPopover title={`Section ${sectionAt.get(i)}`} initial="" hideField onSave={() => setCopying(null)} onCancel={() => setCopying(null)}>
+                  <CopyFrom
+                    what="chords"
+                    noun="section"
+                    options={analysis.sections.flatMap((s, k) => (k === sectionIndexAt.get(i) ? [] : [{ value: k, label: `${s.label} (bar ${indexAt(starts, s.t + 0.3) + 1})` }]))}
+                    onCopy={(from) => (onCopySection(from, sectionIndexAt.get(i)!), setCopying(null))}
+                  />
+                </EditPopover>
+              </div>
+            )}
+          </div>
         ),
         <div
           key={i}
@@ -126,9 +165,8 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                   initial={open.value}
                   placeholder="e.g. D/F#"
                   suggestions={used}
-                  actions={[{ label: 'No chord', onClick: () => (onChord?.(open.t, ''), setOpen(null)) }]}
                   onSave={(v) => {
-                    // saving a blank beat as it is changes nothing ("No chord" is its own button)
+                    // saving a blank beat as it is changes nothing; emptying a chord and saving clears it
                     if (!(open.empty && v.trim() === '')) onChord?.(open.t, v)
                     setOpen(null)
                   }}

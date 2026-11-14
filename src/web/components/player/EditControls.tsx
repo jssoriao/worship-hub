@@ -3,10 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { AnalysisVersion } from '../../lib/analysis-edit'
 
 /**
- * The buttons of Practice's edit mode. They stick to the top of the window, so they are in reach
+ * The buttons of Practice's edit mode (Save and Discard both end it). They stick to the top of the window, so they are in reach
  * wherever the page is scrolled; the bar has no text of its own, only a failed save shows one.
  */
-export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions, onDone }: {
+export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions }: {
   /** there are changes not saved yet */
   dirty: boolean
   saving: boolean
@@ -14,7 +14,6 @@ export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions, o
   onSave: () => void
   onDiscard: () => void
   onVersions: () => void
-  onDone: () => void
 }) {
   return (
     <div role="region" aria-label="Editing" className="surface-glass sticky top-2 z-30 mx-auto w-fit max-w-full rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
@@ -22,14 +21,12 @@ export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions, o
         <Button size="sm" disabled={!dirty || saving} onClick={onSave}>
           {saving ? 'Saving…' : 'Save changes'}
         </Button>
-        <Button size="sm" variant="outline" disabled={!dirty || saving} onClick={onDiscard}>
-          Discard changes
+        {/* with nothing changed this is how to leave edit mode */}
+        <Button size="sm" variant="outline" disabled={saving} onClick={onDiscard}>
+          {dirty ? 'Discard changes' : 'Close'}
         </Button>
         <Button size="sm" variant="outline" disabled={saving} onClick={onVersions}>
           Versions
-        </Button>
-        <Button size="sm" variant="outline" disabled={saving} onClick={onDone}>
-          Done
         </Button>
       </div>
       {error && (
@@ -88,7 +85,7 @@ export function VersionsDialog({ open, versions, error, onOpenVersion, onClose }
   )
 }
 
-/** Asked when leaving edit mode (Done, Esc, another page or song) with changes that are not saved. */
+/** Asked when leaving edit mode (Esc, another page or song) with changes that are not saved. */
 export function UnsavedDialog({ open, saving, error, onSave, onDiscard, onCancel }: {
   open: boolean
   saving: boolean

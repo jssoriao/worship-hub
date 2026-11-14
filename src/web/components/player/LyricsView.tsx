@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
 import { chordName, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
+import { sectionLines } from '../../lib/analysis-edit'
 
 interface Props {
   analysis: SongAnalysis
@@ -16,8 +18,10 @@ interface Props {
   onJoinLine?: (index: number) => void
   /** the line's words are right as they are (clears its doubts) */
   onApproveLine?: (index: number) => void
-  /** play from a moment of the song, to hear a line */
-  onListen?: (t: number) => void
+  /** play from a moment of the song until `end`, to hear a line */
+  onListen?: (t: number, end: number) => void
+  /** copy the lyrics of section `from` onto section `to` (indexes in the analysis' sections) */
+  onCopyLyrics?: (from: number, to: number) => void
 }
 
 type Token = { w: string; t: number; end: number; chords: string[]; doubt?: boolean }
@@ -84,8 +88,10 @@ function buildRows(a: SongAnalysis, level: ChordLevel): Row[] {
 }
 
 /** Chords over the lyrics, by section; the line being sung is bright and its words light up as they are sung. */
-export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen }: Props) {
+export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics }: Props) {
   const [open, setOpen] = useState<number | null>(null)
+  // the section whose heading was tapped (edit mode), as an index in analysis.sections
+  const [openSection, setOpenSection] = useState<number | null>(null)
   const rows = useMemo(() => buildRows(analysis, level), [analysis, level])
   // checking the lines the speech-to-text was unsure of, one after another: `cursor` is the first line still to look at
   const doubtful = useMemo(() => rows.flatMap((r) => (r.kind === 'line' && r.tokens.some((tk) => tk.doubt) ? [r.index] : [])), [rows])
@@ -146,12 +152,45 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
         </div>
       )}
       {rows.map((r, i) => {
-        if (r.kind === 'section')
+        if (r.kind === 'section') {
+          const sectionIndex = analysis.sections.findIndex((s) => s.t === r.t && s.label === r.label)
+          const copyable = editing && !!onCopyLyrics && sectionIndex >= 0
           return (
-            <h3 key={i} className="pt-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              {r.label}
-            </h3>
+            <div key={i}>
+              <h3 className="pt-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                {copyable ? (
+                  <button
+                    type="button"
+                    onClick={() => (setReviewing(false), setOpen(null), setOpenSection(openSection === sectionIndex ? null : sectionIndex))}
+                    aria-label={`Section ${r.label}: copy lyrics`}
+                    className="rounded uppercase tracking-[0.2em] text-highlight underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {r.label}
+                  </button>
+                ) : (
+                  r.label
+                )}
+              </h3>
+              {copyable && openSection === sectionIndex && (
+                <EditPopover key={`s${sectionIndex}`} title={`Section ${r.label}`} initial="" onSave={() => setOpenSection(null)} onCancel={() => setOpenSection(null)} hideField>
+                  <CopyFrom
+                    what="lyrics"
+                    noun="section"
+                    emptyNote="No other section has the same number of lines."
+                    options={analysis.sections.flatMap((s, k) => {
+                      const mine = sectionLines(analysis, sectionIndex)
+                      const theirs = sectionLines(analysis, k)
+                      if (k === sectionIndex || theirs.length === 0 || theirs.length !== mine.length) return []
+                      const first = analysis.lines[theirs[0]].words.map((w) => w.w).join(' ').slice(0, 30)
+                      return [{ value: k, label: `${s.label}: ${first}…` }]
+                    })}
+                    onCopy={(from) => (onCopyLyrics(from, sectionIndex), setOpenSection(null))}
+                  />
+                </EditPopover>
+              )}
+            </div>
           )
+        }
         if (r.kind === 'chords')
           return (
             <button key={i} type="button" onClick={() => onSeek(r.t)} className="flex flex-wrap gap-x-4 text-left text-sm font-semibold text-highlight/80 outline-none hover:text-highlight focus-visible:ring-2 focus-visible:ring-ring">
@@ -178,6 +217,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
             onClick={() => {
               if (!editing) return onSeek(r.t)
               setReviewing(false)
+              setOpenSection(null)
               setOpen(r.index)
             }}
             aria-label={editing ? `${check ? 'Check' : 'Edit'} line: ${text}` : undefined}
@@ -200,7 +240,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               title={checking ? 'Check this line (put a | where it should break into two lines)' : 'Words of this line (put a | where it should break into two lines)'}
               initial={text}
               actions={[
-                ...(onListen ? [{ label: 'Listen', onClick: () => onListen(Math.max(0, r.t - 0.5)) }] : []),
+                ...(onListen ? [{ label: 'Listen', onClick: () => onListen(Math.max(0, r.t - 0.5), r.end + 0.8) }] : []),
                 ...(check ? [{ label: 'Approve', onClick: () => (onApproveLine?.(r.index), next(r.index + 1)) }] : []),
                 ...(checking ? [{ label: 'Skip', onClick: () => setCursor(r.index + 1) }] : []),
                 { label: 'Join with next', onClick: () => (onJoinLine?.(r.index), next(r.index)) },

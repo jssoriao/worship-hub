@@ -30,6 +30,76 @@ export function setChordAt(a: SongAnalysis, t: number, name: string): SongAnalys
   return { ...a, chords }
 }
 
+/** A time as a (fractional) beat number on the song's beat grid. */
+function beatPos(beats: { t: number }[], t: number): number {
+  const i = indexAt(beats, t)
+  if (i < 0) return 0
+  const step = beats[i + 1] ? beats[i + 1].t - beats[i].t : i > 0 ? beats[i].t - beats[i - 1].t : 0.5
+  return i + (t - beats[i].t) / (step || 0.5)
+}
+/** The time of a (fractional) beat number. */
+function beatTime(beats: { t: number }[], pos: number): number {
+  const i = Math.min(Math.max(Math.floor(pos), 0), beats.length - 1)
+  const step = beats[i + 1] ? beats[i + 1].t - beats[i].t : i > 0 ? beats[i].t - beats[i - 1].t : 0.5
+  return beats[i].t + (pos - i) * step
+}
+/** The chords outside [from, to), cut at its edges, plus `added` (which fill it), in order. */
+function replaceChords(chords: Chord[], from: number, to: number, added: Chord[]): Chord[] {
+  const kept: Chord[] = []
+  for (const c of chords) {
+    if (c.end <= from + EPS || c.t >= to - EPS) kept.push(c)
+    else {
+      if (c.t < from - EPS) kept.push({ ...c, end: from })
+      if (c.end > to + EPS) kept.push({ ...c, t: to })
+    }
+  }
+  return [...kept, ...added].sort((x, y) => x.t - y.t)
+}
+/**
+ * Copies the chords of section `from` onto section `to` (indexes in `a.sections`), bar for bar:
+ * the beat grid carries them, so a different tempo or a longer bar still lines up. Only as much
+ * of `to` as `from` is long is replaced, and chords are cut where the copy would pass its end.
+ */
+export function copySectionChords(a: SongAnalysis, from: number, to: number): SongAnalysis {
+  const src = a.sections[from]
+  const dst = a.sections[to]
+  if (!src || !dst || from === to || a.beats.length === 0) return a
+  const p0 = beatPos(a.beats, src.t)
+  const p1 = beatPos(a.beats, src.end)
+  const q0 = beatPos(a.beats, dst.t)
+  const q1 = Math.min(q0 + (p1 - p0), beatPos(a.beats, dst.end))
+  const end = beatTime(a.beats, q1)
+  const start = beatTime(a.beats, q0)
+  const added: Chord[] = []
+  for (const c of a.chords) {
+    if (c.end <= src.t + EPS || c.t >= src.end - EPS) continue
+    const t = beatTime(a.beats, q0 + Math.max(beatPos(a.beats, c.t) - p0, 0))
+    const e = Math.min(beatTime(a.beats, q0 + Math.min(beatPos(a.beats, c.end), p1) - p0), end)
+    if (t >= end - EPS) continue
+    added.push({ ...c, t: Math.max(t, start), end: e })
+  }
+  return { ...a, chords: replaceChords(a.chords, start, end, added) }
+}
+/** The lyric lines of section `k` (indexes in `a.lines`): those starting in it, as the lyrics view groups them. */
+export function sectionLines(a: SongAnalysis, k: number): number[] {
+  const start = a.sections[k]?.t
+  if (start === undefined) return []
+  const next = a.sections[k + 1]?.t ?? Infinity
+  return a.lines.flatMap((l, i) => (l.words.length > 0 && l.t + 0.5 >= start && l.t + 0.5 < next ? [i] : []))
+}
+/**
+ * Copies the words of section `from` onto section `to`, line for line. Only when both have the same
+ * number of lines. Each line keeps its own place in the song (its start and end follow its words, as in
+ * setLineText); words that differ share the times of the words they replace, so only the highlighting
+ * inside a line is approximate.
+ */
+export function copySectionLyrics(a: SongAnalysis, from: number, to: number): SongAnalysis {
+  const src = sectionLines(a, from)
+  const dst = sectionLines(a, to)
+  if (from === to || src.length === 0 || src.length !== dst.length) return a
+  return dst.reduce((acc, line, k) => setLineText(acc, line, a.lines[src[k]].words.map((w) => w.w).join(' ')), a)
+}
+
 /** Starts a section called `label` at `t` (on a bar), or renames the one starting there. */
 export function setSectionAt(a: SongAnalysis, t: number, label: string): SongAnalysis {
   const name = label.trim() || 'Section'
