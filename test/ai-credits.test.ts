@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Db } from '../src/db/client.ts'
 import * as data from '../src/api/data.ts'
 import { parseDollars } from '../src/cli/lib/money.ts'
+import { PLANS } from '../src/shared/plans.ts'
 import { dollars, estimateCents, MAX_SECONDS, pieceCents, PIECES, lyricsWorkflow } from '../src/shared/ai-pieces.ts'
 import { testApp } from './app.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
@@ -23,6 +24,9 @@ beforeEach(async () => {
   }
   await seedUser(pg, 'owner-b')
   await seedMember(pg, B, 'owner-b', 'owner')
+  // the credit tests below count from a $10 limit of the church's own; plans have their own tests
+  await data.setAiLimit(db, A, 1000)
+  await data.setAiLimit(db, B, 1000)
 })
 
 describe('pieces and prices', () => {
@@ -48,7 +52,7 @@ describe('pieces and prices', () => {
 })
 
 describe('credits', () => {
-  it('start at the default limit and the default cap, and count this month only', async () => {
+  it('start at the church limit and the default cap, and count this month only', async () => {
     const u = await data.aiUsage(db, A, NOV)
     expect(u).toMatchObject({ month: '2026-11', limitCents: 1000, usedCents: 0, remainingCents: 1000, platform: { capCents: 3000, usedCents: 0, paused: false } })
     await data.reserveAi(db, A, job(300), new Date('2026-10-31T23:59:59Z'))
@@ -67,14 +71,14 @@ describe('credits', () => {
     expect((await data.reserveAi(db, B, job(1000, { userId: 'owner-b' }), NOV)).ok).toBe(true)
   })
 
-  it('uses a church limit set by the platform admin, and goes back to the default', async () => {
+  it('uses a church limit set by the platform admin, and goes back to the plan', async () => {
     await data.setAiLimit(db, A, 250)
     expect((await data.aiUsage(db, A, NOV)).limitCents).toBe(250)
     expect((await data.reserveAi(db, A, job(251), NOV)).ok).toBe(false)
     await data.setAiLimit(db, A, 400)
     expect((await data.aiUsage(db, A, NOV)).limitCents).toBe(400)
     await data.setAiLimit(db, A, null)
-    expect((await data.aiUsage(db, A, NOV)).limitCents).toBe(1000)
+    expect((await data.aiUsage(db, A, NOV)).limitCents).toBe(PLANS.free.aiCents)
     expect((await data.aiUsage(db, B, NOV)).limitCents).toBe(1000)
   })
 
@@ -141,6 +145,28 @@ describe('credits', () => {
   })
 })
 
+describe('plans', () => {
+  it('give a church its allowance until the platform admin sets its own limit', async () => {
+    await data.setAiLimit(db, A, null)
+    expect(await data.churchPlan(db, A)).toBe('free')
+    expect(await data.aiUsage(db, A, NOV)).toMatchObject({ plan: { id: 'free', name: 'Free' }, limitCents: 0, remainingCents: 0 })
+    expect(await data.reserveAi(db, A, job(1), NOV)).toEqual({ ok: false, reason: 'church', remainingCents: 0 })
+    await data.setChurchPlan(db, A, 'team')
+    expect(await data.aiUsage(db, A, NOV)).toMatchObject({ plan: { id: 'team', name: 'Team' }, limitCents: PLANS.team.aiCents })
+    expect((await data.reserveAi(db, A, job(PLANS.team.aiCents), NOV)).ok).toBe(true)
+    expect((await data.reserveAi(db, A, job(1), NOV)).ok).toBe(false)
+    await data.setAiLimit(db, A, 5000) // an own limit wins over the plan
+    expect((await data.aiUsage(db, A, NOV)).limitCents).toBe(5000)
+    await data.setChurchPlan(db, A, 'free') // changing plan keeps the month's use
+    await data.setAiLimit(db, A, null)
+    expect(await data.aiUsage(db, A, NOV)).toMatchObject({ limitCents: 0, usedCents: PLANS.team.aiCents, remainingCents: 0 })
+  })
+  it('belong to one church each, and the report names them', async () => {
+    await data.setChurchPlan(db, B, 'team')
+    expect(await data.churchPlan(db, A)).toBe('free')
+    expect((await data.aiReport(db, NOV)).churches.map((c) => [c.slug, c.plan])).toEqual([['a', 'free'], ['b', 'team']])
+  })
+})
 describe('/api/church/ai', () => {
   const { call } = testApp(() => ({ db, memo: new data.Memo() }))
   const as = (role: string) => `user=${role}-a; church=${A}`
@@ -158,7 +184,7 @@ describe('/api/church/ai', () => {
   it('shows this month and the latest jobs', async () => {
     await data.reserveAi(db, A, job(125))
     const res = (await (await call('/api/church/ai', as('owner'))).json()) as { usage: data.AiUsage; jobs: { piece: string }[] }
-    expect(res.usage).toMatchObject({ limitCents: 1000, usedCents: 125, remainingCents: 875 })
+    expect(res.usage).toMatchObject({ plan: { id: 'free' }, limitCents: 1000, usedCents: 125, remainingCents: 875 })
     expect(res.jobs.map((j) => j.piece)).toEqual(['chords'])
   })
 

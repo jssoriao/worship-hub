@@ -7,10 +7,11 @@
  */
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
-import { accounts, aiJobs, aiLimits, appSettings, arrangements, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink } from '../db/schema/index.ts'
+import { accounts, aiJobs, aiLimits, appSettings, arrangements, churchPlans, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
+import { DEFAULT_PLAN, isPlanId, PLANS, type PlanId } from '../shared/plans.ts'
 
 export type { Db }
 
@@ -776,8 +777,6 @@ export async function saveItems(db: Db, orgId: string, serviceId: string, items:
 }
 
 // ---------------------------------------------------------------- AI credits
-/** What a church may spend on Music.AI per month unless it has its own limit: 1000 cents ($10). */
-export const AI_DEFAULT_MONTHLY_CENTS = 1000
 /** What all churches together may spend per month unless the platform admin set another cap: 3000 cents ($30). */
 export const AI_DEFAULT_PLATFORM_CAP_CENTS = 3000
 const PLATFORM_CAP_KEY = 'ai.platformCapCents'
@@ -797,9 +796,19 @@ async function usedCents(q: AiQuery, now: Date, orgId?: string): Promise<number>
     .where(and(spent, sql`${aiJobs.createdAt} >= ${monthStartUtc(now)}`, sql`${aiJobs.createdAt} < ${nextMonthStartUtc(now)}`, orgId ? eq(aiJobs.organizationId, orgId) : undefined))
   return row.n
 }
+/** The church's plan (src/shared/plans.ts); the default plan when it has none. */
+export async function churchPlan(q: Pick<Db, 'select'>, orgId: string): Promise<PlanId> {
+  const [row] = await q.select({ plan: churchPlans.plan }).from(churchPlans).where(eq(churchPlans.organizationId, orgId))
+  return isPlanId(row?.plan) ? row.plan : DEFAULT_PLAN
+}
+/** Moves the church to a plan (platform admin). Its credits for the month stay as they are. */
+export async function setChurchPlan(db: Db, orgId: string, plan: PlanId): Promise<void> {
+  await db.insert(churchPlans).values({ organizationId: orgId, plan }).onConflictDoUpdate({ target: churchPlans.organizationId, set: { plan, updatedAt: sql`now()` } })
+}
+/** A limit the platform admin set for this church, else what its plan gives. */
 async function limitCents(q: AiQuery, orgId: string): Promise<number> {
   const [row] = await q.select({ n: aiLimits.monthlyCents }).from(aiLimits).where(eq(aiLimits.organizationId, orgId))
-  return row?.n ?? AI_DEFAULT_MONTHLY_CENTS
+  return row?.n ?? PLANS[await churchPlan(q, orgId)].aiCents
 }
 async function platformCap(q: AiQuery): Promise<number> {
   const [row] = await q.select({ v: appSettings.value }).from(appSettings).where(eq(appSettings.key, PLATFORM_CAP_KEY))
@@ -809,6 +818,7 @@ async function platformCap(q: AiQuery): Promise<number> {
 export interface AiUsage {
   /** "2026-11": credits are counted per UTC calendar month */
   month: string
+  plan: { id: PlanId; name: string }
   limitCents: number
   usedCents: number
   remainingCents: number
@@ -816,9 +826,10 @@ export interface AiUsage {
 }
 /** What the church has used this month, its limit, and where the platform stands. */
 export async function aiUsage(db: Db, orgId: string, now: Date = new Date()): Promise<AiUsage> {
-  const [limit, used, cap, platformUsed] = await Promise.all([limitCents(db, orgId), usedCents(db, now, orgId), platformCap(db), usedCents(db, now)])
+  const [limit, used, cap, platformUsed, plan] = await Promise.all([limitCents(db, orgId), usedCents(db, now, orgId), platformCap(db), usedCents(db, now), churchPlan(db, orgId)])
   return {
     month: monthLabel(now),
+    plan: { id: plan, name: PLANS[plan].name },
     limitCents: limit,
     usedCents: used,
     remainingCents: Math.max(0, limit - used),
@@ -925,6 +936,7 @@ export interface AiChurchUsage {
   orgId: string
   slug: string
   name: string
+  plan: PlanId
   limitCents: number
   usedCents: number
 }
@@ -932,9 +944,10 @@ export interface AiChurchUsage {
 export async function aiReport(db: Db, now: Date = new Date()): Promise<{ month: string; platform: AiUsage['platform']; churches: AiChurchUsage[] }> {
   const [orgs, used, cap, total] = await Promise.all([
     db
-      .select({ orgId: organizations.id, slug: organizations.slug, name: organizations.name, limit: aiLimits.monthlyCents })
+      .select({ orgId: organizations.id, slug: organizations.slug, name: organizations.name, limit: aiLimits.monthlyCents, plan: churchPlans.plan })
       .from(organizations)
-      .leftJoin(aiLimits, eq(aiLimits.organizationId, organizations.id)),
+      .leftJoin(aiLimits, eq(aiLimits.organizationId, organizations.id))
+      .leftJoin(churchPlans, eq(churchPlans.organizationId, organizations.id)),
     db
       .select({ orgId: aiJobs.organizationId, n: sql<number>`coalesce(sum(${aiJobs.estimatedCents}), 0)::int` })
       .from(aiJobs)
@@ -945,7 +958,7 @@ export async function aiReport(db: Db, now: Date = new Date()): Promise<{ month:
   ])
   const byOrg = new Map(used.map((u) => [u.orgId, u.n]))
   const churches = orgs
-    .map((o) => ({ orgId: o.orgId, slug: o.slug, name: o.name, limitCents: o.limit ?? AI_DEFAULT_MONTHLY_CENTS, usedCents: byOrg.get(o.orgId) ?? 0 }))
+    .map((o) => ({ orgId: o.orgId, slug: o.slug, name: o.name, plan: isPlanId(o.plan) ? o.plan : DEFAULT_PLAN, limitCents: o.limit ?? PLANS[isPlanId(o.plan) ? o.plan : DEFAULT_PLAN].aiCents, usedCents: byOrg.get(o.orgId) ?? 0 }))
     .sort((a, b) => b.usedCents - a.usedCents || a.slug.localeCompare(b.slug))
   return { month: monthLabel(now), platform: { capCents: cap, usedCents: total, paused: total >= cap }, churches }
 }

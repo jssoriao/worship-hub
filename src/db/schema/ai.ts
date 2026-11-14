@@ -10,7 +10,7 @@ import { pk } from './ids.ts'
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
 
-/** A church's own monthly limit; a church without a row has the default (data.ts AI_DEFAULT_MONTHLY_CENTS). */
+/** A church's own monthly limit; a church without a row has what its plan gives (src/shared/plans.ts). */
 export const aiLimits = pgTable('ai_limits', {
   organizationId: text('organization_id')
     .primaryKey()

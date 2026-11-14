@@ -5,7 +5,7 @@
  *   GET  /api/church/ai            this month's credits (used, limit, remaining, the platform cap) and the latest jobs
  *   POST /api/church/ai/estimate   {pieces, seconds}  what that would cost, and whether it fits what is left
  *
- * Credits are whole cents per UTC calendar month. A church has its own limit (default $10) and all churches
+ * Credits are whole cents per UTC calendar month. A church's plan gives its limit (src/shared/plans.ts; the platform admin can set an own one) and all churches
  * together have a cap (default $30), both set by the platform admin with `pnpm ai`. When either is used up,
  * jobs wait for the next month. A job holds its estimate before it starts (data.reserveAi) and gives it back
  * if it fails.

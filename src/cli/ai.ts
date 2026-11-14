@@ -1,10 +1,11 @@
 /**
  * Music.AI credits, for the platform admin. Churches spend credits when their owners generate with Music.AI;
- * a church has a monthly limit (default $10) and all churches together a cap (default $30). Months are UTC calendar months.
+ * a church's plan (`pnpm churches plan`) gives it a monthly allowance, which `limit` can override, and all churches together
+ * have a cap (default $30). Months are UTC calendar months.
  *
  *   pnpm ai usage [--month-of <yyyy-mm-dd>]                 this month: the platform and every church
  *   pnpm ai jobs --church <slug>                             the church's latest jobs (id, piece, status, estimate)
- *   pnpm ai limit <slug> <dollars|default>                   a church's monthly limit ("default" removes its own)
+ *   pnpm ai limit <slug> <dollars|default>                   a church's own monthly limit ("default" goes back to its plan's)
  *   pnpm ai cap <dollars>                                    the monthly cap over all churches
  *   pnpm ai actual <jobId> <dollars>                         what a job really cost, from the Music.AI dashboard
  *
@@ -35,7 +36,7 @@ try {
     if (Number.isNaN(at.getTime())) fail('--month-of takes a date like 2026-11-01')
     const r = await aiReport(db, at)
     console.log(`${r.month} (UTC): all churches ${dollars(r.platform.usedCents)} of the ${dollars(r.platform.capCents)} cap${r.platform.paused ? '  PAUSED: the cap is reached' : ''}`)
-    for (const c of r.churches) console.log(`  ${c.slug.padEnd(20)} ${dollars(c.usedCents).padStart(8)} of ${dollars(c.limitCents)}`)
+    for (const c of r.churches) console.log(`  ${c.slug.padEnd(20)} ${c.plan.padEnd(6)} ${dollars(c.usedCents).padStart(8)} of ${dollars(c.limitCents)}`)
   } else if (command === 'jobs') {
     const church = (await churchBySlug(db, parseSlug(flags.church === true ? undefined : flags.church))) ?? fail('No such church. pnpm churches list')
     const jobs = await listAiJobs(db, church.id, 30)
@@ -48,7 +49,7 @@ try {
     if (args[1] === 'default') await setAiLimit(db, church.id, null)
     else await setAiLimit(db, church.id, parseDollars(args[1]))
     const u = await aiUsage(db, church.id)
-    console.log(`${church.slug}: ${dollars(u.limitCents)} a month${args[1] === 'default' ? ' (the default)' : ''}; ${dollars(u.usedCents)} used in ${u.month}.`)
+    console.log(`${church.slug}: ${dollars(u.limitCents)} a month${args[1] === 'default' ? ` (the ${u.plan.name} plan's)` : ''}; ${dollars(u.usedCents)} used in ${u.month}.`)
   } else if (command === 'cap') {
     await setPlatformCap(db, parseDollars(args[0]))
     console.log(`The cap over all churches is now ${dollars(parseDollars(args[0]))} a month.`)

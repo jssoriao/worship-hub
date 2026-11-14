@@ -228,7 +228,9 @@ Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the pag
 
 ### Music.AI credits (owners)
 Generating with Music.AI (lyrics, beats, chords, sections, stems and splits) costs real money, so it is counted in
-**credits** (cents). Each church has a monthly limit (default **$10**) and all churches together a monthly cap
+**credits** (cents). Each church is on a **plan** (`src/shared/plans.ts`: Free, no AI; Team, $35 a month with $20 of credits; set with
+`pnpm churches plan <slug> <plan>`; no payment provider yet, a church is taken to have paid each month) and its plan
+gives the monthly limit (`pnpm ai limit` sets an own limit instead). All churches together have a monthly cap
 (default **$30**); months are UTC calendar months and a new month starts empty. Only **owners** may run it
 (permission `musicai:run`); an owner sees "AI credits" at the top of the Songs page. When the church's limit or
 the platform cap is used up, jobs wait for the next month. A job holds its estimated price before it starts and
