@@ -1,4 +1,4 @@
-import { AudioLinesIcon, FileMusicIcon, HouseIcon, ListMusicIcon, UsersIcon } from 'lucide-react'
+import { AudioLinesIcon, FileMusicIcon, HouseIcon, LibraryIcon, ListMusicIcon, UsersIcon } from 'lucide-react'
 
 /**
  * The pages, in sidebar order. `admin` pages show only to people who may manage members, and the
@@ -9,6 +9,7 @@ export const PAGES = [
   { to: '/', label: 'Home', icon: HouseIcon, end: true, admin: false, owner: false },
   { to: '/practice', label: 'Practice', icon: AudioLinesIcon, end: false, admin: false, owner: false },
   { to: '/charts', label: 'Charts', icon: FileMusicIcon, end: false, admin: false, owner: false },
+  { to: '/manage-songs', label: 'Songs', icon: LibraryIcon, end: false, admin: true, owner: false, group: 'admin' },
   { to: '/arrange', label: 'Arrange', icon: ListMusicIcon, end: false, admin: false, owner: true, group: 'admin' },
   { to: '/members', label: 'Members', icon: UsersIcon, end: false, admin: true, owner: false, group: 'admin' },
 ] as const

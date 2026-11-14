@@ -50,7 +50,12 @@ describe('typed client', () => {
     expect((await one['analysis.json'].$put({ param: { songId: SONG }, json: analysis })).status).toBe(200)
     const history = await (await one.analysis.history.$get({ param: { songId: SONG } })).json()
     expect(history).toHaveLength(1)
-    expect((await one.$delete({ param: { songId: song.id } })).status).toBe(204)
+    // archive and restore, and the admin list
+    expect((await one.archive.$post({ param: { songId: song.id } })).status).toBe(200)
+    const admin = await (await api['admin.json'].$get()).json()
+    expect(admin.find((s) => s.id === song.id)).toMatchObject({ title: 'New one', has: { chart: true, analysis: false } })
+    expect(admin.find((s) => s.id === song.id)?.archivedAt).toBeTruthy()
+    expect((await one.restore.$post({ param: { songId: song.id } })).status).toBe(200)
   })
   it('arrangements: save, list, load, delete', async () => {
     const arr = as('member').songs[':songId'].arrangements

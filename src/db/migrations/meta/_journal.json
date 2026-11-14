@@ -15,6 +15,13 @@
       "when": 1794578915964,
       "tag": "0001_join_links",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794619280400,
+      "tag": "0002_archive_songs",
+      "breakpoints": true
     }
   ]
 }

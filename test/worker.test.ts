@@ -162,11 +162,9 @@ describe('permissions per route', () => {
     expect((await post(`/songs/${SONG_A}`, asA('member'), { title: 'Z' }, 'PATCH')).status).toBe(403)
     expect((await post(`/songs/${SONG_A}`, asA('editor'), { title: 'Song A2', bpm: 72.5, key: 'G' }, 'PATCH')).status).toBe(200)
   })
-  it('song:delete is admin and up, and removes the files', async () => {
-    expect((await call(`/songs/${SONG_A}`, asA('editor'), { method: 'DELETE' })).status).toBe(403)
-    expect((await call(`/songs/${SONG_A}`, asA('admin'), { method: 'DELETE' })).status).toBe(204)
-    expect([...r2.objects.keys()].filter((k) => k.includes(SONG_A))).toEqual([])
-    expect(r2.objects.has(`churches/${B}/songs/${SONG_B}/stems/manifest.json`)).toBe(true) // other church untouched
+  it('the app cannot delete a song: there is no such route', async () => {
+    expect((await call(`/songs/${SONG_A}`, asA('owner'), { method: 'DELETE' })).status).toBe(405)
+    expect(r2.objects.has(`churches/${A}/songs/${SONG_A}/stems/manifest.json`)).toBe(true)
   })
   it('arrangements: members make their own; only the owner or a manager changes them', async () => {
     const body = JSON.stringify({ name: 'Sunday', sections: [], blocks: [] })

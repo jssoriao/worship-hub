@@ -13,6 +13,7 @@ const ABOUT: Record<string, string> = {
   '/charts': 'Chord and lyric charts that follow the music as it plays.',
   '/arrange': 'Your own order of the sections, with parts muted where you want.',
   '/members': 'Add people, give them roles, remove them.',
+  '/manage-songs': 'See what each song has. Archive songs you no longer use.',
 }
 
 /** A way into a page: what it is on the left, its icon in the brand gradient on the right. */

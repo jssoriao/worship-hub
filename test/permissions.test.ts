@@ -13,8 +13,8 @@ const all = (): Request[] => {
 const GRANTED: Record<string, string[]> = {
   member: ['song:read', 'arrangement:create'],
   editor: ['song:read', 'arrangement:create', 'arrangement:manage', 'content:edit'],
-  admin: ['song:read', 'song:create', 'song:delete', 'arrangement:create', 'arrangement:manage', 'content:edit'],
-  owner: ['song:read', 'song:create', 'song:delete', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign'],
+  admin: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit'],
+  owner: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign'],
 }
 // the organization plugin's own statements are checked separately
 const APP = new Set(['song', 'content', 'arrangement', 'staff', 'ai'])

@@ -3,10 +3,15 @@
  * files, charts and analyses from R2 (files.ts). The church always comes from the session, never
  * from the URL, and a song id is only honoured once the song is known to belong to it (songOwned).
  *
- *   GET    /songs/index.json                       the church's songs
+ *   GET    /songs/index.json                       the church's songs (not the archived ones)
+ *   GET    /songs/admin.json                       every song with what it has, archived ones too (admins and owners)
  *   POST   /songs/new                {title}       add a song (no stems yet), so it can have a chart
  *   PATCH  /songs/<id>               {title?, artist?, key?, bpm?, meter?}
- *   DELETE /songs/<id>                             the row, its arrangements and every file
+ *   POST   /songs/<id>/archive                     hides the song everywhere; its files stay (admins and owners)
+ *   POST   /songs/<id>/restore                     brings an archived song back
+ *
+ * The app never deletes a song or a part of it (regenerating costs credits): archive is the most it does.
+ * A real delete is `pnpm songs:delete`, run by the platform admin.
  *   GET    /songs/<id>/arrangements/               [{ id, name, owner, ownerName, updated }], newest first
  *   GET    /songs/<id>/arrangements/<aid>
  *   PUT    /songs/<id>/arrangements/<aid>          any member makes one; then only its owner or a manager
@@ -22,7 +27,7 @@ import * as z from 'zod'
 import { isId } from '../shared/ids.ts'
 import * as data from './data.ts'
 import { serveFile } from './files.ts'
-import { parseSongPath, songKey, songPrefix } from './keys.ts'
+import { parseSongPath, songKey } from './keys.ts'
 import { allowed, church, fail, need, sameOrigin, songOwned, type AppEnv } from './tenant.ts'
 import { body, maxBody, only } from './validate.ts'
 // plain parameters (a regex would show up in the typed client's paths); songOwned and arrangementId check them
@@ -105,33 +110,52 @@ export const songs = new Hono<AppEnv>({ strict: false })
     c.header('Cache-Control', 'private, no-cache')
     return c.json(await data.listSongs(c.get('deps').db, c.get('tenant').orgId))
   })
+  .use('/admin.json', only('GET'))
+  .get('/admin.json', need({ song: ['archive'] }), async (c) => {
+    const { orgId } = c.get('tenant')
+    const rows = await data.listSongsAdmin(c.get('deps').db, orgId)
+    // what each song has: one cheap look at two files (the stems are the database's has_stems)
+    const have = async (songId: string, file: string) => {
+      const key = songKey(orgId, songId, [file])
+      return key ? (await c.env.FILES.head(key)) !== null : false
+    }
+    const out = await Promise.all(rows.map(async (r) => ({ ...r, has: { stems: r.stems, analysis: await have(r.id, 'analysis.json'), chart: await have(r.id, 'chart.pro') } })))
+    return c.json(out)
+  })
   .use('/new', only('POST'))
   .post('/new', need({ song: ['create'] }), body(newSong), async (c) => {
     const { user, orgId } = c.get('tenant')
-    const song = await data.createSong(c.get('deps').db, orgId, user.id, c.req.valid('json').title)
-    if (song === 'exists') return fail(c, 409, 'A song with this name exists already')
+    const { db } = c.get('deps')
+    const title = c.req.valid('json').title
+    const song = await data.createSong(db, orgId, user.id, title)
+    if (song === 'exists') return fail(c, 409, (await data.titleIsArchived(db, orgId, title)) ? 'A song with this name is in the archive. Restore it from Songs.' : 'A song with this name exists already')
     return c.json(song, 201)
   })
-  .use(`${SONG}/*`, songOwned)
-  .use(SONG, only('PATCH', 'DELETE'))
-  .patch(SONG, need({ content: ['edit'] }), body(songPatch), async (c) => {
-    const song = await data.updateSong(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'), c.req.valid('json'))
-    if (song === 'exists') return fail(c, 409, 'A song with this name exists already')
-    if (!song) return fail(c, 404, 'not found')
-    return c.json(song)
+  // archive and restore are before songOwned, which treats an archived song as not found
+  .use('/:songId/archive', only('POST'))
+  .post('/:songId/archive', need({ song: ['archive'] }), async (c) => {
+    const { user, orgId } = c.get('tenant')
+    const songId = c.req.param('songId')
+    if (!isId('song', songId) || !(await data.archiveSong(c.get('deps').db, orgId, songId, user.id, c.get('deps').memo))) return fail(c, 404, 'not found')
+    return c.json({ ok: true as const })
   })
-  .delete(SONG, need({ song: ['delete'] }), async (c) => {
+  .use('/:songId/restore', only('POST'))
+  .post('/:songId/restore', need({ song: ['archive'] }), async (c) => {
     const { orgId } = c.get('tenant')
     const songId = c.req.param('songId')
-    const prefix = songPrefix(orgId, songId)
-    if (!prefix || !(await data.deleteSong(c.get('deps').db, orgId, songId, c.get('deps').memo))) return fail(c, 404, 'not found')
-    let cursor: string | undefined
-    do {
-      const page = await c.env.FILES.list({ prefix, cursor, limit: 1000 })
-      if (page.objects.length > 0) await c.env.FILES.delete(page.objects.map((o) => o.key))
-      cursor = page.truncated ? page.cursor : undefined
-    } while (cursor)
-    return c.body(null, 204)
+    if (!isId('song', songId) || !(await data.restoreSong(c.get('deps').db, orgId, songId, c.get('deps').memo))) return fail(c, 404, 'not found')
+    return c.json({ ok: true as const })
+  })
+  .use(`${SONG}/*`, songOwned)
+  .use(SONG, only('PATCH'))
+  .patch(SONG, need({ content: ['edit'] }), body(songPatch), async (c) => {
+    const { db } = c.get('deps')
+    const { orgId } = c.get('tenant')
+    const patch = c.req.valid('json')
+    const song = await data.updateSong(db, orgId, c.req.param('songId'), patch)
+    if (song === 'exists') return fail(c, 409, patch.title && (await data.titleIsArchived(db, orgId, patch.title)) ? 'A song with this name is in the archive. Restore it from Songs.' : 'A song with this name exists already')
+    if (!song) return fail(c, 404, 'not found')
+    return c.json(song)
   })
   .get(`${SONG}/arrangements`, async (c) => c.json(await data.listArrangements(c.get('deps').db, c.get('tenant').orgId, c.req.param('songId'))))
   .get(ARRANGEMENT, async (c) => {

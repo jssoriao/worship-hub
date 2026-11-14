@@ -25,6 +25,9 @@ export const songs = pgTable(
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: at('created_at').notNull().defaultNow(),
     updatedAt: at('updated_at').notNull().defaultNow(),
+    // archived: gone from the library and the pickers, files untouched, restorable. The app never deletes a song.
+    archivedAt: at('archived_at'),
+    archivedBy: text('archived_by').references(() => users.id, { onDelete: 'set null' }),
   },
   // the unique index leads with organization_id, so it also serves "songs of this church"
   (t) => [unique('songs_organization_id_title_key').on(t.organizationId, t.title)],
