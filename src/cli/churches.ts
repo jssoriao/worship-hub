@@ -4,6 +4,7 @@
  *   pnpm churches list
  *   pnpm churches add <slug> <name> [--owner <email>]
  *   pnpm churches rename <slug> <name>
+ *   pnpm churches plan <slug> [<plan>]                the church's subscription plan (src/shared/plans.ts); without a plan, shows it
  *   pnpm churches theme <slug> [--brand #rrggbb] [--brand2 #rrggbb] [--app-name <name>] [--logo <https url>] [--reset]
  *                                                     the church's branding (src/web/lib/theme.ts); no options shows it
  *   pnpm churches delete <slug>                       shows what deleting it would remove (nothing is deleted)
@@ -16,6 +17,8 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { openDb } from '../db/client.ts'
 import { members, organizations, songs, users } from '../db/schema/index.ts'
 import { newId } from '../shared/ids.ts'
+import { isPlanId, PLAN_IDS, PLANS, type PlanId } from '../shared/plans.ts'
+import { churchPlan, setChurchPlan } from '../api/data.ts'
 import { normalizeEmail, parseArgs, parseSlug } from './lib/cli.ts'
 import { deleteChurch, describePlan, planChurchDelete } from './lib/church-delete.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
@@ -31,8 +34,8 @@ const fail = (message: string): never => {
   console.error(message)
   process.exit(1)
 }
-if (!['list', 'add', 'rename', 'theme', 'delete'].includes(command ?? '')) {
-  fail('Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches theme <slug> [--brand #rrggbb] [--brand2 #rrggbb] [--app-name <name>] [--logo <https url>] [--reset]\n  pnpm churches delete <slug> [--confirm <slug>]\n(add --target prod for production)')
+if (!['list', 'add', 'rename', 'plan', 'theme', 'delete'].includes(command ?? '')) {
+  fail(`Usage:\n  pnpm churches list\n  pnpm churches add <slug> <name> [--owner <email>]\n  pnpm churches rename <slug> <name>\n  pnpm churches plan <slug> [${PLAN_IDS.join('|')}]\n  pnpm churches theme <slug> [--brand #rrggbb] [--brand2 #rrggbb] [--app-name <name>] [--logo <https url>] [--reset]\n  pnpm churches delete <slug> [--confirm <slug>]\n(add --target prod for production)`)
 }
 const { db, close } = openDb(loadTarget(target))
 try {
@@ -73,6 +76,15 @@ try {
     const name = args.slice(1).join(' ').trim() || fail('Give the new name.')
     await db.update(organizations).set({ name }).where(eq(organizations.id, church.id))
     console.log(`Renamed ${church.slug} to ${name}.`)
+  } else if (command === 'plan') {
+    const church = (await churchBySlug(db, parseSlug(args[0]))) ?? fail('No such church. pnpm churches list')
+    const wanted = args[1]
+    if (wanted !== undefined) {
+      if (!isPlanId(wanted)) fail(`Plans: ${PLAN_IDS.join(', ')}`)
+      await setChurchPlan(db, church.id, wanted as PlanId)
+    }
+    const plan = await churchPlan(db, church.id)
+    console.log(`${church.slug}: ${PLANS[plan].name} plan (${plan}), $${PLANS[plan].priceCents / 100} a month, $${PLANS[plan].aiCents / 100} of Music.AI credits.`)
   } else if (command === 'theme') {
     const church = (await churchBySlug(db, parseSlug(args[0]))) ?? fail('No such church.')
     const [row] = await db.select({ metadata: organizations.metadata, logo: organizations.logo }).from(organizations).where(eq(organizations.id, church.id))

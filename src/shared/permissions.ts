@@ -8,8 +8,8 @@
  *   admin   editor + adds and archives songs; manages members and editors
  *   owner   admin + church settings; grants and revokes admin and owner
  *
- * `ai:run` (Music.AI credits) is in no church role: only the platform super admin
- * (user.platformAdmin) runs it, from the CLI.
+ * `musicai:run` (Music.AI: stems, lyrics, chords, beats, sections; it spends credits) is the owner's for now, within the
+ * church's monthly credit limit (src/api/ai.ts). The platform super admin (user.platformAdmin) also runs it from the CLI.
  */
 import { createAccessControl, type AccessControl } from 'better-auth/plugins/access'
 import { adminAc, defaultStatements, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
@@ -21,7 +21,8 @@ export const statement = {
   arrangement: ['create', 'manage'],
   staff: ['assign'],
   service: ['read', 'plan'],
-  ai: ['run'],
+  // Music.AI costs credits, so owners only for now; other AI (an LLM, a knowledge base) would get its own resource
+  musicai: ['run'],
 } as const
 
 // named type, so the declaration the web app reads (tsconfig.worker.json) keeps the same type as the source
@@ -43,6 +44,7 @@ const owner = ac.newRole({
   content: ['edit'],
   staff: ['assign'],
   service: ['read', 'plan'],
+  musicai: ['run'],
 })
 
 export const roles = { member, editor, admin, owner }

@@ -34,6 +34,13 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   (a new song with it gets "in the archive"). A real delete is `pnpm songs:delete` (platform admin, typed title,
   `src/cli/lib/song-delete.ts`); `songs:publish` refuses an archived song. Regenerating AI data costs credits, so the app
   also never deletes parts of a song.
+- Music.AI credits (`musicai:run`, owners only for now): per church a monthly limit in cents (its plan's allowance, `church_plans` + `src/shared/plans.ts`: free $0, team $20 of a $25 plan, no billing provider yet; `ai_limits` overrides) and a
+  cap over all churches (`app_settings` key `ai.platformCapCents`, default $30), months are UTC; a ledger `ai_jobs`
+  (piece, workflow, seconds, estimated and actual cents, status reserved/running/succeeded/failed/cancelled; failed and
+  cancelled do not count). `data.reserveAi` checks and holds the estimate under one advisory lock; `settleAiJob`;
+  `aiUsage`; `listAiJobs`; scripts `pnpm ai usage|jobs|limit|cap|actual`. Pieces and provisional per-minute rates:
+  `src/shared/ai-pieces.ts`. `/api/church/ai` (GET usage + jobs; POST /estimate {pieces, seconds}); `AiCredits` card on the
+  Songs page. No Music.AI call exists yet (next: a fake Music.AI server, then the job pipeline).
 - Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts` with no "Pages" label; the admin pages (Arrange, owners only for now, and Members) sit under a separator below the others and the separator only shows to people who see any of them; account with sign-out;
   folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
   title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom

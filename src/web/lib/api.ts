@@ -18,6 +18,9 @@ export const membersApi = client.api.church.members
 export const linksApi = client.api.church.links
 /** /api/church/services: the active church's services and setlists. */
 export const servicesApi = client.api.church.services
+
+/** /api/church/ai: the church's Music.AI credits. */
+export const aiApi = client.api.church.ai
 /** /api/join/<token>: joining a church through a link. */
 export const joinApi = client.api.join
 /** An answer that was not ok. `message` is the server's `{ error }` (written for people) unless replaced. */

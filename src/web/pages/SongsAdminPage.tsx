@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AiCredits } from '../components/AiCredits'
 import { PageHeader } from '../components/PageHeader'
 import { useChurch } from '../lib/church-context'
 import { archiveSong, listSongsAdmin, restoreSong, type AdminSong } from '../lib/songs-admin-api'
@@ -78,6 +79,7 @@ export default function SongsAdminPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 pt-3 pb-24 md:px-6">
       <PageHeader title="Songs" />
+      {church.can({ musicai: ['run'] }) && <AiCredits churchId={church.id} />}
 
       {error && (
         <Alert variant="destructive" className="mt-4">
