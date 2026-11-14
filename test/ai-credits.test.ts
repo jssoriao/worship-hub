@@ -3,7 +3,7 @@ import type { Db } from '../src/db/client.ts'
 import * as data from '../src/api/data.ts'
 import { parseDollars } from '../src/cli/lib/money.ts'
 import { PLANS } from '../src/shared/plans.ts'
-import { dollars, estimateCents, MAX_SECONDS, pieceCents, PIECES, lyricsWorkflow } from '../src/shared/ai-pieces.ts'
+import { dollars, estimateCents, MAX_SECONDS, pieceCents, PIECES, lyricsWorkflow, planJobs, type PieceId } from '../src/shared/ai-pieces.ts'
 import { testApp } from './app.ts'
 import { freshDb, seedChurch, seedMember, seedUser } from './helpers.ts'
 
@@ -34,7 +34,49 @@ describe('pieces and prices', () => {
     expect(pieceCents('chords', 60)).toBe(4)
     expect(pieceCents('chords', 90)).toBe(6)
     expect(pieceCents('chords', 1)).toBe(1)
-    expect(estimateCents(['beats', 'chords'], 300)).toBe(15 + 20)
+    expect(estimateCents(['chords', 'beats'], 300)).toBe(15 + 20)
+  })
+  it('uses the estimates of the Music.AI dashboard, in cents per minute', () => {
+    expect(Object.fromEntries(PIECES.map((p) => [p.id, p.centsPerMinute]))).toEqual({
+      lyrics: 33, beats: 3, chords: 4, sections: 7, stems: 50, 'split-vocals': 10, 'split-drums': 16, 'split-guitars': 10, 'split-guitar-parts': 10,
+    })
+  })
+  describe('jobs for the ticked pieces', () => {
+    const jobs = (pieces: PieceId[], have = {}, language: 'en' | 'tl' = 'en') => {
+      const plan = planJobs(pieces, 360, language, have) // 6 minutes
+      if (!plan.ok) throw new Error(plan.reason)
+      return plan.jobs.map((j) => [j.workflow, j.cents, j.provides.join('+'), j.afterStems] as const)
+    }
+    it('runs sections alone when beats are ticked too, since it runs beats inside', () => {
+      expect(jobs(['beats', 'sections'])).toEqual([['worship-hub-sections', 42, 'sections+beats', false]])
+      expect(jobs(['sections'])).toEqual([['worship-hub-sections', 42, 'sections', false]])
+      expect(jobs(['beats'])).toEqual([['worship-hub-beats', 18, 'beats', false]])
+    })
+    it('prices the four defaults of a new song', () => {
+      const plan = planJobs(PIECES.filter((p) => p.defaultOn).map((p) => p.id), 360)
+      expect(plan.ok && plan.totalCents).toBe(198 + 24 + 42) // lyrics from the full mix, chords, sections with beats
+    })
+    it('starts lyrics from the vocal stem when there is one, or when the stems are made in the same request', () => {
+      expect(jobs(['lyrics'])).toEqual([['worship-hub-lyrics-en', 198, 'lyrics', false]])
+      expect(jobs(['lyrics'], { vocals: true }, 'tl')).toEqual([['worship-hub-lyrics-from-vocals-tl', 156, 'lyrics', false]])
+      expect(jobs(['stems', 'lyrics'])).toEqual([
+        ['worship-hub-lyrics-from-vocals-en', 156, 'lyrics', true],
+        ['worship-hub-stems-core', 300, 'stems', false],
+      ])
+    })
+    it('starts a split from the song stem, or from the one made in the same request, and refuses it with none', () => {
+      expect(jobs(['split-vocals'], { vocals: true })).toEqual([['worship-hub-split-vocals', 60, 'split-vocals', false]])
+      expect(jobs(['stems', 'split-drums', 'split-guitars']).map((j) => [j[0], j[3]])).toEqual([
+        ['worship-hub-stems-core', false],
+        ['worship-hub-split-drums', true],
+        ['worship-hub-split-guitars', true],
+      ])
+      for (const piece of ['split-vocals', 'split-drums', 'split-guitars', 'split-guitar-parts'] as const) {
+        expect(planJobs([piece], 360)).toMatchObject({ ok: false })
+      }
+      expect(planJobs(['split-drums'], 360, 'en', { vocals: true })).toMatchObject({ ok: false }) // a vocal stem is no drums
+      expect(estimateCents(['split-guitar-parts'], 360)).toBeNull()
+    })
   })
   it('has the default four ticked and the stems and splits off, with unique ids', () => {
     expect(PIECES.filter((p) => p.defaultOn).map((p) => p.id)).toEqual(['lyrics', 'beats', 'chords', 'sections'])
@@ -190,12 +232,29 @@ describe('/api/church/ai', () => {
 
   it('prices a request, and says whether it fits and why not', async () => {
     const ok = await (await estimate(as('owner'), { pieces: ['beats', 'chords'], seconds: 300 })).json()
-    expect(ok).toEqual({ items: [{ piece: 'beats', cents: 15 }, { piece: 'chords', cents: 20 }], totalCents: 35, remainingCents: 1000, fits: true, reason: null })
+    expect(ok).toEqual({
+      items: [
+        { piece: 'beats', workflow: 'worship-hub-beats', provides: ['beats'], cents: 15, afterStems: false },
+        { piece: 'chords', workflow: 'worship-hub-chords', provides: ['chords'], cents: 20, afterStems: false },
+      ],
+      totalCents: 35, remainingCents: 1000, fits: true, reason: null,
+    })
     const big = await (await estimate(as('owner'), { pieces: ['stems'], seconds: 300 })).json()
-    expect(big).toMatchObject({ totalCents: 350, fits: true })
+    expect(big).toMatchObject({ totalCents: 250, fits: true })
     await data.reserveAi(db, A, job(900))
     expect(await (await estimate(as('owner'), { pieces: ['chords'], seconds: 300 })).json()).toMatchObject({ fits: true, remainingCents: 100 })
     expect(await (await estimate(as('owner'), { pieces: ['stems'], seconds: 300 })).json()).toMatchObject({ fits: false, reason: 'church', remainingCents: 100 })
+  })
+  it('plans the jobs: sections with beats, lyrics from the new vocals, a split with no stem refused', async () => {
+    const both = await (await estimate(as('owner'), { pieces: ['beats', 'sections'], seconds: 300 })).json()
+    expect(both).toMatchObject({ totalCents: 35, items: [{ workflow: 'worship-hub-sections', provides: ['sections', 'beats'] }] })
+    const withStems = await (await estimate(as('owner'), { pieces: ['stems', 'lyrics'], seconds: 300, language: 'tl' })).json()
+    expect(withStems).toMatchObject({ items: [{ workflow: 'worship-hub-lyrics-from-vocals-tl', afterStems: true }, { workflow: 'worship-hub-stems-core' }] })
+    const split = await estimate(as('owner'), { pieces: ['split-vocals'], seconds: 300 })
+    expect(split.status).toBe(400)
+    expect(await split.json()).toEqual({ error: 'Split vocals needs the vocals stem: make the stems first' })
+    expect(await (await estimate(as('owner'), { pieces: ['split-vocals'], seconds: 300, have: { vocals: true } })).json()).toMatchObject({ totalCents: 50 })
+    expect((await estimate(as('owner'), { pieces: ['chords'], seconds: 60, language: 'fr' })).status).toBe(400)
   })
 
   it('says the platform is the reason when its cap is what is reached', async () => {

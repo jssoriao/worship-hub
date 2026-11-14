@@ -38,7 +38,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   cap over all churches (`app_settings` key `ai.platformCapCents`, default $30), months are UTC; a ledger `ai_jobs`
   (piece, workflow, seconds, estimated and actual cents, status reserved/running/succeeded/failed/cancelled; failed and
   cancelled do not count). `data.reserveAi` checks and holds the estimate under one advisory lock; `settleAiJob`;
-  `aiUsage`; `listAiJobs`; scripts `pnpm ai usage|jobs|limit|cap|actual`. Pieces and provisional per-minute rates:
+  `aiUsage`; `listAiJobs`; scripts `pnpm ai usage|jobs|limit|cap|actual`. Pieces and per-minute rates (the dashboard's estimates; `planJobs` picks the jobs):
   `src/shared/ai-pieces.ts`. `/api/church/ai` (GET usage + jobs; POST /estimate {pieces, seconds}); `AiCredits` card on the
   Songs page. No Music.AI call exists yet (next: a fake Music.AI server, then the job pipeline).
 - Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts` with no "Pages" label; the admin pages (Arrange, owners only for now, and Members) sit under a separator below the others and the separator only shows to people who see any of them; account with sign-out;
