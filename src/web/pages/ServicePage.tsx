@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from 'react-router'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, AudioLinesIcon, CopyIcon, ExternalLinkIcon, LinkIcon, PencilIcon, PlayIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, AudioLinesIcon, ChevronDownIcon, CopyIcon, ExternalLinkIcon, LinkIcon, PencilIcon, PlayIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -93,6 +93,8 @@ export default function ServicePage() {
   const [busy, setBusy] = useState(false)
   const [songs, setSongs] = useState<LibrarySong[] | null>(null)
   const [selected, setSelected] = useState('')
+  // the selected song's media list is folded away (its chart stays)
+  const [folded, setFolded] = useState(false)
   const [video, setVideo] = useState<{ id: string; title: string } | null>(null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'edit' | 'clone' | null>(null)
@@ -369,18 +371,27 @@ export default function ServicePage() {
         <div className="mt-3 grid items-start gap-3 md:grid-cols-[19rem_1fr]">
           <ul className="grid min-w-0 grid-cols-1 gap-1.5">
             {songLines.map((line) => {
-              const open = line.uid === current.uid
+              const chosen = line.uid === current.uid
+              const open = chosen && !folded
               return (
                 <li key={line.uid}>
                   <Card className="gap-0 overflow-hidden py-0">
                     <button
                       type="button"
                       aria-expanded={open}
-                      onClick={() => setSelected(line.uid)}
-                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${open ? 'bg-accent/50' : 'hover:bg-accent/30'}`}
+                      onClick={() => {
+                        // the shown song folds and unfolds; another song is shown, unfolded
+                        if (chosen) setFolded((f) => !f)
+                        else {
+                          setSelected(line.uid)
+                          setFolded(false)
+                        }
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring ${chosen ? 'bg-accent/50' : 'hover:bg-accent/30'}`}
                     >
                       <span className="min-w-0 flex-1 truncate font-medium">{line.title}</span>
                       {keyOf(line) && <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs">{keyOf(line)}</span>}
+                      <ChevronDownIcon aria-hidden="true" className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
                     </button>
                     {open && (
                       <ul className="grid grid-cols-1 gap-1 border-t border-border p-1.5">

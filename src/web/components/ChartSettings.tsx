@@ -1,5 +1,5 @@
-import { NativeSelect } from '@/components/ui/native-select'
 import { useEffect, useRef, useState } from 'react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { keyName, shiftKey, type Key } from '../lib/chords'
 import { SCALES, type SongSettings, type ViewSettings } from '../lib/chart-view'
 
@@ -41,11 +41,15 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
 
   useEffect(() => {
     if (!open) return
+    // A Key or Capo list is drawn outside the panel (Radix portal). While one is open, Radix blocks the page
+    // (a click lands on <html>, not on what is under the pointer) and closes the list itself on a click or
+    // Esc; the panel stays open.
+    const listOpen = () => document.querySelector('[data-slot=select-content]') !== null
     const onDown = (e: PointerEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false)
+      if (!listOpen() && !box.current?.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !listOpen()) {
         setOpen(false)
         button.current?.focus()
       }
@@ -80,27 +84,37 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 w-72 divide-y divide-border rounded-xl border border-input bg-card text-sm shadow-xl shadow-black/50">
-          <label className={row}>
+          <div className={row}>
             <span>Key</span>
-            <NativeSelect value={song.transpose} onChange={(e) => onSong({ ...song, transpose: Number(e.target.value) })}>
-              {shifts.map((n) => (
-                <option key={n} value={n}>
-                  {label(n)}
-                  {n === 0 ? ' (original)' : ''}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-          <label className={row}>
+            <Select value={String(song.transpose)} onValueChange={(v) => onSong({ ...song, transpose: Number(v) })}>
+              <SelectTrigger size="sm" aria-label="Key" className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end" className="max-h-72">
+                {shifts.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {label(n)}
+                    {n === 0 ? ' (original)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className={row}>
             <span>Capo</span>
-            <NativeSelect value={song.capo} onChange={(e) => onSong({ ...song, capo: Number(e.target.value) })}>
-              {Array.from({ length: 8 }, (_, c) => (
-                <option key={c} value={c}>
-                  {c === 0 ? 'None' : original ? `${c} (${keyName(shiftKey(original, song.transpose - c))} shapes)` : String(c)}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
+            <Select value={String(song.capo)} onValueChange={(v) => onSong({ ...song, capo: Number(v) })}>
+              <SelectTrigger size="sm" aria-label="Capo" className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" align="end">
+                {Array.from({ length: 8 }, (_, c) => (
+                  <SelectItem key={c} value={String(c)}>
+                    {c === 0 ? 'None' : original ? `${c} (${keyName(shiftKey(original, song.transpose - c))} shapes)` : String(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className={row}>
             <span>Chords</span>
             <Segmented
