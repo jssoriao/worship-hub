@@ -1,5 +1,5 @@
 import { AudioLinesIcon, ChevronsUpDownIcon, LogOutIcon, SearchIcon } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import {
   DropdownMenu,
@@ -15,20 +15,20 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar'
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
-import { PAGES, pageShown } from '../lib/pages'
+import { inAdminGroup, PAGES, pageShown } from '../lib/pages'
 import { DEFAULT_THEME } from '../lib/theme'
 
 
@@ -164,6 +164,9 @@ export function AppSidebar() {
   const { isMobile, setOpenMobile } = useSidebar()
   const mayManage = church.can({ member: ['create'] })
   const appName = church.theme.appName ?? DEFAULT_THEME.appName
+  const shown = PAGES.filter((p) => pageShown(p, { mayManage, role: church.role }))
+  const main = shown.filter((p) => !inAdminGroup(p))
+  const admin = shown.filter(inAdminGroup)
   return (
     <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
@@ -174,33 +177,41 @@ export function AppSidebar() {
         <ChurchSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Pages</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {PAGES.filter((p) => pageShown(p, { mayManage, role: church.role })).map((p) => {
-                const active = p.end ? pathname === p.to : pathname === p.to || pathname.startsWith(`${p.to}/`)
-                const playingHere = p.to === '/practice' && now.playing
-                return (
-                  <SidebarMenuItem key={p.to}>
-                    <SidebarMenuButton asChild isActive={active} tooltip={p.label}>
-                      <NavLink to={p.to === '/practice' ? practiceLink(now, church.id) : p.to} end={p.end} onClick={() => isMobile && setOpenMobile(false)}>
-                        <p.icon aria-hidden="true" />
-                        <span>{p.label}</span>
-                        {playingHere && <span className="sr-only">{now.title ? `, playing ${now.title}` : ', playing'}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                    {playingHere && (
-                      <SidebarMenuBadge aria-hidden="true">
-                        <span className="size-2 animate-pulse rounded-full bg-highlight" />
-                      </SidebarMenuBadge>
-                    )}
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {[main, admin].map(
+          (pages, group) =>
+            pages.length > 0 && (
+              <Fragment key={group}>
+                {/* the admin pages sit under a separator, below the others */}
+                {group === 1 && <SidebarSeparator className="mx-0" />}
+                <SidebarGroup>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {pages.map((p) => {
+                        const active = p.end ? pathname === p.to : pathname === p.to || pathname.startsWith(`${p.to}/`)
+                        const playingHere = p.to === '/practice' && now.playing
+                        return (
+                          <SidebarMenuItem key={p.to}>
+                            <SidebarMenuButton asChild isActive={active} tooltip={p.label}>
+                              <NavLink to={p.to === '/practice' ? practiceLink(now, church.id) : p.to} end={p.end} onClick={() => isMobile && setOpenMobile(false)}>
+                                <p.icon aria-hidden="true" />
+                                <span>{p.label}</span>
+                                {playingHere && <span className="sr-only">{now.title ? `, playing ${now.title}` : ', playing'}</span>}
+                              </NavLink>
+                            </SidebarMenuButton>
+                            {playingHere && (
+                              <SidebarMenuBadge aria-hidden="true">
+                                <span className="size-2 animate-pulse rounded-full bg-highlight" />
+                              </SidebarMenuBadge>
+                            )}
+                          </SidebarMenuItem>
+                        )
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </Fragment>
+            ),
+        )}
       </SidebarContent>
       <SidebarFooter>
         <Account />
