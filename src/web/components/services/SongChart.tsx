@@ -4,8 +4,9 @@ import ChartPages from '../ChartPages'
  * A song's chart, read only, for the Songs tab. `serviceKey` (this service's key for the song, when it differs)
  * moves the chords for this view only: the song's stored chart and remembered key are not touched.
  */
-export function SongChart({ songId, title, songKey, serviceKey }: { songId: string | null; title: string; songKey: string | null; serviceKey: string | null }) {
+export function SongChart({ songId, archived = false, title, songKey, serviceKey }: { songId: string | null; archived?: boolean; title: string; songKey: string | null; serviceKey: string | null }) {
   const { chart, loading, error } = useChart(songId)
+  if (archived) return <p className="px-1 py-2 text-sm text-muted-foreground">This song is archived, so its chart is not shown. Its links still work.</p>
   if (!songId) return <p className="px-1 py-2 text-sm text-muted-foreground">This song is not in the song list, so it has no chart. Its links still work.</p>
   if (loading) return <p role="status" className="p-2 text-sm text-muted-foreground">Loading chart…</p>
   if (error) return <p role="alert" className="p-2 text-sm text-destructive">Could not load the chart ({error}).</p>

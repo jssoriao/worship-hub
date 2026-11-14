@@ -13,7 +13,7 @@ const as = (user: string, church = A) => `user=${user}; church=${church}`
 const app = testApp(() => ({ db, memo: new Memo() }))
 const call = (who: string | null, method: string, path = '', body?: unknown) =>
   app.call(`/api/church/services${path}`, who, { method, body: body === undefined ? undefined : JSON.stringify(body) })
-type Service = { id: string; date: string; time: string | null; title: string | null; items: { id: string; kind: string; songId: string | null; title: string; key: string | null; songKey: string | null; notes: string | null; links: { url: string; label: string }[] }[] }
+type Service = { id: string; date: string; time: string | null; title: string | null; items: { id: string; kind: string; songId: string | null; title: string; key: string | null; songKey: string | null; archived: boolean; notes: string | null; links: { url: string; label: string }[] }[] }
 const make = async (body: Record<string, unknown> = { date: '2031-03-02' }, who = 'editor') => {
   const res = await call(as(who), 'POST', '', body)
   return { res, service: ((await res.json()) as { service: Service }).service }
@@ -188,7 +188,8 @@ describe('setlist', () => {
     await pg.query(`update songs set archived_at = now() where id = $1`, [SONG_A])
     const { service: now } = (await (await call(as('member'), 'GET', `/${service.id}`)).json()) as { service: Service }
     // saving again with the same line is fine; adding the archived song to a new line of another service is not
-    expect((await put(service.id, [{ id: now.items[0].id, songId: SONG_A }, { title: 'Prayer', kind: 'item' }])).status).toBe(200)
+    expect(now.items.map((i) => [i.title, i.songId, i.archived])).toEqual([['Song A', SONG_A, true]])
+    expect((await put(service.id, [{ id: now.items[0].id, songId: SONG_A, links: [{ url: 'https://example.com/v' }] }, { title: 'Prayer', kind: 'item' }])).status).toBe(200)
     const other = (await make({ date: '2031-06-01' })).service
     expect((await put(other.id, [{ songId: SONG_A }])).status).toBe(400)
     // a new song with the title of an archived one says so

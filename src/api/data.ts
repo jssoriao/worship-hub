@@ -582,6 +582,8 @@ export interface ItemRow {
   key: string | null
   /** the song's own key (null when it has none, or the song is gone) */
   songKey: string | null
+  /** the song is in the church's archive: the line keeps its name, key and links, but nothing of the song is served */
+  archived: boolean
   notes: string | null
   links: ItemLink[]
 }
@@ -624,6 +626,7 @@ export async function getService(db: Db, orgId: string, serviceId: string): Prom
       title: serviceItems.title,
       key: serviceItems.musicKey,
       songKey: songs.musicKey,
+      archivedAt: songs.archivedAt,
       notes: serviceItems.notes,
       links: serviceItems.links,
     })
@@ -631,7 +634,7 @@ export async function getService(db: Db, orgId: string, serviceId: string): Prom
     .leftJoin(songs, and(eq(songs.id, serviceItems.songId), eq(songs.organizationId, orgId)))
     .where(eq(serviceItems.serviceId, serviceId))
     .orderBy(asc(serviceItems.position))
-  return { ...toService(row), items }
+  return { ...toService(row), items: items.map(({ archivedAt, ...item }) => ({ ...item, archived: archivedAt !== null })) }
 }
 export function serviceBelongs(db: Db, orgId: string, serviceId: string): Promise<boolean> {
   return db

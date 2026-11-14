@@ -31,12 +31,14 @@ interface Line {
   /** the day's key; empty = the song's own */
   key: string
   songKey: string | null
+  /** its song is archived: only the name, key and links are shown */
+  archived: boolean
   notes: string
   links: { url: string; label: string }[]
 }
 type Tab = 'order' | 'songs'
 const uid = () => crypto.randomUUID()
-const lineOf = (item: ServiceItem): Line => ({ uid: uid(), id: item.id, kind: item.kind, songId: item.songId, title: item.title, key: item.key ?? '', songKey: item.songKey, notes: item.notes ?? '', links: item.links })
+const lineOf = (item: ServiceItem): Line => ({ uid: uid(), id: item.id, kind: item.kind, songId: item.songId, title: item.title, key: item.key ?? '', songKey: item.songKey, archived: item.archived, notes: item.notes ?? '', links: item.links })
 /** What changes when saved, as text: two drafts are the same when this is. */
 const snapshot = (lines: Line[]) => JSON.stringify(lines.map(({ uid: _u, ...rest }) => rest))
 const draftOf = (line: Line): ItemDraft => ({
@@ -236,15 +238,15 @@ export default function ServicePage() {
   const addSong = (id: string) => {
     const song = songs?.find((s) => s.id === id)
     if (!song) return
-    update((ls) => [...ls, { uid: uid(), kind: 'song', songId: song.id, title: song.title, key: '', songKey: song.key ?? null, notes: '', links: [] }])
+    update((ls) => [...ls, { uid: uid(), kind: 'song', songId: song.id, title: song.title, key: '', songKey: song.key ?? null, archived: false, notes: '', links: [] }])
   }
   /** A song from the New song panel. `listed`: also add it to the church's list when saved; otherwise it is only a name in this service. */
   const addNew = (song: NewSong, listed: boolean) => {
     update((ls) => [
       ...ls,
       listed
-        ? { uid: uid(), kind: 'song', songId: null, newSong: song, title: song.title, key: '', songKey: song.key || null, notes: '', links: [] }
-        : { uid: uid(), kind: 'song', songId: null, title: song.title, key: song.key, songKey: null, notes: '', links: [] },
+        ? { uid: uid(), kind: 'song', songId: null, newSong: song, title: song.title, key: '', songKey: song.key || null, archived: false, notes: '', links: [] }
+        : { uid: uid(), kind: 'song', songId: null, title: song.title, key: song.key, songKey: null, archived: false, notes: '', links: [] },
     ])
     setAdding(false)
   }
@@ -382,7 +384,7 @@ export default function ServicePage() {
                     </button>
                     {open && (
                       <ul className="grid grid-cols-1 gap-1 border-t border-border p-1.5">
-                        {line.songId && (
+                        {line.songId && !line.archived && (
                           <li>
                             <Link to={practicePath(line.songId)} className="flex items-center gap-2 rounded-md p-1 text-sm hover:bg-accent/40">
                               <span className="grid h-8 w-14 shrink-0 place-items-center rounded bg-muted text-muted-foreground">
@@ -457,7 +459,7 @@ export default function ServicePage() {
             })}
           </ul>
           <div className="min-w-0">
-            <SongChart key={current.uid} songId={current.songId} title={current.title} songKey={current.songKey} serviceKey={current.key.trim() || null} />
+            <SongChart key={current.uid} songId={current.archived ? null : current.songId} archived={current.archived} title={current.title} songKey={current.songKey} serviceKey={current.key.trim() || null} />
           </div>
         </div>
       )}
