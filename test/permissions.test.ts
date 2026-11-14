@@ -11,13 +11,13 @@ const all = (): Request[] => {
 
 // every church permission each role has; everything else must be denied
 const GRANTED: Record<string, string[]> = {
-  member: ['song:read', 'arrangement:create'],
-  editor: ['song:read', 'arrangement:create', 'arrangement:manage', 'content:edit'],
-  admin: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit'],
-  owner: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign'],
+  member: ['song:read', 'arrangement:create', 'service:read'],
+  editor: ['song:read', 'arrangement:create', 'arrangement:manage', 'content:edit', 'service:read', 'service:plan'],
+  admin: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'service:read', 'service:plan'],
+  owner: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign', 'service:read', 'service:plan'],
 }
 // the organization plugin's own statements are checked separately
-const APP = new Set(['song', 'content', 'arrangement', 'staff', 'ai'])
+const APP = new Set(['song', 'content', 'arrangement', 'staff', 'service', 'ai'])
 
 describe('permissions', () => {
   it('has the four roles', () => {

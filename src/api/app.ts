@@ -5,6 +5,7 @@
  *   /api/auth/*            Better Auth (emailed sign-in code, sessions, churches the person belongs to)
  *   /api/church/members/*  the active church's people (members.ts)
  *   /api/church/links/*    the active church's join links (links.ts)
+ *   /api/church/services/* the active church's services and setlists (services.ts)
  *   /api/join/*            joining a church through a link, signed out or in (join.ts)
  *   /songs/*               the active church's songs (songs.ts) and their files in R2 (files.ts)
  *
@@ -16,6 +17,7 @@ import { HTTPException } from 'hono/http-exception'
 import { join } from './join.ts'
 import { links } from './links.ts'
 import { members } from './members.ts'
+import { servicesApp } from './services.ts'
 import { songs } from './songs.ts'
 import { authPathAllowed, fail, type AppEnv, type Deps } from './tenant.ts'
 export type Provide = (c: Context<AppEnv>, run: (deps: Deps) => Promise<void>) => Promise<void>
@@ -34,6 +36,7 @@ export function createApp(provide: Provide) {
       .on(['GET', 'POST'], '/api/auth/*', async (c) => (authPathAllowed(c.req.path) ? await c.get('deps').authHandler(c.req.raw) : c.json({ error: 'not found' }, 404)))
       .route('/api/church/members', members)
       .route('/api/church/links', links)
+      .route('/api/church/services', servicesApp)
       .route('/api/join', join)
       .route('/songs', songs)
       .notFound((c) => fail(c, 404, 'not found'))

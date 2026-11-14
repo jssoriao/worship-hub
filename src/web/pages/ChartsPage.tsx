@@ -4,7 +4,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Link, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
@@ -175,24 +175,9 @@ export default function ChartsPage() {
       .then(() => setPosition(activeSection(chart.sections, t)))
   }
 
-  return (
-    <div className={`mx-auto px-4 pt-3 md:px-6 ${editing ? 'max-w-5xl pb-24' : 'max-w-6xl pb-2'}`}>
-      <PageHeader
-        title="Charts"
-        actions={
-          <>
-            <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full sm:w-80" />
-            {mayAdd && !adding && (
-              <Button variant="outline" onClick={() => setAdding(true)}>
-                <PlusIcon aria-hidden="true" />
-                New song
-              </Button>
-            )}
-          </>
-        }
-      />
-      {mayAdd && adding && (
-        <form onSubmit={(e) => void addSong(e)} className="mt-3 flex flex-wrap items-center gap-2">
+  const blank = songId === ''
+  const addForm = (
+    <form onSubmit={(e) => void addSong(e)} className="flex w-full flex-wrap items-center gap-2">
           <Label className="sr-only" htmlFor="new-song">
             Song title
           </Label>
@@ -215,18 +200,44 @@ export default function ChartsPage() {
             </p>
           )}
         </form>
-      )}
-
+  )
+  return (
+    <div className={`mx-auto px-4 pt-3 md:px-6 ${editing ? 'max-w-5xl pb-24' : 'max-w-6xl pb-2'}`}>
+      {/* a song open: the search and New song sit in the header; nothing open: they are centred, like Practice */}
+      <PageHeader
+        title="Charts"
+        actions={
+          !blank && (
+            <>
+              <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full sm:w-80" />
+              {mayAdd && !adding && (
+                <Button variant="outline" onClick={() => setAdding(true)}>
+                  <PlusIcon aria-hidden="true" />
+                  New song
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
+      {!blank && mayAdd && adding && <div className="mt-3">{addForm}</div>}
       {unknownSong && (
         <Alert className="mt-4">That song is not in this church.</Alert>
       )}
-      {songId === '' && (
-        <Empty>
-          Choose a song, or play one on the Practice page.{' '}
-          <Link to="/practice" className="underline underline-offset-2">
-            Go to Practice
-          </Link>
-        </Empty>
+      {blank && (
+        <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
+          <p className="text-lg font-medium text-slate-200">Which chart?</p>
+          <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full" />
+          {mayAdd && (adding ? addForm : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>or</span>
+              <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+                <PlusIcon aria-hidden="true" />
+                New song
+              </Button>
+            </div>
+          ))}
+        </div>
       )}
       {songId !== '' && loaded?.id !== songId && <p className="mt-6 text-sm text-muted-foreground">Loading…</p>}
       {loaded?.id === songId && loaded.error !== '' && <Empty>Could not load the chart ({loaded.error}).</Empty>}

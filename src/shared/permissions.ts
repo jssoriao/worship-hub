@@ -4,7 +4,7 @@
  * Better Auth organization plugin (its own endpoints need the default statements).
  *
  *   member  plays songs; makes their own arrangements
- *   editor  member + edits chords, lyrics, sections, charts, song details; manages any arrangement
+ *   editor  member + edits chords, lyrics, sections, charts, song details; manages any arrangement; plans services
  *   admin   editor + adds and archives songs; manages members and editors
  *   owner   admin + church settings; grants and revokes admin and owner
  *
@@ -20,19 +20,21 @@ export const statement = {
   content: ['edit'],
   arrangement: ['create', 'manage'],
   staff: ['assign'],
+  service: ['read', 'plan'],
   ai: ['run'],
 } as const
 
 // named type, so the declaration the web app reads (tsconfig.worker.json) keeps the same type as the source
 export const ac: AccessControl<typeof statement> = createAccessControl(statement)
 
-const member = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create'] })
-const editor = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create', 'manage'], content: ['edit'] })
+const member = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create'], service: ['read'] })
+const editor = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create', 'manage'], content: ['edit'], service: ['read', 'plan'] })
 const admin = ac.newRole({
   ...adminAc.statements,
   song: ['read', 'create', 'archive'],
   arrangement: ['create', 'manage'],
   content: ['edit'],
+  service: ['read', 'plan'],
 })
 const owner = ac.newRole({
   ...ownerAc.statements,
@@ -40,6 +42,7 @@ const owner = ac.newRole({
   arrangement: ['create', 'manage'],
   content: ['edit'],
   staff: ['assign'],
+  service: ['read', 'plan'],
 })
 
 export const roles = { member, editor, admin, owner }

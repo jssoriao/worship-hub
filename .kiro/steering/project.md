@@ -23,6 +23,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   `pnpm dlx shadcn@<pinned> view <name>` and point the import there). Local changes to ui/ files are marked
   "adapted" (pill buttons with the brand gradient, `type="button"` by default, glass cards, readable destructive
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
+- UI principle: compact first. The people using it are not technical, so desktop pages stay dense and simple (small controls, one-line rows, few
+  clicks). Phones will get their own design later (larger text and controls, not a shrunk copy of desktop); until then work targets desktop.
 - Arrange is owner-only for now (not ready for others): `PAGES[].owner` + `pageShown` (`src/web/lib/pages.ts`) hide its
   sidebar and Home link, and `/arrange` shows Not found to anyone but an owner (UI only; its API is unchanged).
 - Songs are never deleted by the app, only ARCHIVED (`songs.archived_at/archived_by`; permission `song:archive`, admins and

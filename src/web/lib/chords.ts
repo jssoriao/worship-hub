@@ -49,6 +49,11 @@ export function shiftKey(key: Key, semitones: number): Key {
   return { tonic: mod12(key.tonic + semitones), minor: key.minor }
 }
 
+/** The shortest move from one key's tonic to another's, -5 to +6 semitones (the mode is ignored). */
+export function semitonesBetween(from: Key, to: Key): number {
+  const up = mod12(to.tonic - from.tonic)
+  return up > 6 ? up - 12 : up
+}
 /** Whether chords in `key` should be spelled with flats (no key: keep what the chord used). */
 export function prefersFlats(key: Key | null, chord = ''): boolean {
   return key ? flatKey(key) : /^[A-G]b/.test(chord)

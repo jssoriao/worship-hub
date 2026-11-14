@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { lineKind, type Chart } from '../lib/chart'
 import { paginate, pageOf, type Page } from '../lib/chart-layout'
 import { SECTION_CLASS, chordDisplay, loadSong, loadView, saveSong, saveView, type Paper, type SongSettings, type ViewSettings } from '../lib/chart-view'
-import { keyName } from '../lib/chords'
+import { keyName, parseKey, semitonesBetween } from '../lib/chords'
 import { LineView, SectionFragment, SectionHeading } from './ChartFragment'
 import { ChartSettings } from './ChartSettings'
 
@@ -13,6 +13,11 @@ interface Props {
   title: string
   /** the song's key when the chart has no {key} (from the stems' analysis) */
   fallbackKey?: string
+  /**
+   * Show the chart in this key, for this view only: the song's remembered key and capo are neither used
+   * nor changed. Give the component a `key` that includes it, so a new key starts the view again.
+   */
+  serviceKey?: string
   bpm?: number
   /** the section playing now, -1 for none */
   active: number
@@ -44,11 +49,19 @@ const PAPER_COLOURS: Record<Paper, CSSProperties> = {
  * is fixed on the sheet and the sheet is scaled to the screen. Text size "Fit" picks the largest
  * text that shows the whole chart at once. Follow turns to the section being played.
  */
-export default function ChartPages({ chart, songId, title, fallbackKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions }: Props) {
+export default function ChartPages({ chart, songId, title, fallbackKey, serviceKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions }: Props) {
   const [view, setView] = useState<ViewSettings>(loadView)
-  const [song, setSong] = useState<SongSettings>(() => loadSong(songId))
+  // a key given for this view moves the chart there; that and any change made here are not remembered
+  const forced = useMemo(() => {
+    const from = parseKey(chart.key || fallbackKey || '')
+    const to = serviceKey ? parseKey(serviceKey) : null
+    return from && to ? semitonesBetween(from, to) : null
+  }, [chart.key, fallbackKey, serviceKey])
+  const [song, setSong] = useState<SongSettings>(() => (forced !== null ? { transpose: forced, capo: 0 } : loadSong(songId)))
   useEffect(() => saveView(view), [view])
-  useEffect(() => saveSong(songId, song), [songId, song])
+  useEffect(() => {
+    if (forced === null) saveSong(songId, song)
+  }, [songId, song, forced])
 
   const display = useMemo(() => chordDisplay(chart.key || fallbackKey || '', song, view), [chart.key, fallbackKey, song, view])
   const { show } = display

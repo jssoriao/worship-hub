@@ -1,12 +1,13 @@
 /**
- * The only module with queries for church data (songs, arrangements, membership, join links).
+ * The only module with queries for church data (songs, arrangements, services, membership, join links).
  *
  * Tenancy rule: every function takes the church (`orgId`) first and every query is restricted to it.
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
+ * Service items likewise are scoped through their service.
  */
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
-import { accounts, arrangements, joinLinks, joinRequests, members, organizations, sessions, songs, users } from '../db/schema/index.ts'
+import { accounts, arrangements, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
@@ -558,3 +559,215 @@ export async function joinWithLink(db: Db, token: string, user: { id: string; em
   })
 }
 
+
+// ---------------------------------------------------------------- services
+export interface ServiceRow {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  /** HH:MM, or null when the church has one service that day */
+  time: string | null
+  title: string | null
+  notes: string | null
+}
+export interface ServiceSummary extends ServiceRow {
+  songs: number
+}
+export interface ItemRow {
+  id: string
+  kind: ItemKind
+  songId: string | null
+  title: string
+  /** the day's override; null = the song's own key */
+  key: string | null
+  /** the song's own key (null when it has none, or the song is gone) */
+  songKey: string | null
+  notes: string | null
+  links: ItemLink[]
+}
+export interface ServiceFull extends ServiceRow {
+  items: ItemRow[]
+}
+const hhmm = (t: string | null) => (t ? t.slice(0, 5) : null)
+const serviceColumns = {
+  id: services.id,
+  date: services.date,
+  time: services.time,
+  title: services.title,
+  notes: services.notes,
+}
+const serviceFrom = (db: Db) => db.select(serviceColumns).from(services)
+const toService = <T extends { time: string | null }>(row: T): T => ({ ...row, time: hhmm(row.time) })
+/** Every service of the church, newest date first; within a day the untimed one first, then by time. */
+export async function listServices(db: Db, orgId: string): Promise<ServiceSummary[]> {
+  const rows = await serviceFrom(db)
+    .where(eq(services.organizationId, orgId))
+    .orderBy(desc(services.date), asc(services.time))
+  if (rows.length === 0) return []
+  const counts = await db
+    .select({ serviceId: serviceItems.serviceId, n: sql<number>`count(*)::int` })
+    .from(serviceItems)
+    .innerJoin(services, eq(services.id, serviceItems.serviceId))
+    .where(and(eq(services.organizationId, orgId), eq(serviceItems.kind, 'song')))
+    .groupBy(serviceItems.serviceId)
+  const byService = new Map(counts.map((c) => [c.serviceId, c.n]))
+  return rows.map((row) => ({ ...toService(row), songs: byService.get(row.id) ?? 0 }))
+}
+export async function getService(db: Db, orgId: string, serviceId: string): Promise<ServiceFull | null> {
+  const [row] = await serviceFrom(db).where(and(eq(services.organizationId, orgId), eq(services.id, serviceId)))
+  if (!row) return null
+  const items = await db
+    .select({
+      id: serviceItems.id,
+      kind: serviceItems.kind,
+      songId: serviceItems.songId,
+      title: serviceItems.title,
+      key: serviceItems.musicKey,
+      songKey: songs.musicKey,
+      notes: serviceItems.notes,
+      links: serviceItems.links,
+    })
+    .from(serviceItems)
+    .leftJoin(songs, and(eq(songs.id, serviceItems.songId), eq(songs.organizationId, orgId)))
+    .where(eq(serviceItems.serviceId, serviceId))
+    .orderBy(asc(serviceItems.position))
+  return { ...toService(row), items }
+}
+export function serviceBelongs(db: Db, orgId: string, serviceId: string): Promise<boolean> {
+  return db
+    .select({ id: services.id })
+    .from(services)
+    .where(and(eq(services.organizationId, orgId), eq(services.id, serviceId)))
+    .limit(1)
+    .then((rows) => rows.length > 0)
+}
+export interface ServiceInput {
+  date: string
+  time: string | null
+  title: string | null
+  notes: string | null
+}
+/** 'taken' = a service already has that date and time. */
+export async function createService(db: Db, orgId: string, userId: string, input: ServiceInput): Promise<ServiceFull | 'taken'> {
+  try {
+    const [row] = await db
+      .insert(services)
+      .values({ organizationId: orgId, date: input.date, time: input.time, title: input.title, notes: input.notes, createdBy: userId })
+      .returning({ id: services.id })
+    return (await getService(db, orgId, row.id))!
+  } catch (error) {
+    if (isUniqueViolation(error)) return 'taken'
+    throw error
+  }
+}
+/** null = no such service. */
+export async function updateService(db: Db, orgId: string, serviceId: string, patch: Partial<ServiceInput>): Promise<ServiceFull | null | 'taken'> {
+  const set: Partial<typeof services.$inferInsert> = {}
+  if (patch.date !== undefined) set.date = patch.date
+  if (patch.time !== undefined) set.time = patch.time
+  if (patch.title !== undefined) set.title = patch.title
+  if (patch.notes !== undefined) set.notes = patch.notes
+  try {
+    const rows = await db
+      .update(services)
+      .set({ ...set, updatedAt: sql`now()` })
+      .where(and(eq(services.organizationId, orgId), eq(services.id, serviceId)))
+      .returning({ id: services.id })
+    return rows.length === 0 ? null : getService(db, orgId, serviceId)
+  } catch (error) {
+    if (isUniqueViolation(error)) return 'taken'
+    throw error
+  }
+}
+export async function deleteService(db: Db, orgId: string, serviceId: string): Promise<boolean> {
+  const rows = await db
+    .delete(services)
+    .where(and(eq(services.organizationId, orgId), eq(services.id, serviceId)))
+    .returning({ id: services.id })
+  return rows.length > 0
+}
+/**
+ * A new service on another date (and time) with the same title, notes and setlist (songs, keys, notes,
+ * links). 'taken' = a service already has that date and time; null = no such service.
+ */
+export async function cloneService(db: Db, orgId: string, userId: string, serviceId: string, when: { date: string; time: string | null }): Promise<ServiceFull | null | 'taken'> {
+  const source = await getService(db, orgId, serviceId)
+  if (!source) return null
+  try {
+    const id = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(services)
+        .values({ organizationId: orgId, date: when.date, time: when.time, title: source.title, notes: source.notes, createdBy: userId })
+        .returning({ id: services.id })
+      if (source.items.length > 0) {
+        await tx.insert(serviceItems).values(
+          source.items.map((item, position) => ({ serviceId: row.id, position, kind: item.kind, songId: item.songId, title: item.title, musicKey: item.key, notes: item.notes, links: item.links })),
+        )
+      }
+      return row.id
+    })
+    return getService(db, orgId, id)
+  } catch (error) {
+    if (isUniqueViolation(error)) return 'taken'
+    throw error
+  }
+}
+export interface ItemInput {
+  /** an existing item to keep (its place and details change), or none for a new one */
+  id?: string
+  kind: ItemKind
+  /** only for a song */
+  songId: string | null
+  /** the name of an item or header, and of a song whose own is gone */
+  title: string | null
+  key: string | null
+  notes: string | null
+  links: ItemLink[]
+}
+/**
+ * Replaces the order of the service with `items`, in that order. A song in the church's archive cannot be added. Items whose id is listed are updated and keep their
+ * id, others are added, and items left out are removed. A song must belong to the church ('song' = one
+ * does not); a song line takes the song's current title; the other lines need their own title. A header
+ * has no key, notes or links.
+ * Everything happens in one transaction.
+ */
+export async function saveItems(db: Db, orgId: string, serviceId: string, items: ItemInput[]): Promise<ServiceFull | null | 'song' | 'item'> {
+  if (!(await serviceBelongs(db, orgId, serviceId))) return null
+  const wanted = [...new Set(items.flatMap((i) => (i.kind === 'song' && i.songId ? [i.songId] : [])))]
+  const titles = new Map<string, string>()
+  if (wanted.length > 0) {
+    const found = await db
+      .select({ id: songs.id, title: songs.title, archived: songs.archivedAt })
+      .from(songs)
+      .where(and(eq(songs.organizationId, orgId), inArray(songs.id, wanted)))
+    // an archived song cannot be added, but a line that already has it keeps it
+    const already = new Set((await db.select({ songId: serviceItems.songId }).from(serviceItems).where(eq(serviceItems.serviceId, serviceId))).flatMap((r) => (r.songId ? [r.songId] : [])))
+    for (const song of found) if (!song.archived || already.has(song.id)) titles.set(song.id, song.title)
+    if (titles.size !== wanted.length) return 'song'
+  }
+  const outcome = await db.transaction(async (tx) => {
+    const existing = new Set((await tx.select({ id: serviceItems.id }).from(serviceItems).where(eq(serviceItems.serviceId, serviceId))).map((r) => r.id))
+    const keep = items.flatMap((i) => (i.id && existing.has(i.id) ? [i.id] : []))
+    if (new Set(keep).size !== keep.length) return 'item' as const
+    const gone = [...existing].filter((id) => !keep.includes(id))
+    if (gone.length > 0) await tx.delete(serviceItems).where(and(eq(serviceItems.serviceId, serviceId), inArray(serviceItems.id, gone)))
+    for (const [position, item] of items.entries()) {
+      const song = item.kind === 'song' ? item.songId : null
+      const header = item.kind === 'header'
+      const values = {
+        position,
+        kind: item.kind,
+        songId: song,
+        title: song ? titles.get(song)! : (item.title ?? ''),
+        musicKey: header ? null : item.key,
+        notes: header ? null : item.notes,
+        links: header ? [] : item.links,
+      }
+      if (item.id && existing.has(item.id)) await tx.update(serviceItems).set(values).where(and(eq(serviceItems.serviceId, serviceId), eq(serviceItems.id, item.id)))
+      else await tx.insert(serviceItems).values({ ...values, serviceId })
+    }
+    await tx.update(services).set({ updatedAt: sql`now()` }).where(eq(services.id, serviceId))
+    return 'ok' as const
+  })
+  return outcome === 'ok' ? getService(db, orgId, serviceId) : outcome
+}
