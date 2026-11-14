@@ -135,6 +135,8 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
 - 2026-11-14: migration `0002_archive_songs` (`songs.archived_at`, `songs.archived_by`; additive, so the previous Worker runs on it). The song permission `delete` is now `archive`.
 - 2026-11-13: migration `0001_join_links` (new tables `join_links`, `join_requests`; nothing else changes, so the
   previous Worker runs on it). Applied to dev by hand; production by the deploy workflow.
+- Migration `0003_services` (new tables `services`, `service_items`; nothing else changes, so the previous
+  Worker runs on it). Not applied to dev yet; production by the deploy workflow.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
   name: Worker `worship-hub`, bucket `worship-hub` (copied inside Cloudflare by a temporary Worker; the old bucket and that Worker were then deleted), address
   `worshiphub.jssoriao.dev`. The previous address redirects (`src/redirect/`).

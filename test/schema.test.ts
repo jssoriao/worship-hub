@@ -8,7 +8,7 @@ describe('migrations (src/db/migrations)', () => {
     const { pg } = await freshDb()
     await migrate(drizzle({ client: pg }), { migrationsFolder: MIGRATIONS })
     const { rows } = await pg.query<{ table_name: string }>("select table_name from information_schema.tables where table_schema = 'public' order by 1")
-    expect(rows.map((r) => r.table_name)).toEqual(['accounts', 'arrangements', 'invitations', 'join_links', 'join_requests', 'members', 'organizations', 'rate_limits', 'sessions', 'songs', 'users', 'verifications'])
+    expect(rows.map((r) => r.table_name)).toEqual(['accounts', 'arrangements', 'invitations', 'join_links', 'join_requests', 'members', 'organizations', 'rate_limits', 'service_items', 'services', 'sessions', 'songs', 'users', 'verifications'])
     const cols = await pg.query<{ column_name: string }>("select column_name from information_schema.columns where table_schema = 'public'")
     for (const { column_name } of cols.rows) expect(column_name).toMatch(/^[a-z][a-z0-9_]*$/)
   })

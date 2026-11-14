@@ -26,6 +26,8 @@ export const ID_PREFIX = {
   arrangement: 'arr',
   joinLink: 'link',
   joinRequest: 'jreq',
+  service: 'svc',
+  serviceItem: 'sit',
 } as const
 export type IdKind = keyof typeof ID_PREFIX
 

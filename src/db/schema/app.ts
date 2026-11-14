@@ -1,9 +1,11 @@
 /**
  * The app's own tables. A song belongs to one church (organization) and is never shared; an
- * arrangement belongs to a song, so it is scoped to the church through it. Join links let people add
+ * arrangement belongs to a song, so it is scoped to the church through it. A service (a gathering with
+ * a setlist) belongs to a church; its items are scoped through it. Join links let people add
  * themselves to a church (src/api/join.ts).
  */
-import { boolean, index, jsonb, numeric, pgTable, smallint, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { boolean, check, date, index, integer, jsonb, numeric, pgTable, smallint, text, time, timestamp, unique } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { organizations, users } from './auth.ts'
 import { pk } from './ids.ts'
 
@@ -90,4 +92,57 @@ export const joinRequests = pgTable(
     expiresAt: at('expires_at').notNull(),
   },
   (t) => [index('join_requests_email_idx').on(t.email)],
+)
+
+/** What a line of a service's order is: a song, a plain item (prayer, offering, announcement), or a header that groups the lines under it. */
+export type ItemKind = 'song' | 'item' | 'header'
+/** A link attached to a setlist item, for example a video to learn the song from. */
+export interface ItemLink {
+  url: string
+  label: string
+}
+/**
+ * A service: one gathering on a date, with an optional time (a church with one service a day leaves it
+ * empty). Date and time are wall-clock values, not instants, so "Sunday 9:00" never moves with time zones.
+ * The unique index treats a missing time as one value: at most one untimed service per date.
+ */
+export const services = pgTable(
+  'services',
+  {
+    id: pk('service'),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    date: date('date', { mode: 'string' }).notNull(),
+    time: time('time'),
+    title: text('title'),
+    notes: text('notes'),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: at('created_at').notNull().defaultNow(),
+    updatedAt: at('updated_at').notNull().defaultNow(),
+  },
+  (t) => [unique('services_organization_id_date_time_key').on(t.organizationId, t.date, t.time).nullsNotDistinct()],
+)
+/**
+ * One line of a service's order, in `position` order. `kind` song: `songId` points at the church's song and
+ * `title` keeps its title as it was when saved, so a deleted song (`songId` empty, still kind song) does not
+ * blank the history. Kinds item and header have no song and use `title` as their name. `musicKey` null means
+ * "the song's own key".
+ */
+export const serviceItems = pgTable(
+  'service_items',
+  {
+    id: pk('serviceItem'),
+    serviceId: text('service_id')
+      .notNull()
+      .references(() => services.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    kind: text('kind').$type<ItemKind>().notNull().default('song'),
+    songId: text('song_id').references(() => songs.id, { onDelete: 'set null' }),
+    title: text('title').notNull(),
+    musicKey: text('music_key'),
+    notes: text('notes'),
+    links: jsonb('links').$type<ItemLink[]>().notNull().default([]),
+  },
+  (t) => [index('service_items_service_id_position_idx').on(t.serviceId, t.position), check('service_items_kind_check', sql`${t.kind} in ('song', 'item', 'header')`)],
 )

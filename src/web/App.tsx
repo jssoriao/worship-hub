@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './components/AppSidebar'
 import { useChurch } from './lib/church-context'
+import { HeaderSlotContext } from './lib/header-slot'
 import { PAGES, pageShown } from './lib/pages'
 import { useNowPlaying } from './lib/now-playing-context'
 import { PlayerSlotContext } from './lib/player-slot'
@@ -12,6 +13,8 @@ import HomePage from './pages/HomePage'
 import MembersPage from './pages/MembersPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
+import ServicePage from './pages/ServicePage'
+import ServicesPage from './pages/ServicesPage'
 import SongsAdminPage from './pages/SongsAdminPage'
 
 /** The bottom dock for the play bar: from the sidebar's edge to the right edge of the window. */
@@ -36,6 +39,8 @@ export default function App() {
   const main = useRef<HTMLElement>(null)
   const shownPath = useRef<string | null>(null)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
+  const headerFor = useMemo(() => ({ shown: { el: headerSlot, shown: true }, practice: { el: headerSlot, shown: onPractice } }), [headerSlot, onPractice])
   const now = useNowPlaying()
   useEffect(() => {
     const name = PAGES.find((p) => p.to === pathname && pageShown(p, { mayManage, role: church.role }))?.label ?? (onPractice ? 'Practice' : 'Not found')
@@ -61,16 +66,22 @@ export default function App() {
         <AppSidebar />
         {/* room for the dock when a song is open (Practice makes its own) */}
         <SidebarInset id="main" ref={main} tabIndex={-1} className={`min-w-0 bg-transparent outline-none ${now.title && !onPractice ? 'pb-28 md:pb-20' : ''}`}>
-          <div hidden={!onPractice}>
-            <PracticePage />
-          </div>
+          <div ref={setHeaderSlot} className="px-4 pt-3 md:px-6" />
+          <HeaderSlotContext.Provider value={headerFor.practice}>
+            <div hidden={!onPractice}>
+              <PracticePage />
+            </div>
+          </HeaderSlotContext.Provider>
           {/* a plain block, so pages centred with mx-auto keep their full width (the inset is a flex column) */}
+          <HeaderSlotContext.Provider value={headerFor.shown}>
           <div>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/charts" element={<ChartsPage />} />
             {/* owners only for now: it is not ready for everyone (the link is hidden too, pages.ts) */}
             <Route path="/arrange" element={church.role === 'owner' ? <ArrangePage /> : <NotFoundPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:serviceId" element={<ServicePage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/manage-songs" element={church.can({ song: ['archive'] }) ? <SongsAdminPage /> : <NotFoundPage />} />
             {/* shown by the PracticePage above */}
@@ -78,6 +89,7 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </div>
+          </HeaderSlotContext.Provider>
         </SidebarInset>
         <PlayerDock onSlot={setSlot} />
       </SidebarProvider>
