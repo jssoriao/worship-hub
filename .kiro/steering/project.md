@@ -34,7 +34,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   (a new song with it gets "in the archive"). A real delete is `pnpm songs:delete` (platform admin, typed title,
   `src/cli/lib/song-delete.ts`); `songs:publish` refuses an archived song. Regenerating AI data costs credits, so the app
   also never deletes parts of a song.
-- Music.AI credits (`musicai:run`, owners only for now): per church a monthly limit in cents (its plan's allowance, `church_plans` + `src/shared/plans.ts`: free $0, team $20 of a $35 plan, no billing provider yet; `ai_limits` overrides) and a
+- Music.AI credits (`musicai:run`, owners only for now): per church a monthly limit in cents (its plan's allowance, `church_plans` + `src/shared/plans.ts`: free $0, team $20 of a $25 plan, no billing provider yet; `ai_limits` overrides) and a
   cap over all churches (`app_settings` key `ai.platformCapCents`, default $30), months are UTC; a ledger `ai_jobs`
   (piece, workflow, seconds, estimated and actual cents, status reserved/running/succeeded/failed/cancelled; failed and
   cancelled do not count). `data.reserveAi` checks and holds the estimate under one advisory lock; `settleAiJob`;

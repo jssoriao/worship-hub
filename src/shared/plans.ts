@@ -7,7 +7,7 @@
 export const PLANS = {
   /** no Music.AI: people upload their own stems, charts and lyrics */
   free: { name: 'Free', priceCents: 0, aiCents: 0 },
-  team: { name: 'Team', priceCents: 3500, aiCents: 2000 },
+  team: { name: 'Team', priceCents: 2500, aiCents: 2000 },
 } as const
 export type PlanId = keyof typeof PLANS
 export const PLAN_IDS = Object.keys(PLANS) as PlanId[]
