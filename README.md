@@ -226,6 +226,26 @@ Worker (`src/api/members.ts`, `/api/church/members`), not just hidden in the pag
 - Adding an email that already has an account in another church links that account; it does not
   change their name or their other memberships.
 
+### Music.AI credits (owners)
+Generating with Music.AI (lyrics, beats, chords, sections, stems and splits) costs real money, so it is counted in
+**credits** (cents). Each church has a monthly limit (default **$10**) and all churches together a monthly cap
+(default **$30**); months are UTC calendar months and a new month starts empty. Only **owners** may run it
+(permission `musicai:run`); an owner sees "AI credits" at the top of the Songs page. When the church's limit or
+the platform cap is used up, jobs wait for the next month. A job holds its estimated price before it starts and
+gives it back if it fails (`src/api/data.ts` `reserveAi`, one lock for all reservations, so two requests at once
+cannot overspend). Music.AI does not report a job's cost, so the ledger (`ai_jobs`) keeps our estimate (minutes
+x the piece's rate in `src/shared/ai-pieces.ts`, still provisional until the workflows exist) next to an
+`actual_cents` you can fill in from their dashboard. Nothing calls Music.AI from the app yet.
+
+The platform admin manages it from the command line (add `--target prod` for production):
+```bash
+pnpm ai usage                          # this month: the platform and every church
+pnpm ai jobs --church <slug>           # the church's latest jobs
+pnpm ai limit <slug> <dollars|default> # a church's monthly limit
+pnpm ai cap <dollars>                  # the cap over all churches
+pnpm ai actual <jobId> <dollars>       # what a job really cost
+```
+
 ### Key, tempo and click
 
 Put the stem-separation job's `key_analysis.json` and `beat_grid.json` (its `keyAnalysis` and `beatGrid`

@@ -14,10 +14,10 @@ const GRANTED: Record<string, string[]> = {
   member: ['song:read', 'arrangement:create', 'service:read'],
   editor: ['song:read', 'arrangement:create', 'arrangement:manage', 'content:edit', 'service:read', 'service:plan'],
   admin: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'service:read', 'service:plan'],
-  owner: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign', 'service:read', 'service:plan'],
+  owner: ['song:read', 'song:create', 'song:archive', 'arrangement:create', 'arrangement:manage', 'content:edit', 'staff:assign', 'service:read', 'service:plan', 'musicai:run'],
 }
 // the organization plugin's own statements are checked separately
-const APP = new Set(['song', 'content', 'arrangement', 'staff', 'service', 'ai'])
+const APP = new Set(['song', 'content', 'arrangement', 'staff', 'service', 'musicai'])
 
 describe('permissions', () => {
   it('has the four roles', () => {
@@ -33,8 +33,8 @@ describe('permissions', () => {
       }
     })
   }
-  it('nobody has ai:run (platform super admin only)', () => {
-    for (const role of ROLE_NAMES) expect(can(role, { ai: ['run'] })).toBe(false)
+  it('only owners run Music.AI for now', () => {
+    for (const role of ROLE_NAMES) expect(can(role, { musicai: ['run'] })).toBe(role === 'owner')
   })
   it('only admin and owner manage members; only owner changes the church', () => {
     expect(can('member', { member: ['create'] })).toBe(false)

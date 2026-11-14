@@ -23,7 +23,8 @@
     "churches": "node src/cli/churches.ts",
     "songs:analyse": "node src/cli/analyse.ts",
     "songs:doubts": "node src/cli/lyric-doubts.ts",
-    "songs:delete": "node src/cli/delete-song.ts"
+    "songs:delete": "node src/cli/delete-song.ts",
+    "ai": "node src/cli/ai.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "0.9.1",

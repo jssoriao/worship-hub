@@ -28,6 +28,7 @@ export const ID_PREFIX = {
   joinRequest: 'jreq',
   service: 'svc',
   serviceItem: 'sit',
+  aiJob: 'aij',
 } as const
 export type IdKind = keyof typeof ID_PREFIX
 
