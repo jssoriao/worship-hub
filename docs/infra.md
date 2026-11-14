@@ -132,6 +132,7 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
   removed afterwards; they are in git history (#24, #28).
 - 2026-11-13: prefixed ids (`<prefix>_<24 chars>`, every table). Dev re-copied with `pnpm db:move --from neondb
   --replace` (new ids, references rewritten), its local R2 files moved with `pnpm r2:rekey`, then `--delete-old`.
+- 2026-11-14: migration `0002_archive_songs` (`songs.archived_at`, `songs.archived_by`; additive, so the previous Worker runs on it). The song permission `delete` is now `archive`.
 - 2026-11-13: migration `0001_join_links` (new tables `join_links`, `join_requests`; nothing else changes, so the
   previous Worker runs on it). Applied to dev by hand; production by the deploy workflow.
 - 2026-11-12: church-neutral names. The Worker, the bucket and the address dropped the first church's
@@ -151,5 +152,5 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
   a file that is there: an original whose R2 etag is its MD5, a re-encoded copy whose `src` matches the current source. So
   any computer with the song folders publishes only what is new; `.publish-state.json` only saves that check.
 - The Worker caches fingerprinted audio at the Cloudflare edge (Cache API, `caches.default`, key = file + fingerprint, after the session check). Nothing to set up or pay for; it needs the custom domain (it does not work on workers.dev). Browsers also keep the audio for a year (`immutable`). If a file ever has to be replaced, upload it and publish again: the new content gets a new fingerprint, so nothing stale is served.
-- Deleting a song: an admin's `DELETE /songs/<songId>` removes the row (and its arrangements) and every R2 object under its prefix. There is no button for it yet.
+- Deleting a song: the app never deletes, it only ARCHIVES (admins and owners, Songs page: `POST /songs/<id>/archive` and `/restore`; `songs.archived_at`, files untouched; regenerating AI data costs credits). A real delete is `pnpm songs:delete "<title>" --church <slug> [--confirm "<title>"] [--target prod]` (shows what would go without --confirm; only --target prod deletes R2 files). `songs:publish` refuses an archived song.
 - Local testing: copy `.dev.vars.example` to `.dev.vars` and fill it in (gitignored). Run `pnpm dev:api` (`wrangler dev --infer-origin-from-routes=false`; without that flag the Worker sees `worshiphub.jssoriao.dev` as its origin and Better Auth rejects local requests with `INVALID_ORIGIN`) and `pnpm dev`, open http://127.0.0.1:5173. `.dev.vars` points at the dev database. Seed the local R2 emulator with `wrangler r2 object put worship-hub/churches/<churchId>/songs/<songId>/stems/<file> --file <path> --local` (ids from `pnpm churches list` and `.dev-song-ids.json`).

@@ -3,7 +3,7 @@ import { Route, Routes, useLocation } from 'react-router'
 import { SidebarInset, SidebarProvider, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './components/AppSidebar'
 import { useChurch } from './lib/church-context'
-import { PAGES } from './lib/pages'
+import { PAGES, pageShown } from './lib/pages'
 import { useNowPlaying } from './lib/now-playing-context'
 import { PlayerSlotContext } from './lib/player-slot'
 import ArrangePage from './pages/ArrangePage'
@@ -12,6 +12,7 @@ import HomePage from './pages/HomePage'
 import MembersPage from './pages/MembersPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
+import SongsAdminPage from './pages/SongsAdminPage'
 
 /** The bottom dock for the play bar: from the sidebar's edge to the right edge of the window. */
 function PlayerDock({ onSlot }: { onSlot: (el: HTMLElement | null) => void }) {
@@ -30,13 +31,14 @@ function PlayerDock({ onSlot }: { onSlot: (el: HTMLElement | null) => void }) {
 export default function App() {
   const { pathname } = useLocation()
   const church = useChurch()
+  const mayManage = church.can({ member: ['create'] })
   const onPractice = pathname === '/practice' || pathname.startsWith('/practice/')
   const main = useRef<HTMLElement>(null)
   const shownPath = useRef<string | null>(null)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const now = useNowPlaying()
   useEffect(() => {
-    const name = PAGES.find((p) => p.to === pathname && (!p.owner || church.role === 'owner'))?.label ?? (onPractice ? 'Practice' : 'Not found')
+    const name = PAGES.find((p) => p.to === pathname && pageShown(p, { mayManage, role: church.role }))?.label ?? (onPractice ? 'Practice' : 'Not found')
     document.title = pathname === '/' ? 'Worship Hub' : `${name} · Worship Hub`
     // Moving to another page starts it at the top and moves a screen reader to it (a link click
     // would otherwise leave focus on a link that is no longer on screen). Opening the app on a
@@ -46,7 +48,7 @@ export default function App() {
     if (!moved) return
     window.scrollTo(0, 0)
     main.current?.focus({ preventScroll: true })
-  }, [pathname, onPractice, church.role])
+  }, [pathname, onPractice, mayManage, church.role])
   return (
     <PlayerSlotContext.Provider value={slot}>
       <SidebarProvider defaultOpen={!/(?:^|; )sidebar_state=false/.test(document.cookie)}>
@@ -70,6 +72,7 @@ export default function App() {
             {/* owners only for now: it is not ready for everyone (the link is hidden too, pages.ts) */}
             <Route path="/arrange" element={church.role === 'owner' ? <ArrangePage /> : <NotFoundPage />} />
             <Route path="/members" element={<MembersPage />} />
+            <Route path="/manage-songs" element={church.can({ song: ['archive'] }) ? <SongsAdminPage /> : <NotFoundPage />} />
             {/* shown by the PracticePage above */}
             <Route path="/practice/*" element={null} />
             <Route path="*" element={<NotFoundPage />} />

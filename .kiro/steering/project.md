@@ -25,6 +25,13 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
 - Arrange is owner-only for now (not ready for others): `PAGES[].owner` + `pageShown` (`src/web/lib/pages.ts`) hide its
   sidebar and Home link, and `/arrange` shows Not found to anyone but an owner (UI only; its API is unchanged).
+- Songs are never deleted by the app, only ARCHIVED (`songs.archived_at/archived_by`; permission `song:archive`, admins and
+  owners): the admin Songs page (`/manage-songs`, `SongsAdminPage`, `GET /songs/admin.json` = every song incl. archived, with
+  `has: {stems, analysis, chart}` from `has_stems` and two R2 `head`s) archives and restores; archived songs are absent
+  from `/songs/index.json` and `songBelongs` (so every route about them answers not found) and keep their title
+  (a new song with it gets "in the archive"). A real delete is `pnpm songs:delete` (platform admin, typed title,
+  `src/cli/lib/song-delete.ts`); `songs:publish` refuses an archived song. Regenerating AI data costs credits, so the app
+  also never deletes parts of a song.
 - Layout: `AppSidebar` (app name, church switcher, pages from `src/web/lib/pages.ts` with no "Pages" label; the admin pages (Arrange, owners only for now, and Members) sit under a separator below the others and the separator only shows to people who see any of them; account with sign-out;
   folds to icons on desktop, a drawer on phones). No top bar: every page starts with `PageHeader` (sidebar toggle,
   title, the page's controls; the church is named once, in the sidebar). The play bar is drawn by Practice into a dock at the bottom
@@ -56,7 +63,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 ## Roles
 - Per church, permission bundles in `src/shared/permissions.ts` (`createAccessControl`), shared by the
   Worker (enforces) and the app (shows/hides): member (play, own arrangements), editor (+ chords,
-  lyrics, sections, charts, song details, any arrangement), admin (+ add/remove songs, members and
+  lyrics, sections, charts, song details, any arrangement), admin (+ add and archive songs, members and
   editors), owner (+ church settings, admins/owners). Code checks permissions (`can`), never role names.
 - Platform super admin: `users.platform_admin`, outside churches. Only they run Music.AI (credits) and
   manage any church from the CLI. It does not bypass church membership in the Worker.

@@ -43,7 +43,7 @@ of a resource name. The app's previous address redirects to the current one (`sr
 - Roles are permission bundles (`src/shared/permissions.ts`, `createAccessControl`); code asks
   `can(role, { content: ['edit'] })`, never compares role names:
   member (plays, own arrangements), editor (+ chords, lyrics, sections, charts, song details, any
-  arrangement), admin (+ add/remove songs, manage members and editors), owner (+ church settings,
+  arrangement), admin (+ add and archive songs, manage members and editors), owner (+ church settings,
   grant admin/owner).
 - Platform super admin: `users.platform_admin` (set by `pnpm members platform-admin`, never by a client).
   Only they run Music.AI (`songs:analyse` checks it) and manage any church (the CLI). It does not

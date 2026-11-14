@@ -4,7 +4,7 @@
  * Tenancy rule: every function takes the church (`orgId`) first and every query is restricted to it.
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 import { accounts, arrangements, joinLinks, joinRequests, members, organizations, sessions, songs, users } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
@@ -175,12 +175,28 @@ export interface SongRow {
 
 const songColumns = { id: songs.id, title: songs.title, artist: songs.artist, key: songs.musicKey, bpm: songs.bpm, meter: songs.meter, stems: songs.hasStems }
 
+/** The church's songs that are not archived: the library. */
 export async function listSongs(db: Db, orgId: string): Promise<SongRow[]> {
   return db
     .select(songColumns)
     .from(songs)
+    .where(and(eq(songs.organizationId, orgId), isNull(songs.archivedAt)))
+    .orderBy(sql`lower(${songs.title})`, asc(songs.id))
+}
+export interface SongAdminRow extends SongRow {
+  /** when it was archived, or null */
+  archivedAt: string | null
+  archivedBy: string | null
+}
+/** Every song of the church, archived ones too, for the admin Songs page. */
+export async function listSongsAdmin(db: Db, orgId: string): Promise<SongAdminRow[]> {
+  const rows = await db
+    .select({ ...songColumns, archivedAt: songs.archivedAt, archivedBy: users.name })
+    .from(songs)
+    .leftJoin(users, eq(users.id, songs.archivedBy))
     .where(eq(songs.organizationId, orgId))
     .orderBy(sql`lower(${songs.title})`, asc(songs.id))
+  return rows.map((r) => ({ ...r, archivedAt: r.archivedAt ? iso(r.archivedAt) : null }))
 }
 
 export function songBelongs(db: Db, orgId: string, songId: string, cache: Memo = memo): Promise<true | null> {
@@ -188,7 +204,8 @@ export function songBelongs(db: Db, orgId: string, songId: string, cache: Memo =
     const rows = await db
       .select({ id: songs.id })
       .from(songs)
-      .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+      // an archived song is not found: nothing about it is served or changed until it is restored
+      .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId), isNull(songs.archivedAt)))
       .limit(1)
     return rows.length > 0 ? true : null
   })
@@ -249,11 +266,31 @@ export async function updateSong(db: Db, orgId: string, songId: string, patch: S
   }
 }
 
-/** Deletes the song row (and, by cascade, its arrangements). False when the church has no such song. */
-export async function deleteSong(db: Db, orgId: string, songId: string, cache: Memo = memo): Promise<boolean> {
+/** Whether the church has an ARCHIVED song with this title (its title is still taken). */
+export async function titleIsArchived(db: Db, orgId: string, title: string): Promise<boolean> {
   const rows = await db
-    .delete(songs)
-    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId)))
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.organizationId, orgId), eq(songs.title, title), isNotNull(songs.archivedAt)))
+    .limit(1)
+  return rows.length > 0
+}
+/** Archives the song (its files stay). False when the church has no such song, or it is archived already. */
+export async function archiveSong(db: Db, orgId: string, songId: string, userId: string, cache: Memo = memo): Promise<boolean> {
+  const rows = await db
+    .update(songs)
+    .set({ archivedAt: sql`now()`, archivedBy: userId })
+    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId), isNull(songs.archivedAt)))
+    .returning({ id: songs.id })
+  cache.clear()
+  return rows.length > 0
+}
+/** Brings an archived song back. False when the church has no such archived song. */
+export async function restoreSong(db: Db, orgId: string, songId: string, cache: Memo = memo): Promise<boolean> {
+  const rows = await db
+    .update(songs)
+    .set({ archivedAt: null, archivedBy: null })
+    .where(and(eq(songs.organizationId, orgId), eq(songs.id, songId), isNotNull(songs.archivedAt)))
     .returning({ id: songs.id })
   cache.clear()
   return rows.length > 0

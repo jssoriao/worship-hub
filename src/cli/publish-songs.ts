@@ -57,6 +57,7 @@ import { CHART_FILE, MIME, TIERS, cachedVariant, fileHash, fileMd5, isDir, listS
 import { openDb } from '../db/client.ts'
 import { loadTarget, splitTarget } from './lib/env.ts'
 import { churchBySlug, ensureSong, songIdByTitle, userIdByEmail } from './lib/songs-db.ts'
+import { findSong } from './lib/song-delete.ts'
 import { WranglerStore } from './lib/r2.ts'
 import { alreadyOnline, offeredTiers, parseTierList, pickVersion, sourcesFromManifest, tiersFromManifest, versionsFromManifest, type Listed, type TierStatus } from './tiers.ts'
 
@@ -216,6 +217,8 @@ try {
   for (const song of selected) {
     // the song's row (found by title in this church, created when new; a dry run creates nothing)
     let songId: string
+    // an archived song stays archived: publishing into it would change what its owners hid on purpose
+    if ((await findSong(db, church.id, song.title))?.archived) throw new Error(`"${song.title}" is archived. Restore it in the app (Songs page) before publishing.`)
     if (dryRun) {
       songId = (await songIdByTitle(db, church.id, song.title)) ?? '<new song id>'
     } else {

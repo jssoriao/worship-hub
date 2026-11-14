@@ -5,7 +5,7 @@
  *
  *   member  plays songs; makes their own arrangements
  *   editor  member + edits chords, lyrics, sections, charts, song details; manages any arrangement
- *   admin   editor + adds and removes songs; manages members and editors
+ *   admin   editor + adds and archives songs; manages members and editors
  *   owner   admin + church settings; grants and revokes admin and owner
  *
  * `ai:run` (Music.AI credits) is in no church role: only the platform super admin
@@ -16,7 +16,7 @@ import { adminAc, defaultStatements, memberAc, ownerAc } from 'better-auth/plugi
 
 export const statement = {
   ...defaultStatements,
-  song: ['read', 'create', 'delete'],
+  song: ['read', 'create', 'archive'],
   content: ['edit'],
   arrangement: ['create', 'manage'],
   staff: ['assign'],
@@ -30,13 +30,13 @@ const member = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement:
 const editor = ac.newRole({ ...memberAc.statements, song: ['read'], arrangement: ['create', 'manage'], content: ['edit'] })
 const admin = ac.newRole({
   ...adminAc.statements,
-  song: ['read', 'create', 'delete'],
+  song: ['read', 'create', 'archive'],
   arrangement: ['create', 'manage'],
   content: ['edit'],
 })
 const owner = ac.newRole({
   ...ownerAc.statements,
-  song: ['read', 'create', 'delete'],
+  song: ['read', 'create', 'archive'],
   arrangement: ['create', 'manage'],
   content: ['edit'],
   staff: ['assign'],
