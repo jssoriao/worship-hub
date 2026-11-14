@@ -28,12 +28,20 @@ interface Props {
   playing: boolean
   /** extra buttons in the bar (Edit) */
   actions?: ReactNode
+  /**
+   * Shown inside another page (a service): it starts at a larger text size instead of Fit (more sheets to
+   * turn, readable text), changes made here are not remembered on this device, and the bar shows only the
+   * key it is in, with its move from the chart's key ("D (+1)").
+   */
+  embedded?: boolean
 }
 
 /** A letter-size sheet in CSS px, laid out like printed music and scaled to the screen. */
 const LETTER = { w: 816, h: 1056, pad: 48 }
 const SPREAD_GAP = 24 // px between two sheets side by side
 const GAP_X = 32 // between columns, in sheet px
+/** text size a chart starts at inside another page (one of SCALES) */
+const EMBEDDED_SCALE = 1.75
 const PAPER_MIN_WIDTH = 600 // narrower screens (phones) use the screen itself as the sheet
 const FIT_STEPS = Array.from({ length: 35 }, (_, i) => Math.round((2.3 - i * 0.05) * 100) / 100) // 2.3 … 0.6
 
@@ -49,8 +57,8 @@ const PAPER_COLOURS: Record<Paper, CSSProperties> = {
  * is fixed on the sheet and the sheet is scaled to the screen. Text size "Fit" picks the largest
  * text that shows the whole chart at once. Follow turns to the section being played.
  */
-export default function ChartPages({ chart, songId, title, fallbackKey, serviceKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions }: Props) {
-  const [view, setView] = useState<ViewSettings>(loadView)
+export default function ChartPages({ chart, songId, title, fallbackKey, serviceKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions, embedded = false }: Props) {
+  const [view, setView] = useState<ViewSettings>(() => (embedded ? { ...loadView(), scale: EMBEDDED_SCALE } : loadView()))
   // a key given for this view moves the chart there; that and any change made here are not remembered
   const forced = useMemo(() => {
     const from = parseKey(chart.key || fallbackKey || '')
@@ -58,7 +66,9 @@ export default function ChartPages({ chart, songId, title, fallbackKey, serviceK
     return from && to ? semitonesBetween(from, to) : null
   }, [chart.key, fallbackKey, serviceKey])
   const [song, setSong] = useState<SongSettings>(() => (forced !== null ? { transpose: forced, capo: 0 } : loadSong(songId)))
-  useEffect(() => saveView(view), [view])
+  useEffect(() => {
+    if (!embedded) saveView(view)
+  }, [view, embedded])
   useEffect(() => {
     if (forced === null) saveSong(songId, song)
   }, [songId, song, forced])
@@ -74,6 +84,10 @@ export default function ChartPages({ chart, songId, title, fallbackKey, serviceK
     .filter(Boolean)
     .join(' · ')
   const heading = chart.title || title
+  // "D (+1)": the key shown and how far it is from the chart's own key; just "D" when unmoved
+  const move = ((song.transpose % 12) + 12) % 12
+  const moved = move > 6 ? move - 12 : move
+  const keyLabel = display.sounding ? `${keyName(display.sounding)}${moved ? ` (${moved > 0 ? '+' : ''}${moved})` : ''}` : ''
 
   // ------------------------------------------------------------ room on screen
   const root = useRef<HTMLDivElement>(null)
@@ -276,7 +290,7 @@ export default function ChartPages({ chart, songId, title, fallbackKey, serviceK
       style={full ? undefined : { height: rootHeight }}
     >
       <div className="flex flex-wrap items-center justify-end gap-2 pb-2">
-        <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : meta}</p>
+        <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : embedded ? keyLabel : meta}</p>
         {hasCues && (
           <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-highlight/70 text-highlight' : ''}`} title="Turn to the section being played">
             Follow

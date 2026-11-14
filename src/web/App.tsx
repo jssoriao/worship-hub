@@ -43,7 +43,7 @@ export default function App() {
   const headerFor = useMemo(() => ({ shown: { el: headerSlot, shown: true }, practice: { el: headerSlot, shown: onPractice } }), [headerSlot, onPractice])
   const now = useNowPlaying()
   useEffect(() => {
-    const name = PAGES.find((p) => p.to === pathname && pageShown(p, { mayManage, role: church.role }))?.label ?? (onPractice ? 'Practice' : 'Not found')
+    const name = PAGES.find((p) => (p.to === pathname || (p.to !== '/' && pathname.startsWith(`${p.to}/`))) && pageShown(p, { mayManage, role: church.role }))?.label ?? (onPractice ? 'Practice' : 'Not found')
     document.title = pathname === '/' ? 'Worship Hub' : `${name} · Worship Hub`
     // Moving to another page starts it at the top and moves a screen reader to it (a link click
     // would otherwise leave focus on a link that is no longer on screen). Opening the app on a
