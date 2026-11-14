@@ -236,8 +236,11 @@ gives the monthly limit (`pnpm ai limit` sets an own limit instead). All churche
 the platform cap is used up, jobs wait for the next month. A job holds its estimated price before it starts and
 gives it back if it fails (`src/api/data.ts` `reserveAi`, one lock for all reservations, so two requests at once
 cannot overspend). Music.AI does not report a job's cost, so the ledger (`ai_jobs`) keeps our estimate (minutes
-x the piece's rate in `src/shared/ai-pieces.ts`, still provisional until the workflows exist) next to an
-`actual_cents` you can fill in from their dashboard. Nothing calls Music.AI from the app yet.
+x the piece's rate in `src/shared/ai-pieces.ts`, the "Estimated (per minute)" of each Music.AI workflow; their API does not
+return prices, so they are kept there by hand) next to an
+`actual_cents` you can fill in from their dashboard. `planJobs` turns the ticked pieces into the fewest jobs: Sections
+runs Beats inside it, Lyrics start from a vocal stem when there is one (cheaper), and a split starts from its stem or from
+the one the stems job of the same request makes. Nothing calls Music.AI from the app yet.
 
 The platform admin manages it from the command line (add `--target prod` for production):
 ```bash

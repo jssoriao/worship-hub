@@ -3,7 +3,8 @@
  * `musicai:run` permission). Nothing here calls Music.AI yet; this is the credits side.
  *
  *   GET  /api/church/ai            this month's credits (used, limit, remaining, the platform cap) and the latest jobs
- *   POST /api/church/ai/estimate   {pieces, seconds}  what that would cost, and whether it fits what is left
+ *   POST /api/church/ai/estimate   {pieces, seconds, language?, have?}  the jobs that would run, what they cost, and whether it
+ *                                  fits what is left (400 when a split has no stem to start from)
  *
  * Credits are whole cents per UTC calendar month. A church's plan gives its limit (src/shared/plans.ts; the platform admin can set an own one) and all churches
  * together have a cap (default $30), both set by the platform admin with `pnpm ai`. When either is used up,
@@ -12,7 +13,7 @@
  */
 import { Hono } from 'hono'
 import * as z from 'zod'
-import { estimateCents, isPieceId, MAX_SECONDS, pieceCents, PIECES, type PieceId } from '../shared/ai-pieces.ts'
+import { isPieceId, LANGUAGES, MAX_SECONDS, PIECES, planJobs, type PieceId } from '../shared/ai-pieces.ts'
 import * as data from './data.ts'
 import { church, need, sameOrigin, type AppEnv } from './tenant.ts'
 import { body, only } from './validate.ts'
@@ -24,6 +25,9 @@ const estimate = z.object({
     .max(PIECES.length)
     .refine((ids) => ids.every(isPieceId) && new Set(ids).size === ids.length, 'Pick what to generate'),
   seconds: z.int({ error: 'Say how long the song is' }).min(1, 'Say how long the song is').max(MAX_SECONDS, `Songs up to ${MAX_SECONDS / 60} minutes only`),
+  language: z.enum(LANGUAGES).default('en'),
+  /** what the song has already (a preview; a real run reads it from the song) */
+  have: z.object({ vocals: z.boolean().optional(), drums: z.boolean().optional(), guitars: z.boolean().optional() }).default({}),
 })
 
 export const ai = new Hono<AppEnv>({ strict: false })
@@ -38,13 +42,14 @@ export const ai = new Hono<AppEnv>({ strict: false })
   .use('/estimate', only('POST'))
   .post('/estimate', need({ musicai: ['run'] }), body(estimate), async (c) => {
     const { orgId } = c.get('tenant')
-    const { pieces, seconds } = c.req.valid('json')
-    const ids = pieces as PieceId[]
+    const { pieces, seconds, language, have } = c.req.valid('json')
+    const plan = planJobs(pieces as PieceId[], seconds, language, have)
+    if (!plan.ok) return c.json({ error: plan.reason }, 400)
     const usage = await data.aiUsage(c.get('deps').db, orgId)
-    const totalCents = estimateCents(ids, seconds)
+    const totalCents = plan.totalCents
     const left = Math.min(usage.remainingCents, Math.max(0, usage.platform.capCents - usage.platform.usedCents))
     return c.json({
-      items: ids.map((id) => ({ piece: id, cents: pieceCents(id, seconds) })),
+      items: plan.jobs.map((j) => ({ piece: j.piece, workflow: j.workflow, provides: j.provides, cents: j.cents, afterStems: j.afterStems })),
       totalCents,
       remainingCents: usage.remainingCents,
       fits: totalCents <= left,
