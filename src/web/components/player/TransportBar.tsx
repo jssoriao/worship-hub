@@ -115,17 +115,23 @@ export function TransportBar(props: Props) {
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
             {onPracticePage ? (
-              <p className="truncate text-sm font-medium text-foreground" title={title}>
-                {title}
-              </p>
+              <Hint text={title}>
+                <p className="truncate text-sm font-medium text-foreground">
+                  {title}
+                </p>
+              </Hint>
             ) : (
-              <Link to={practiceLink(now, church.id)} title={`Open ${title} in Practice`} className="block truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
-                {title}
-              </Link>
+              <Hint text={`Open ${title} in Practice`}>
+                <Link to={practiceLink(now, church.id)} className="block truncate rounded-sm text-sm font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                  {title}
+                </Link>
+              </Hint>
             )}
-            <p className="truncate text-xs text-muted-foreground" title={facts}>
-              {facts}
-            </p>
+            <Hint text={facts}>
+              <p className="truncate text-xs text-muted-foreground">
+                {facts}
+              </p>
+            </Hint>
           </div>
 
           {/* playback */}
@@ -144,11 +150,13 @@ export function TransportBar(props: Props) {
                   <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">{Math.round(volume * 100)}%</span>
                 </label>
               </Popover>
-              <button type="button" aria-label={`Back ${SKIP} seconds`} title={`Back ${SKIP} seconds`} onClick={() => onSeek(Math.max(0, position - SKIP))} className={iconBtn}>
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
-                  <path d="M9 5v10L2 10zM17 5v10l-7-5z" />
-                </svg>
-              </button>
+              <Hint text={`Back ${SKIP} seconds`}>
+                <button type="button" aria-label={`Back ${SKIP} seconds`} onClick={() => onSeek(Math.max(0, position - SKIP))} className={iconBtn}>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
+                    <path d="M9 5v10L2 10zM17 5v10l-7-5z" />
+                  </svg>
+                </button>
+              </Hint>
               <Hint text="Stop and go back to the start">
                 <button type="button" aria-label="Stop" onClick={onStop} className={iconBtn}>
                   <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="currentColor">
@@ -174,25 +182,28 @@ export function TransportBar(props: Props) {
                   </svg>
                 )}
               </button>
-              <button type="button" aria-label={`Forward ${SKIP} seconds`} title={`Forward ${SKIP} seconds`} onClick={() => onSeek(Math.min(duration, position + SKIP))} className={iconBtn}>
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
-                  <path d="M11 5v10l7-5zM3 5v10l7-5z" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                aria-label="Repeat the song"
-                aria-pressed={loop}
-                title={loop ? 'Repeat: on' : 'Repeat: off'}
-                onClick={() => onLoop(!loop)}
-                // on: tinted and with a dot under it, so it reads as switched on at a glance
-                className={loop ? `${iconBase} bg-primary/20 text-highlight hover:bg-primary/30` : iconBtn}
-              >
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 9V8a3 3 0 0 1 3-3h9M13.5 2.5 16 5l-2.5 2.5M16 11v1a3 3 0 0 1-3 3H4M6.5 17.5 4 15l2.5-2.5" />
-                </svg>
-                {loop && <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-current" />}
-              </button>
+              <Hint text={`Forward ${SKIP} seconds`}>
+                <button type="button" aria-label={`Forward ${SKIP} seconds`} onClick={() => onSeek(Math.min(duration, position + SKIP))} className={iconBtn}>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="currentColor">
+                    <path d="M11 5v10l7-5zM3 5v10l7-5z" />
+                  </svg>
+                </button>
+              </Hint>
+              <Hint text={loop ? 'Repeat: on' : 'Repeat: off'}>
+                <button
+                  type="button"
+                  aria-label="Repeat the song"
+                  aria-pressed={loop}
+                  onClick={() => onLoop(!loop)}
+                  // on: tinted and with a dot under it, so it reads as switched on at a glance
+                  className={loop ? `${iconBase} bg-primary/20 text-highlight hover:bg-primary/30` : iconBtn}
+                >
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 9V8a3 3 0 0 1 3-3h9M13.5 2.5 16 5l-2.5 2.5M16 11v1a3 3 0 0 1-3 3H4M6.5 17.5 4 15l2.5-2.5" />
+                  </svg>
+                  {loop && <span aria-hidden="true" className="absolute bottom-0.5 size-1 rounded-full bg-current" />}
+                </button>
+              </Hint>
             </div>
             <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
               <span className="font-mono">

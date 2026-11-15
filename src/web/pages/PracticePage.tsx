@@ -894,17 +894,18 @@ export default function PracticePage() {
         </Popover>
       )}
       {canEditView && !editing && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          title={prefs.view === 'chords' ? 'Fix chords and sections' : 'Fix the lyrics'}
-          className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-300 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
-            <path d="M13.5 3.5l3 3L7 16H4v-3z" />
-          </svg>
-          Edit
-        </button>
+        <Hint text={prefs.view === 'chords' ? 'Fix chords and sections' : 'Fix the lyrics'}>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-300 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+              <path d="M13.5 3.5l3 3L7 16H4v-3z" />
+            </svg>
+            Edit
+          </button>
+        </Hint>
       )}
     </>
   )
@@ -964,41 +965,43 @@ export default function PracticePage() {
                 <label className="sr-only" htmlFor="quality">
                   Audio quality
                 </label>
-                <NativeSelect
-                  size="sm"
-                  wrapperClassName="!flex-none" className="whitespace-nowrap max-sm:text-xs"
-                  id="quality"
-                  value={tier ?? ''}
-                  disabled={loading !== null}
-                  onChange={(e) => onPickQuality(e.target.value)}
-                  title={tier ? TIER_INFO[tier]?.hint : undefined}
-                >
-                  {tiers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {TIER_INFO[t.id]?.label ?? t.id}
-                      {t.bytes ? ` · ${Math.round(t.bytes / 1048576)} MB` : ''}
-                    </option>
-                  ))}
-                </NativeSelect>
+                <Hint text={tier ? TIER_INFO[tier]?.hint : undefined}>
+                  <NativeSelect
+                    size="sm"
+                    wrapperClassName="!flex-none" className="whitespace-nowrap max-sm:text-xs"
+                    id="quality"
+                    value={tier ?? ''}
+                    disabled={loading !== null}
+                    onChange={(e) => onPickQuality(e.target.value)}
+                  >
+                    {tiers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {TIER_INFO[t.id]?.label ?? t.id}
+                        {t.bytes ? ` · ${Math.round(t.bytes / 1048576)} MB` : ''}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </Hint>
               </>
             )}
             {songId !== '' && offline && (
-              <button
-                type="button"
-                disabled={saving || loading !== null}
-                onClick={() => {
-                  if (!offlineDone) return void keepOffline()
-                  if (window.confirm(`Remove this song from the device? It frees ${megabytes(offline.bytes)}.`)) void removeOffline()
-                }}
-                title={
+              <Hint text={
                   offlineDone
                     ? `Saved on this device (${megabytes(offline.bytes)}); plays with no connection. Tap to remove.`
                     : `Download the whole song${tierBytes ? ` (${megabytes(tierBytes)})` : ''} to play it with no connection.`
-                }
-                className={`${small} ${offlineDone ? 'border-highlight/50 text-highlight' : ''}`}
-              >
-                {saving ? `Saving ${Math.round((download?.fraction ?? 0) * 100)}%` : offlineDone ? 'Offline ✓' : 'Save offline'}
-              </button>
+                }>
+                <button
+                  type="button"
+                  disabled={saving || loading !== null}
+                  onClick={() => {
+                    if (!offlineDone) return void keepOffline()
+                    if (window.confirm(`Remove this song from the device? It frees ${megabytes(offline.bytes)}.`)) void removeOffline()
+                  }}
+                  className={`${small} ${offlineDone ? 'border-highlight/50 text-highlight' : ''}`}
+                >
+                  {saving ? `Saving ${Math.round((download?.fraction ?? 0) * 100)}%` : offlineDone ? 'Offline ✓' : 'Save offline'}
+                </button>
+              </Hint>
             )}
             {zipButton}
           </div>
