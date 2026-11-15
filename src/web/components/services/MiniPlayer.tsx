@@ -3,6 +3,7 @@ import { XIcon } from 'lucide-react'
 import { useSidebar } from '@/components/ui/sidebar'
 import { embedUrl } from '../../lib/media'
 import { useNowPlaying } from '../../lib/now-playing-context'
+import { Hint } from '../Hint'
 /** `left`/`top` kept so the whole window stays on screen. */
 function clamp(el: HTMLElement | null, left: number, top: number) {
   const w = el?.offsetWidth ?? 320
@@ -52,20 +53,21 @@ export function MiniPlayer({ video, onClose }: { video: { id: string; title: str
       className={`fixed z-30 w-80 overflow-hidden rounded-xl border border-border bg-card shadow-xl shadow-black/50 ${pos ? '' : `transition-[left] duration-200 ease-linear ${now.title ? 'bottom-24 md:bottom-20' : 'bottom-3'}`}`}
       style={pos ? { left: pos.left, top: pos.top } : { left: corner }}
     >
-      <div
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerCancel={onUp}
-        onDoubleClick={() => setPos(null)}
-        title="Drag to move, double-click to put it back"
-        className="flex cursor-grab touch-none items-center gap-2 py-1 pr-1 pl-3 select-none active:cursor-grabbing"
-      >
-        <p className="min-w-0 flex-1 truncate text-xs font-medium">{video.title}</p>
-        <button type="button" onClick={onClose} aria-label="Close video" className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
-          <XIcon className="size-3.5" />
-        </button>
-      </div>
+      <Hint text="Drag to move, double-click to put it back">
+        <div
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onDoubleClick={() => setPos(null)}
+          className="flex cursor-grab touch-none items-center gap-2 py-1 pr-1 pl-3 select-none active:cursor-grabbing"
+        >
+          <p className="min-w-0 flex-1 truncate text-xs font-medium">{video.title}</p>
+          <button type="button" onClick={onClose} aria-label="Close video" className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground">
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+      </Hint>
       {/* a new key per video, so choosing another one loads it from the start */}
       <iframe
         key={video.id}

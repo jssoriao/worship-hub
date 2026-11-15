@@ -5,6 +5,7 @@ import { SECTION_CLASS, chordDisplay, loadSong, loadView, saveSong, saveView, ty
 import { keyName, parseKey, semitonesBetween } from '../lib/chords'
 import { LineView, SectionFragment, SectionHeading } from './ChartFragment'
 import { ChartSettings } from './ChartSettings'
+import { Hint } from './Hint'
 
 interface Props {
   chart: Chart
@@ -292,9 +293,11 @@ export default function ChartPages({ chart, songId, title, fallbackKey, serviceK
       <div className="flex flex-wrap items-center justify-end gap-2 pb-2">
         <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : embedded ? keyLabel : meta}</p>
         {hasCues && (
-          <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-highlight/70 text-highlight' : ''}`} title="Turn to the section being played">
-            Follow
-          </button>
+          <Hint text="Turn to the section being played">
+            <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-highlight/70 text-highlight' : ''}`}>
+              Follow
+            </button>
+          </Hint>
         )}
         <ChartSettings fitScale={text} view={view} song={song} original={display.original} onView={setView} onSong={setSong} />
         {!full && actions}

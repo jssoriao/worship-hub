@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { barsIn, joinWithNext, partId, type Arrangement } from '../lib/arrangement'
 import { formatTime } from '../lib/chart'
 import type { SongMusic } from '../lib/sources'
+import { Hint } from './Hint'
 
 /** A stem the blocks can mute (a combined stem such as Drums, or a stem on its own). */
 export interface MutableStem {
@@ -126,9 +127,11 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
             Sections
           </h2>
           {!readOnly && (
-            <Button variant="outline" size="xs" disabled={!canSplit} onClick={onSplitHere} title="Split the section at the playhead (on the nearest bar)">
-              Split at playhead
-            </Button>
+            <Hint text="Split the section at the playhead (on the nearest bar)">
+              <Button variant="outline" size="xs" disabled={!canSplit} onClick={onSplitHere}>
+                Split at playhead
+              </Button>
+            </Hint>
           )}
         </div>
         <ul className="space-y-1">
@@ -152,9 +155,11 @@ export function ArrEditor({ arr, stems, music, current, readOnly, onChange, onPl
                   {bars !== null ? ` · ${bars} bars` : ''}
                 </span>
                 {!readOnly && i < sections.length - 1 && (
-                  <Button variant="outline" size="xs" onClick={() => onChange(joinWithNext(arr, s.id))} aria-label={`Join ${s.label} with the next section`} title="Join with the next section">
-                    Join ↓
-                  </Button>
+                  <Hint text="Join with the next section">
+                    <Button variant="outline" size="xs" onClick={() => onChange(joinWithNext(arr, s.id))} aria-label={`Join ${s.label} with the next section`}>
+                      Join ↓
+                    </Button>
+                  </Hint>
                 )}
               </li>
             )

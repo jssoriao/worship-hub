@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Popover } from '../Popover'
 import { useChurch } from '../../lib/church-context'
 import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
+import { Hint } from '../Hint'
 
 export type PlayerView = 'stems' | 'lyrics' | 'chords' | 'shapes'
 
@@ -148,11 +149,13 @@ export function TransportBar(props: Props) {
                   <path d="M9 5v10L2 10zM17 5v10l-7-5z" />
                 </svg>
               </button>
-              <button type="button" aria-label="Stop" title="Stop and go back to the start" onClick={onStop} className={iconBtn}>
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="currentColor">
-                  <rect x="4" y="4" width="12" height="12" rx="2" />
-                </svg>
-              </button>
+              <Hint text="Stop and go back to the start">
+                <button type="button" aria-label="Stop" onClick={onStop} className={iconBtn}>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="currentColor">
+                    <rect x="4" y="4" width="12" height="12" rx="2" />
+                  </svg>
+                </button>
+              </Hint>
               <button
                 type="button"
                 aria-label={playing ? 'Pause' : 'Play'}

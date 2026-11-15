@@ -5,6 +5,7 @@ import ChartView from './ChartView'
 import type { ChordLevel } from '../lib/analysis'
 import { parseChart } from '../lib/chart'
 import { useNowPlaying } from '../lib/now-playing-context'
+import { Hint } from './Hint'
 
 /** Shown for a song with no chart yet. */
 export const TEMPLATE = `{title: }
@@ -105,9 +106,11 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel, build,
         <Button variant="outline" onClick={onCancel} disabled={saving}>
           {dirty ? 'Discard' : 'Close'}
         </Button>
-        <Button variant="outline" onClick={markCue} disabled={!syncing} title="Insert the current playback time as a cue at the cursor">
-          Mark cue
-        </Button>
+        <Hint text="Insert the current playback time as a cue at the cursor">
+          <Button variant="outline" onClick={markCue} disabled={!syncing}>
+            Mark cue
+          </Button>
+        </Hint>
         {!syncing && <span className="text-xs text-muted-foreground">Play this song on the Practice page to mark cues.</span>}
         {build && (
           <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
@@ -118,13 +121,17 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel, build,
                 </option>
               ))}
             </NativeSelect>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground" title="Passing chords shorter than about a beat and a half">
-              <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} disabled={saving} className="size-4 accent-primary" />
-              Quick chords
-            </label>
-            <Button variant="outline" onClick={() => rebuild()} disabled={saving || confirming} title="Write the chart from the song's analysis: sections, lyrics and chords">
-              {built === null && initial === TEMPLATE ? 'Build from analysis' : 'Rebuild from analysis'}
-            </Button>
+            <Hint text="Passing chords shorter than about a beat and a half">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} disabled={saving} className="size-4 accent-primary" />
+                Quick chords
+              </label>
+            </Hint>
+            <Hint text="Write the chart from the song's analysis: sections, lyrics and chords">
+              <Button variant="outline" onClick={() => rebuild()} disabled={saving || confirming}>
+                {built === null && initial === TEMPLATE ? 'Build from analysis' : 'Rebuild from analysis'}
+              </Button>
+            </Hint>
           </div>
         )}
       </div>

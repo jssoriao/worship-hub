@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { keyName, shiftKey, type Key } from '../lib/chords'
 import { SCALES, type SongSettings, type ViewSettings } from '../lib/chart-view'
+import { Hint } from './Hint'
 
 interface Props {
   /** the size Fit chose, so A− / A+ can step from it */
@@ -150,15 +151,16 @@ export function ChartSettings({ fitScale, view, song, original, onView, onSong }
               >
                 A+
               </button>
-              <button
-                type="button"
-                aria-pressed={view.scale === 'fit'}
-                onClick={() => onView({ ...view, scale: 'fit' })}
-                className={`ml-1 h-8 rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring ${view.scale === 'fit' ? 'bg-primary text-white' : 'border border-input'}`}
-                title="The largest text that shows the whole chart at once"
-              >
-                Fit
-              </button>
+              <Hint text="The largest text that shows the whole chart at once">
+                <button
+                  type="button"
+                  aria-pressed={view.scale === 'fit'}
+                  onClick={() => onView({ ...view, scale: 'fit' })}
+                  className={`ml-1 h-8 rounded-lg px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring ${view.scale === 'fit' ? 'bg-primary text-white' : 'border border-input'}`}
+                >
+                  Fit
+                </button>
+              </Hint>
             </div>
           </div>
           <div className={row}>
