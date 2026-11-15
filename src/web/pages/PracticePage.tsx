@@ -26,8 +26,8 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
-import { practicePath, resolveSongParam, songFromAddress } from '../lib/address'
+import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 
 const defaultMix = (): MixState => ({ muted: false, solo: false, volume: 1 })
@@ -463,6 +463,17 @@ export default function PracticePage() {
     setDraft(null)
   }
   const wanted = songFromAddress(new URLSearchParams(search).get('song'))
+  // the key a service asks for in the address (`&key=`), kept until the song it is for has opened
+  const keyAsked = keyFromAddress(new URLSearchParams(search).get('key'))
+  const askedKey = useRef<number | null>(null)
+  useEffect(() => {
+    if (!onPracticePage || keyAsked === null || draft !== null) return
+    if (!wanted) return void navigate('/practice', { replace: true }) // a key for no song
+    if (songId && songId === wanted) setKey(keyAsked)
+    else askedKey.current = keyAsked
+    navigate(practicePath(wanted), { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the address asks for a key
+  }, [onPracticePage, keyAsked, wanted])
   const onFile = (file: File | undefined) => {
     if (!file) return
     // a zip is not a library song: the address has none (setSongId first, so that is not a "close")
@@ -493,7 +504,10 @@ export default function PracticePage() {
     const song = library.find((s) => s.id === id)
     if (!song) return
     setSongId(id)
-    setKey(savedKey(id))
+    // a service asked for its key: that, else what this device last used
+    const asked = askedKey.current
+    askedKey.current = null
+    setKey(asked ?? savedKey(id))
     setTempo(savedTempo(id))
     setAnalysis(null)
     setDraft(null)
@@ -544,10 +558,12 @@ export default function PracticePage() {
     } else if (target.kind === 'unknown') {
       // an id from another church (or a stale link): say so and go to a clean /practice
       if (songId) closeSong()
+      askedKey.current = null
       setNotInChurch(true)
       navigate('/practice', { replace: true })
-    } else if (target.kind === 'none' && songId) {
-      closeSong()
+    } else if (target.kind === 'none') {
+      askedKey.current = null
+      if (songId) closeSong()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the address or the library changes
   }, [onPracticePage, wanted, libraryList])
@@ -626,6 +642,14 @@ export default function PracticePage() {
     setPos(engine.position)
   }
 
+  /** Starts playing from `t` (to tap along to the lyrics). */
+  const playFrom = async (t: number) => {
+    await seekTo(t)
+    if (!engineRef.current?.isPlaying) await togglePlay()
+  }
+  const pauseNow = async () => {
+    if (engineRef.current?.isPlaying) await togglePlay()
+  }
   /** Plays from `t` (starting playback if it is paused) and stops at `end`, to hear a line. */
   const listenFrom = async (t: number, end: number) => {
     await seekTo(t)
@@ -1073,6 +1097,10 @@ export default function PracticePage() {
                 onApproveLine={(i) => change((a) => approveLine(a, i))}
                 onListen={(t, end) => void listenFrom(t, end)}
                 onCopyLyrics={(from, to) => change((a) => copySectionLyrics(a, from, to))}
+                onAddLine={(t, text) => change((a) => addLine(a, t, text))}
+                onAddLines={(items) => change((a) => addLines(a, items))}
+                onPlayFrom={(t) => void playFrom(t)}
+                onPause={() => void pauseNow()}
               />
             )}
             {heard && prefs.view === 'chords' && (

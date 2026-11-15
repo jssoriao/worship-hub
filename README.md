@@ -184,6 +184,16 @@ saving a retyped line or deleting it also clears it, *Skip* leaves it for later.
 this, `pnpm songs:doubts "<song>" --church <slug> [--target prod]` adds the scores from
 `songs/<song>/analysis/raw/lyrics.json` to the analysis that is online (the version before goes to the
 history; a word someone retyped or moved is not flagged; running it again changes nothing).
+**Adding lyrics by hand.** In the Lyrics edit mode (also for a song with no lyrics yet) **Add line** puts a new
+line at the playhead, moved to the nearest beat, and **Tap to sync** takes pasted lyrics, one line per row: press
+Start, then tap (the button or the space bar) as each line begins; Undo takes the last tap back. A line runs until
+the next tap, and its words are spread over that time by length, a first guess to fix by ear (words can be
+retyped or moved as before; nothing is saved until Save changes). A song with only beats (key, bpm and
+`beats`, empty chords and lines) is a valid analysis to start from.
+**Practice from a service.** A service item with its own key opens Practice in that key: the link adds
+`&key=<semitones from the recording>` (`serviceKeyShift` in `src/web/lib/address.ts`), Practice applies it, saves
+it on this device like any key change and drops it from the address. An item with no key (or one that cannot be
+read) opens the song as the device last had it.
 
 ### Churches and roles
 

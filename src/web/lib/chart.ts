@@ -49,6 +49,11 @@ export function formatTime(t: number): string {
   const s = Math.floor(t % 60)
   return `${m}:${String(s).padStart(2, '0')}`
 }
+/** m:ss.s, for timing lyrics */
+export function formatClock(t: number): string {
+  const m = Math.floor(t / 60)
+  return `${m}:${(t - m * 60).toFixed(1).padStart(4, '0')}`
+}
 
 function parseLine(raw: string): ChartLine {
   const line: ChartLine = []
