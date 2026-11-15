@@ -29,6 +29,7 @@ import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type C
 import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
+import { Hint } from '../components/Hint'
 
 const defaultMix = (): MixState => ({ muted: false, solo: false, volume: 1 })
 
@@ -925,24 +926,25 @@ export default function PracticePage() {
   const blank = songId === '' && stems.length === 0 && !loading && !error
 
   const zipButton = (
-    <label
-      title="Play your own stems from a zip of mp3/wav files"
-      className={`${small} cursor-pointer focus-within:ring-2 focus-within:ring-ring`}
-    >
-      <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H8l2 2h5.5A1.5 1.5 0 0 1 17 8.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
-      </svg>
-      Open zip
-      <input
-        type="file"
-        accept=".zip,application/zip"
-        className="sr-only"
-        onChange={(e) => {
-          onFile(e.target.files?.[0])
-          e.target.value = ''
-        }}
-      />
-    </label>
+    <Hint text="Play your own stems from a zip of mp3/wav files">
+      <label
+        className={`${small} cursor-pointer focus-within:ring-2 focus-within:ring-ring`}
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H8l2 2h5.5A1.5 1.5 0 0 1 17 8.5v6a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
+        </svg>
+        Open zip
+        <input
+          type="file"
+          accept=".zip,application/zip"
+          className="sr-only"
+          onChange={(e) => {
+            onFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+      </label>
+    </Hint>
   )
 
   return (

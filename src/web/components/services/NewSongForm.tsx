@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Hint } from '../Hint'
 export interface NewSong {
   title: string
   artist: string
@@ -35,12 +36,16 @@ export function NewSongForm({ onAdd }: { onAdd: (song: NewSong, listed: boolean)
           Key (optional)
         </Label>
         <Input id="ns-key" maxLength={12} placeholder="Key" className="h-8" value={song.key} onChange={(e) => setSong({ ...song, key: e.target.value })} />
-        <Button type="submit" size="sm" disabled={!ready} title="Keeps only its name in this service; you can still attach links">
-          Add to service
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={!ready} title="Also adds it to the church's song list (chart only, no stems)" onClick={(e) => add(e, true)}>
-          Add to song list
-        </Button>
+        <Hint text="Keeps only its name in this service; you can still attach links">
+          <Button type="submit" size="sm" disabled={!ready}>
+            Add to service
+          </Button>
+        </Hint>
+        <Hint text="Also adds it to the church's song list (chart only, no stems)">
+          <Button type="button" variant="outline" size="sm" disabled={!ready} onClick={(e) => add(e, true)}>
+            Add to song list
+          </Button>
+        </Hint>
       </form>
     </Card>
   )

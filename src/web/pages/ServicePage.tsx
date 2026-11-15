@@ -20,6 +20,7 @@ import { formatDate, formatTime, isHttps, linkText, move, serviceName } from '..
 import { cloneService, deleteService, getService, saveItems, updateService, type ItemDraft, type ServiceFull, type ServiceItem } from '../lib/services-api'
 import { fetchLibrary, type LibrarySong } from '../lib/sources'
 import NotFoundPage from './NotFoundPage'
+import { Hint } from '../components/Hint'
 /** One line of the setlist while it is being edited. `uid` is only for React; `newSong` is made on save. */
 interface Line {
   uid: string
@@ -314,12 +315,16 @@ export default function ServicePage() {
         </div>
         {canPlan && dirty && (
           <div className="ml-auto flex gap-1 pb-1">
-            <Button type="button" variant="ghost" size="xs" disabled={busy} title="Throw away the changes (Esc)" onClick={discard}>
-              Discard
-            </Button>
-            <Button type="button" size="xs" disabled={busy} title="Save the changes (Ctrl+S)" onClick={() => void flush()}>
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
+            <Hint text="Throw away the changes (Esc)">
+              <Button type="button" variant="ghost" size="xs" disabled={busy} onClick={discard}>
+                Discard
+              </Button>
+            </Hint>
+            <Hint text="Save the changes (Ctrl+S)">
+              <Button type="button" size="xs" disabled={busy} onClick={() => void flush()}>
+                {busy ? 'Saving…' : 'Save'}
+              </Button>
+            </Hint>
           </div>
         )}
       </div>

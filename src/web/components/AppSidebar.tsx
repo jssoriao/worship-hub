@@ -1,4 +1,4 @@
-import { AudioLinesIcon, ChevronsUpDownIcon, LogOutIcon, SearchIcon } from 'lucide-react'
+import { AudioLinesIcon, ChevronsUpDownIcon, LogOutIcon, MonitorIcon, SearchIcon, SmartphoneIcon } from 'lucide-react'
 import { Fragment, useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
 import {
@@ -27,6 +27,7 @@ import {
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
+import { useLayout } from '../lib/layout-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
 import { inAdminGroup, PAGES, pageShown } from '../lib/pages'
 import { DEFAULT_THEME } from '../lib/theme'
@@ -118,6 +119,7 @@ function ChurchSwitcher() {
 function Account() {
   const { data: session } = authClient.useSession()
   const { isMobile } = useSidebar()
+  const { layout, canSwitch, choose } = useLayout()
   const name = session?.user.name ?? ''
   const email = session?.user.email ?? ''
   return (
@@ -142,6 +144,12 @@ function Account() {
               <p className="truncate">{email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {canSwitch && (
+              <DropdownMenuItem onSelect={() => choose(layout === 'mobile' ? 'desktop' : 'mobile')}>
+                {layout === 'mobile' ? <MonitorIcon aria-hidden="true" /> : <SmartphoneIcon aria-hidden="true" />}
+                {layout === 'mobile' ? 'Desktop view' : 'Mobile view'}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={signOut}>
               <LogOutIcon aria-hidden="true" />
               Sign out

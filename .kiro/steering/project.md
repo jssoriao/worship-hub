@@ -138,7 +138,7 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Two layouts, mobile and desktop (`src/web/lib/layout.ts`, rules and tests; `layout-provider.tsx` writes `data-layout` and
   `data-platform` on `<html>`; the `mobile:`, `desktop:`, `ios:`, `android:` variants are in index.css). Phones (under 768 px, or a
   touch screen under 500 px tall) are mobile only; other touch screens start mobile; a mouse screen starts desktop from 1024 px;
-  the choice is remembered per device. Design rules for phones and tablets: `.kiro/steering/mobile.md`.
+  the choice is remembered per device. Design rules for phones and tablets: `.kiro/steering/mobile.md`; rules for every screen (shared parts, `Hint`, header): `.kiro/steering/ui.md`. The sidebar is a drawer exactly when the layout is mobile (`useIsMobileLayout`); the account menu holds the "Mobile view" / "Desktop view" switch where one is offered.
 - Songs always come from the Worker at `/songs` (same origin). Sign-in is always on, also in development.
 - Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `src/api/members.ts`,
   `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
