@@ -731,6 +731,7 @@ export default function PracticePage() {
         note={noteFor(i)}
         combined={family.some((f) => f.parent === i)}
         part={family.some((f) => f.children.includes(i))}
+        compact={mobile}
         progress={progress}
         onSeek={seekFraction}
         onPatch={(p) => patch(i, p)}
@@ -1043,14 +1044,14 @@ export default function PracticePage() {
               </div>
             )}
             {stemsView && (
-              <div className="mx-auto mt-3 max-w-2xl space-y-3 lg:hidden">
+              <div className={`mx-auto mt-3 max-w-2xl lg:hidden ${mobile ? 'space-y-2' : 'space-y-3'}`}>
                 {groups.map(([group, idxs]) => {
                   // a group with a combined stem leads with that row, so it needs no heading of its own
                   const hasCombined = family.some((f) => idxs.includes(f.parent))
                   return (
                     <div key={group || 'root'}>
                       {group && !hasCombined && <h2 className="mb-1 px-1 text-xs uppercase tracking-wide text-muted-foreground">{group}</h2>}
-                      <ul className="space-y-2">{idxs.map(renderRow)}</ul>
+                      <ul className={mobile ? '' : 'space-y-2'}>{idxs.map(renderRow)}</ul>
                     </div>
                   )
                 })}
