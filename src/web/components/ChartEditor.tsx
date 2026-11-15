@@ -161,12 +161,12 @@ export default function ChartEditor({ initial, syncing, onSave, onCancel, build,
             spellCheck={false}
             autoCapitalize="off"
             autoCorrect="off"
-            className="mt-1 h-[28rem] w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-[70vh]"
+            className="mt-1 h-[28rem] w-full resize-y rounded-xl border border-input bg-background p-3 font-mono text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring md:h-[70dvh]"
           />
         </div>
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</h2>
-          <div className="mt-1 md:max-h-[70vh] md:overflow-y-auto">
+          <div className="mt-1 md:max-h-[70dvh] md:overflow-y-auto">
             <h3 className="text-lg font-semibold">{chart.title}</h3>
             <p className="mb-3 text-sm text-muted-foreground">{[chart.artist, chart.key && `Key of ${chart.key}`].filter(Boolean).join(' · ')}</p>
             <ChartView chart={chart} />

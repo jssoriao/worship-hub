@@ -135,6 +135,10 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - `src/web/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/web/lib/address.ts`:
   the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open; a service item with its own
   key links `&key=<semitones from the recording>`: `serviceKeyShift`/`keyFromAddress`, applied once and dropped from the address).
+- Two layouts, mobile and desktop (`src/web/lib/layout.ts`, rules and tests; `layout-provider.tsx` writes `data-layout` and
+  `data-platform` on `<html>`; the `mobile:`, `desktop:`, `ios:`, `android:` variants are in index.css). Phones (under 768 px, or a
+  touch screen under 500 px tall) are mobile only; other touch screens start mobile; a mouse screen starts desktop from 1024 px;
+  the choice is remembered per device. Design rules for phones and tablets: `.kiro/steering/mobile.md`.
 - Songs always come from the Worker at `/songs` (same origin). Sign-in is always on, also in development.
 - Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `src/api/members.ts`,
   `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
