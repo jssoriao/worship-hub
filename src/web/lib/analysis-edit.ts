@@ -2,7 +2,7 @@
  * Changes to a song's analysis made in the player (chords, sections, lyrics), and saving it.
  * Every function returns a new analysis; nothing is changed in place.
  */
-import { indexAt, type Chord, type Line, type SongAnalysis } from './analysis'
+import { indexAt, type Chord, type Line, type SongAnalysis, type Word } from './analysis'
 import { call, songsApi } from './api'
 
 const EPS = 0.02
@@ -204,6 +204,62 @@ export function setLineText(a: SongAnalysis, index: number, text: string): SongA
   return { ...a, lines }
 }
 
+/** The beat nearest to `t`, or `t` itself when the song has no beats. */
+export function snapToBeat(a: SongAnalysis, t: number): number {
+  const beats = a.beats
+  if (beats.length === 0) return t
+  const i = indexAt(beats, t)
+  const lo = beats[Math.max(i, 0)]
+  const hi = beats[Math.min(i + 1, beats.length - 1)]
+  return Math.abs(t - lo.t) <= Math.abs(hi.t - t) ? lo.t : hi.t
+}
+/** Where a line starting at `t` ends when nothing says: two bars later (the second bar line after it). */
+function twoBarsAfter(a: SongAnalysis, t: number): number {
+  let bars = 0
+  for (const b of a.beats) {
+    if (b.t > t + 0.05 && b.n === 1 && ++bars === 2) return b.t
+  }
+  return t + 2 * 4 * (60 / (a.bpm > 0 ? a.bpm : 100))
+}
+/** A sung word takes about this long: the first guess for how far a line's words reach (it is then fixed by ear). */
+const WORD_SECONDS = 0.6
+/** Words spread over a line from `t`: each takes a share of the time by its length, up to `end`. */
+function spreadWords(words: string[], t: number, end: number): Word[] {
+  const reach = Math.min(Math.max(end - t, 0.5), Math.max(words.length * WORD_SECONDS, 1))
+  const weight = words.map((w) => Math.max(1, w.replace(/[^\p{L}\p{N}]/gu, '').length))
+  const total = weight.reduce((x, y) => x + y, 0)
+  let used = 0
+  return words.map((w, k) => {
+    const from = t + (reach * used) / total
+    used += weight[k]
+    return { w, t: from, end: t + (reach * used) / total }
+  })
+}
+/**
+ * Adds lyric lines at the given moments (snapped to the nearest beat), each running until the next one starts
+ * (the last: two bars, or until a line that is already there). The words of a line are spread over its time
+ * by length, a first guess to fix by ear. Existing lines stay; empty text is skipped.
+ */
+export function addLines(a: SongAnalysis, items: { t: number; text: string }[]): SongAnalysis {
+  const wanted = items
+    .map((x) => ({ t: snapToBeat(a, Math.max(0, x.t)), words: x.text.trim().split(/\s+/).filter(Boolean) }))
+    .filter((x) => x.words.length > 0)
+    .sort((x, y) => x.t - y.t)
+  // two lines on the same beat would fall on each other: the later one moves a hair after
+  wanted.forEach((x, k) => {
+    if (k > 0 && x.t <= wanted[k - 1].t + 0.01) x.t = wanted[k - 1].t + 0.05
+  })
+  const added: Line[] = wanted.map((x, k) => {
+    const nextOld = a.lines.find((l) => l.t > x.t + 0.01)?.t
+    const end = k + 1 < wanted.length ? wanted[k + 1].t : Math.min(twoBarsAfter(a, x.t), nextOld ?? Infinity)
+    const words = spreadWords(x.words, x.t, Math.max(end, x.t + 0.5))
+    return { t: x.t, end: words[words.length - 1].end, words }
+  })
+  if (added.length === 0) return a
+  return { ...a, lines: [...a.lines, ...added].sort((x, y) => x.t - y.t) }
+}
+/** Adds one lyric line at `t` (see addLines). */
+export const addLine = (a: SongAnalysis, t: number, text: string): SongAnalysis => addLines(a, [{ t, text }])
 /** Whether a line has a word the speech-to-text was unsure of (and nobody has checked yet). */
 export const hasDoubt = (line: Line) => line.words.some((w) => w.doubt !== undefined)
 

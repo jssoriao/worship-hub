@@ -133,7 +133,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   for the API's types). Song files (audio, manifests, `chart.pro`, `analysis.json`) stay plain URLs (`songFile`)
   for Range streaming and the offline cache. `test/client.test.ts` runs the client against the real app.
 - `src/web/lib/church.tsx` / `church-context.ts`: the active church and the switcher. `src/web/lib/address.ts`:
-  the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open).
+  the Practice address rules (`?song=<id>` alone chooses the song; no `?song` = nothing open; a service item with its own
+  key links `&key=<semitones from the recording>`: `serviceKeyShift`/`keyFromAddress`, applied once and dropped from the address).
 - Songs always come from the Worker at `/songs` (same origin). Sign-in is always on, also in development.
 - Pages (react-router): `/` Home, `/members` (admins and owners: add, re-role, remove people; `src/api/members.ts`,
   `src/web/lib/members-api.ts`), `/practice` (stays mounted/hidden on other routes so audio keeps
@@ -163,7 +164,8 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   router: main.tsx uses `createBrowserRouter` and Practice calls `useBlocker`. Edits stay in a draft in the browser
   until Save changes (the Worker then replaces R2's analysis.json, not the database); closing the tab with a draft asks
   too (`beforeunload`). `src/web/lib/analysis-edit.ts`: a changed word keeps the time of the word it
-  replaces); the Worker keeps each replaced version in `analysis/history/`.
+  replaces; `addLine`/`addLines` add lyric lines snapped to a beat with the words spread by length, used by Add line and
+  Tap to sync in `components/player/LyricTools.tsx`); the Worker keeps each replaced version in `analysis/history/`.
   Words Music.AI was unsure of (score < 0.4, `src/shared/doubt.ts`) keep that score in percent as a 4th number
   of the stored word `[w, t, end, doubt]` (`Word.doubt`); retyping or approving a line drops it. In Practice's
   Lyrics edit mode they are underlined and the line has an amber bar; "N lines to check" steps through them

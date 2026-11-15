@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseAnalysis, type SongAnalysis, type Word } from './analysis'
-import { approveLine, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, setLineText, splitLine, toStored } from './analysis-edit'
+import { addLine, addLines, approveLine, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, setLineText, splitLine, toStored } from './analysis-edit'
 
 // made-up words only
 const word = (w: string, t: number, doubt?: number): Word => ({ w, t, end: t + 0.5, ...(doubt === undefined ? {} : { doubt }) })
@@ -143,5 +143,74 @@ describe('copying lyrics', () => {
   it('does nothing for the same section', () => {
     const a = two()
     expect(copySectionLyrics(a, 1, 1)).toBe(a)
+  })
+})
+
+// 4 beats a bar, one beat every 0.9 s from 0.5 s (a pickup beat first), made-up words
+const gridSong = (lines: SongAnalysis['lines'] = []): SongAnalysis => ({
+  key: 'Db major',
+  bpm: 67,
+  beats: Array.from({ length: 40 }, (_, i) => ({ t: 0.5 + i * 0.9, n: ((i + 3) % 4) + 1 })),
+  chords: [],
+  sections: [],
+  lines,
+})
+describe('adding lyric lines', () => {
+  it('snaps a moment to the nearest beat, and leaves it alone when the song has no beats', () => {
+    const a = gridSong()
+    expect(snapToBeat(a, 3.0)).toBeCloseTo(3.2) // between 2.3 and 3.2, nearer 3.2
+    expect(snapToBeat(a, 2.6)).toBeCloseTo(2.3)
+    expect(snapToBeat(a, -4)).toBeCloseTo(0.5)
+    expect(snapToBeat(a, 999)).toBeCloseTo(0.5 + 39 * 0.9)
+    expect(snapToBeat({ ...a, beats: [] }, 3.33)).toBe(3.33)
+  })
+  it('puts a line on a beat, its words spread over the time by length, inside two bars', () => {
+    const a = addLine(gridSong(), 3.0, '  one   three  two ')
+    expect(a.lines).toHaveLength(1)
+    const line = a.lines[0]
+    expect(line.t).toBeCloseTo(3.2)
+    expect(line.words.map((w) => w.w)).toEqual(['one', 'three', 'two'])
+    // contiguous, increasing, the longer word gets the longer share
+    expect(line.words[0].t).toBeCloseTo(3.2)
+    expect(line.words[0].end).toBeCloseTo(line.words[1].t)
+    expect(line.words[1].end - line.words[1].t).toBeGreaterThan(line.words[0].end - line.words[0].t)
+    expect(line.end).toBe(line.words[2].end)
+    expect(line.end).toBeLessThanOrEqual(3.2 + 2 * 4 * 0.9 + 0.01)
+    expect(line.words.every((w) => w.doubt === undefined)).toBe(true)
+  })
+  it('ends a line where the next existing line starts, and keeps the lines in order', () => {
+    const a = addLine(gridSong([{ t: 5.0, end: 7, words: [word('later', 5)] }]), 3.2, 'one two three four five six')
+    expect(a.lines.map((l) => l.words[0].w)).toEqual(['one', 'later'])
+    expect(a.lines[0].end).toBeLessThanOrEqual(5.0)
+    // and one added before the first existing line sorts first, one after sorts last
+    expect(addLine(a, 20, 'last').lines.map((l) => l.words[0].w)).toEqual(['one', 'later', 'last'])
+    expect(addLine(a, 0.4, 'first').lines[0].words[0].w).toBe('first')
+  })
+  it('adds several lines at once: each runs until the next, the last for two bars', () => {
+    const a = addLines(gridSong(), [
+      { t: 9.4, text: 'third line' },
+      { t: 2.3, text: 'first line' },
+      { t: 5.9, text: 'second line' },
+      { t: 12, text: '   ' },
+    ])
+    expect(a.lines.map((l) => l.words.map((w) => w.w).join(' '))).toEqual(['first line', 'second line', 'third line'])
+    expect(a.lines.map((l) => l.t)).toEqual([2.3, 5.9, 9.5].map((x) => expect.closeTo(x, 5))) // 9.4 snaps to the 9.5 beat
+    expect(a.lines[0].end).toBeLessThanOrEqual(5.9)
+    expect(a.lines[1].end).toBeLessThanOrEqual(9.5)
+    expect(a.lines[2].end).toBeGreaterThan(9.5)
+  })
+  it('does not stack two lines on the same beat, and does nothing for empty text', () => {
+    const a = addLines(gridSong(), [
+      { t: 3.2, text: 'one' },
+      { t: 3.3, text: 'two' },
+    ])
+    expect(a.lines[1].t).toBeGreaterThan(a.lines[0].t)
+    const empty = gridSong()
+    expect(addLine(empty, 3, '   ')).toBe(empty)
+  })
+  it('works on a song with no beats and no lines, and what it makes is stored and read back', () => {
+    const a = addLine({ ...gridSong(), beats: [] }, 1.25, 'only line here')
+    expect(a.lines[0].t).toBe(1.25)
+    expect(parseAnalysis(JSON.parse(JSON.stringify(toStored(a)))).lines[0].words.map((w) => w.w)).toEqual(['only', 'line', 'here'])
   })
 })

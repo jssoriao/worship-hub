@@ -12,7 +12,7 @@ import { MiniPlayer } from '../components/services/MiniPlayer'
 import { NewSongForm, type NewSong } from '../components/services/NewSongForm'
 import { ServiceDialog } from '../components/services/ServiceDialog'
 import { SongChart } from '../components/services/SongChart'
-import { practicePath } from '../lib/address'
+import { practicePath, serviceKeyShift } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { mediaOf } from '../lib/media'
 import { useNowPlaying } from '../lib/now-playing-context'
@@ -397,7 +397,7 @@ export default function ServicePage() {
                       <ul className="grid grid-cols-1 gap-1 border-t border-border p-1.5">
                         {line.songId && !line.archived && (
                           <li>
-                            <Link to={practicePath(line.songId)} className="flex items-center gap-2 rounded-md p-1 text-sm hover:bg-accent/40">
+                            <Link to={practicePath(line.songId, serviceKeyShift(line.songKey, line.key))} className="flex items-center gap-2 rounded-md p-1 text-sm hover:bg-accent/40">
                               <span className="grid h-8 w-14 shrink-0 place-items-center rounded bg-muted text-muted-foreground">
                                 <AudioLinesIcon className="size-4" />
                               </span>
