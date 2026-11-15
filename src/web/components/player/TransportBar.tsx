@@ -4,6 +4,8 @@ import { Popover } from '../Popover'
 import { useChurch } from '../../lib/church-context'
 import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
 import { Hint } from '../Hint'
+import { useIsMobileLayout } from '../../lib/layout-context'
+import { MobileTransport, type MobileParts } from './MobileTransport'
 
 export type PlayerView = 'stems' | 'lyrics' | 'chords' | 'shapes'
 
@@ -43,6 +45,8 @@ interface Props {
   tools?: ReactNode
   /** false on other pages: the views are hidden and the title leads back to Practice */
   onPracticePage?: boolean
+  /** what the mobile layout shows in sheets instead of the popovers in `tools` */
+  mobile?: MobileParts
 }
 
 const SKIP = 5
@@ -53,6 +57,10 @@ const SKIP = 5
  * it. It stays on every page while a song is open. On phones it takes two rows.
  */
 export function TransportBar(props: Props) {
+  return useIsMobileLayout() ? <MobileTransport {...props} /> : <DesktopTransport {...props} />
+}
+
+function DesktopTransport(props: Props) {
   const { title, facts, playing, buffering, position, duration, onToggle, onSeek, onStop, loop, onLoop, volume, onVolume, bar, view, onView, tools, onPracticePage = true } = props
   const now = useNowPlaying()
   const church = useChurch()

@@ -30,7 +30,7 @@ changing any screen for phones or tablets.
 - The main actions sit in the bottom half of the screen. Settings and pickers open as bottom sheets, not popovers.
 - Nothing needs hover. A gesture (swipe, long press) always has a visible button as well.
 - Use `dvh`, never `vh`. Fixed bars add `pb-safe` / `pt-safe` (`pl-safe`, `pr-safe`) for the notch and the home bar; the
-  viewport turns on `viewport-fit=cover` together with the mobile shell, not before.
+  viewport has `viewport-fit=cover`, so content can reach the screen edges: a bar fixed to an edge must add the padding.
 - Text boxes and dropdowns are at least 16 px on touch screens (index.css), or iPhone Safari zooms in.
 - Respect `prefers-reduced-motion`.
 

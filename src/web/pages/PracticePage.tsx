@@ -18,6 +18,7 @@ import { Popover } from '../components/Popover'
 import { PageHeader } from '../components/PageHeader'
 import { Alert } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
+import { ClickPanel, TempoKeyPanel, ViewPanel } from '../components/player/panels'
 import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
 import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
@@ -29,6 +30,7 @@ import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type C
 import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
+import { useIsMobileLayout } from '../lib/layout-context'
 import { Hint } from '../components/Hint'
 
 const defaultMix = (): MixState => ({ muted: false, solo: false, volume: 1 })
@@ -175,6 +177,7 @@ export default function PracticePage() {
   const [prefs, setPrefs] = useState<ViewPrefs>(savedViewPrefs)
   // editing (admins and the owner): changes collect in a draft until saved
   const church = useChurch()
+  const mobile = useIsMobileLayout()
   const mayEdit = church.can({ content: ['edit'] })
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<SongAnalysis | null>(null)
@@ -751,24 +754,41 @@ export default function PracticePage() {
   const barStarts = useMemo(() => (shown ? shown.beats.filter((b) => b.n === 1) : []), [shown])
   const barLabel = barStarts.length > 0 ? `Bar ${Math.max(1, indexAt(barStarts, pos) + 1)} of ${barStarts.length}` : undefined
 
-  const toggle = (on: boolean, onChange: (v: boolean) => void, label: string) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={`relative h-5 w-9 shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${on ? 'bg-primary' : 'bg-slate-700'}`}
-    >
-      <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${on ? 'left-4.5' : 'left-0.5'}`} />
-    </button>
-  )
   const originalKey = parseKey(analysis?.key || music?.key || '')
   // how far the key moved, "+3" or "-2" ("" in the recording's own key)
   const keyMoved = key === 0 ? '' : `${key > 0 ? '+' : ''}${key}`
   const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : keyMoved || 'Key'
   const tempoText = music?.bpm ? `${Math.round(music.bpm * tempo)} bpm` : `${Math.round(tempo * 100)}%`
   const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
+  const clickPanel = <ClickPanel on={click.on} volume={click.volume} onOn={(on) => setClick((c) => ({ ...c, on }))} onVolume={(volume) => setClick((c) => ({ ...c, volume }))} />
+  const tempoKeyPanel = (
+    <TempoKeyPanel
+      tempoText={tempoText}
+      tempoChanged={tempo !== 1}
+      onTempo={(d) => setTempo(stepTempo(tempo, music?.bpm, d))}
+      tempoLowerDisabled={tempo <= MIN_TEMPO + 1e-6}
+      tempoHigherDisabled={tempo >= MAX_TEMPO - 1e-6}
+      keyText={originalKey && keyMoved ? `${keyText} (${keyMoved})` : keyText}
+      keyChanged={key !== 0}
+      onKey={(d) => setKey((k) => Math.max(-MAX_KEY_SHIFT, Math.min(MAX_KEY_SHIFT, k + d)))}
+      keyLowerDisabled={key <= -MAX_KEY_SHIFT}
+      keyHigherDisabled={key >= MAX_KEY_SHIFT}
+      onReset={() => {
+        setKey(0)
+        setTempo(1)
+      }}
+    />
+  )
+  const viewPanel = (
+    <ViewPanel
+      level={prefs.level}
+      onLevel={(level) => setPrefs((p) => ({ ...p, level }))}
+      instrument={prefs.instrument}
+      onInstrument={(instrument) => setPrefs((p) => ({ ...p, instrument }))}
+      follow={prefs.follow}
+      onFollow={(follow) => setPrefs((p) => ({ ...p, follow }))}
+    />
+  )
   const tools = (
     <>
       {music && music.beats.length > 0 && (
@@ -784,19 +804,7 @@ export default function PracticePage() {
             </svg>
           }
         >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3 text-slate-300">
-              <span>Play the click</span>
-              {toggle(click.on, (on) => setClick((c) => ({ ...c, on })), 'Play the click')}
-            </div>
-            <label className="block text-slate-300">
-              <span className="flex justify-between text-xs text-muted-foreground">
-                <span>Volume</span>
-                <span>{Math.round(click.volume * 100)}%</span>
-              </span>
-              <input type="range" min={0} max={1} step={0.01} value={click.volume} onChange={(e) => setClick((c) => ({ ...c, volume: Number(e.target.value) }))} className="mt-1 w-full accent-primary" />
-            </label>
-          </div>
+          {clickPanel}
         </Popover>
       )}
       {stems.length > 0 && (
@@ -814,38 +822,7 @@ export default function PracticePage() {
             </span>
           }
         >
-          <div className="space-y-3 text-slate-300">
-            <Stepper
-              label="Tempo"
-              value={tempoText}
-              changed={tempo !== 1}
-              onLower={() => setTempo(stepTempo(tempo, music?.bpm, -1))}
-              onHigher={() => setTempo(stepTempo(tempo, music?.bpm, 1))}
-              lowerDisabled={tempo <= MIN_TEMPO + 1e-6}
-              higherDisabled={tempo >= MAX_TEMPO - 1e-6}
-            />
-            <Stepper
-              label="Key"
-              value={originalKey && keyMoved ? `${keyText} (${keyMoved})` : keyText}
-              changed={key !== 0}
-              onLower={() => setKey((k) => Math.max(-MAX_KEY_SHIFT, k - 1))}
-              onHigher={() => setKey((k) => Math.min(MAX_KEY_SHIFT, k + 1))}
-              lowerDisabled={key <= -MAX_KEY_SHIFT}
-              higherDisabled={key >= MAX_KEY_SHIFT}
-            />
-            {(key !== 0 || tempo !== 1) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setKey(0)
-                  setTempo(1)
-                }}
-                className="text-xs text-highlight underline underline-offset-2"
-              >
-                Reset
-              </button>
-            )}
-          </div>
+          {tempoKeyPanel}
         </Popover>
       )}
       {shown && (
@@ -860,37 +837,7 @@ export default function PracticePage() {
             </svg>
           }
         >
-          <div className="space-y-3 text-slate-300">
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Chord detail</p>
-              <Segmented
-                label="Chord detail"
-                value={prefs.level}
-                options={[
-                  ['basic', 'Basic'],
-                  ['simple', 'Simple'],
-                  ['complex', 'Full'],
-                ]}
-                onChange={(level) => setPrefs((p) => ({ ...p, level }))}
-              />
-            </div>
-            <div>
-              <p className="mb-1 text-xs text-muted-foreground">Chord shapes for</p>
-              <Segmented
-                label="Instrument"
-                value={prefs.instrument}
-                options={[
-                  ['guitar', 'Guitar'],
-                  ['piano', 'Piano'],
-                ]}
-                onChange={(instrument) => setPrefs((p) => ({ ...p, instrument }))}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Follow the song</span>
-              {toggle(prefs.follow, (follow) => setPrefs((p) => ({ ...p, follow })), 'Follow the song')}
-            </div>
-          </div>
+          {viewPanel}
         </Popover>
       )}
       {canEditView && !editing && (
@@ -948,19 +895,7 @@ export default function PracticePage() {
     </Hint>
   )
 
-  return (
-    <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-3' : 'pb-48 md:pb-40'}`}>
-        {/* the title, and once a song is open: the song, its quality, offline, another zip */}
-        {/* in edit mode the whole top bar goes (title, sidebar button, song controls): the edit bar takes its place */}
-        {!editing && (
-        <PageHeader
-          title="Practice"
-          actions={
-            !blank && (
-              <>
-          {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full min-w-0 sm:w-72 lg:w-80" />}
-          <div className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
-            {songId !== '' && tiers.length > 1 && (
+  const qualitySelect = songId !== '' && tiers.length > 1 && (
               <>
                 <label className="sr-only" htmlFor="quality">
                   Audio quality
@@ -983,8 +918,8 @@ export default function PracticePage() {
                   </NativeSelect>
                 </Hint>
               </>
-            )}
-            {songId !== '' && offline && (
+            )
+  const offlineButton = songId !== '' && offline && (
               <Hint text={
                   offlineDone
                     ? `Saved on this device (${megabytes(offline.bytes)}); plays with no connection. Tap to remove.`
@@ -1002,8 +937,66 @@ export default function PracticePage() {
                   {saving ? `Saving ${Math.round((download?.fraction ?? 0) * 100)}%` : offlineDone ? 'Offline ✓' : 'Save offline'}
                 </button>
               </Hint>
+            )
+
+  // the mobile layout has no popovers: the same panels open in sheets, and everything that sat in the toolbar goes into the settings sheet
+  const mobileParts = {
+    keyText: originalKey && keyMoved ? `${keyText} ${keyMoved}` : keyText,
+    keyChanged: key !== 0 || tempo !== 1,
+    tempoKey: stems.length > 0 ? tempoKeyPanel : undefined,
+    click: music && music.beats.length > 0 ? clickPanel : undefined,
+    clickOn: click.on,
+    settings: (close: () => void) => (
+      <div className="space-y-5">
+        {shown && (
+          <section aria-label="View">
+            <h3 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">View</h3>
+            {viewPanel}
+          </section>
+        )}
+        {(qualitySelect || offlineButton) && (
+          <section aria-label="Song on this device" className="flex flex-wrap items-center gap-2">
+            {qualitySelect}
+            {offlineButton}
+          </section>
+        )}
+        <section aria-label="Song" className="flex flex-wrap items-center gap-2">
+          {canEditView && !editing && (
+            <button
+              type="button"
+              onClick={() => {
+                close()
+                setEditing(true)
+              }}
+              className={small}
+            >
+              {prefs.view === 'chords' ? 'Fix chords and sections' : 'Fix the lyrics'}
+            </button>
+          )}
+          {zipButton}
+        </section>
+      </div>
+    ),
+  }
+  return (
+    <div className={`mx-auto max-w-7xl px-4 pt-3 md:px-6 ${stems.length === 0 ? 'pb-6' : stemsView ? 'pb-48 md:pb-40 lg:pb-3' : 'pb-48 md:pb-40'}`}>
+        {/* the title, and once a song is open: the song, its quality, offline, another zip */}
+        {/* in edit mode the whole top bar goes (title, sidebar button, song controls): the edit bar takes its place */}
+        {!editing && (
+        <PageHeader
+          title="Practice"
+          actions={
+            !blank && (
+              <>
+          {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full min-w-0 sm:w-72 lg:w-80" />}
+          <div className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
+            {!mobile && (
+              <>
+                {qualitySelect}
+                {offlineButton}
+                {zipButton}
+              </>
             )}
-            {zipButton}
           </div>
               </>
             )
@@ -1144,6 +1137,7 @@ export default function PracticePage() {
                   view={analysis && !editing ? prefs.view : undefined}
                   onView={(view) => setPrefs((p) => ({ ...p, view }))}
                   tools={tools}
+                  mobile={mobileParts}
                   // away from Practice: the views make no sense, and the title leads back
                   onPracticePage={onPracticePage}
                 />,
@@ -1151,46 +1145,6 @@ export default function PracticePage() {
               )}
           </>
         )}
-    </div>
-  )
-}
-
-/** A value with − and + on either side, for the Tempo & Key panel. A changed value is highlighted. */
-function Stepper(props: { label: string; value: string; changed: boolean; onLower: () => void; onHigher: () => void; lowerDisabled: boolean; higherDisabled: boolean }) {
-  const { label, value, changed, onLower, onHigher, lowerDisabled, higherDisabled } = props
-  const step = 'flex size-9 shrink-0 items-center justify-center rounded-lg border border-input text-lg outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40'
-  return (
-    <div>
-      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
-      <div className="flex items-center gap-2">
-        <button type="button" aria-label={`${label} lower`} disabled={lowerDisabled} onClick={onLower} className={step}>
-          −
-        </button>
-        <output aria-live="polite" aria-label={label} className={`flex h-9 flex-1 items-center justify-center rounded-lg bg-background/60 text-base font-medium tabular-nums ${changed ? 'text-highlight' : 'text-foreground'}`}>
-          {value}
-        </output>
-        <button type="button" aria-label={`${label} higher`} disabled={higherDisabled} onClick={onHigher} className={step}>
-          +
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
-  return (
-    <div role="group" aria-label={label} className="flex rounded-lg border border-input p-0.5">
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          type="button"
-          aria-pressed={value === v}
-          onClick={() => onChange(v)}
-          className={`rounded-md px-2.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring ${value === v ? 'bg-primary text-white' : 'text-slate-300'}`}
-        >
-          {text}
-        </button>
-      ))}
     </div>
   )
 }
