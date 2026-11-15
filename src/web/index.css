@@ -117,6 +117,27 @@
 
 /* the shadcn components are written for light and dark; this app is always dark */
 @custom-variant dark (&:is(:root *));
+/*
+ * The layout and platform the app is in (src/web/lib/layout-provider.tsx writes them on <html>): `mobile:` and `desktop:`
+ * pick a layout; `ios:` and `android:` follow the platform's own look, in the mobile layout only.
+ */
+@custom-variant mobile (&:is([data-layout='mobile'] *));
+@custom-variant desktop (&:is([data-layout='desktop'] *));
+@custom-variant ios (&:is([data-layout='mobile'][data-platform='ios'] *));
+@custom-variant android (&:is([data-layout='mobile'][data-platform='android'] *));
+/* the room a notch or the home bar takes (0 where there is none); a fixed bar adds it to its own padding */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
 
 @layer base {
   * {

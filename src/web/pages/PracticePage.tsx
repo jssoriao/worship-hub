@@ -1010,7 +1010,7 @@ export default function PracticePage() {
         )}
         {/* nothing open yet: just the search, centred, with the zip as a quiet alternative */}
         {blank && (
-          <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
+          <div className="mx-auto mt-[18dvh] flex max-w-md flex-col items-center gap-3 text-center">
             <p className="text-lg font-medium text-slate-200">What are we practising?</p>
             {library.length > 0 && <SongPicker songs={library} value={songId} onPick={pickSong} className="w-full" />}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

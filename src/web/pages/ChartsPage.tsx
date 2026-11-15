@@ -225,7 +225,7 @@ export default function ChartsPage() {
         <Alert className="mt-4">That song is not in this church.</Alert>
       )}
       {blank && (
-        <div className="mx-auto mt-[18vh] flex max-w-md flex-col items-center gap-3 text-center">
+        <div className="mx-auto mt-[18dvh] flex max-w-md flex-col items-center gap-3 text-center">
           <p className="text-lg font-medium text-slate-200">Which chart?</p>
           <SongPicker songs={library ?? []} value={songId} onPick={pick} loading={library === null} className="w-full" />
           {mayAdd && (adding ? addForm : (
