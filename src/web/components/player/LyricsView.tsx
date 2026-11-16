@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
 import { LyricTools } from './LyricTools'
@@ -30,6 +31,8 @@ interface Props {
   /** start the song playing from a moment / stop it, for tapping along */
   onPlayFrom?: (t: number) => void
   onPause?: () => void
+  /** with no lyrics yet: start edit mode from the empty page (editors only) */
+  onStartEdit?: () => void
 }
 
 type Token = { w: string; t: number; end: number; chords: string[]; doubt?: boolean }
@@ -96,7 +99,7 @@ function buildRows(a: SongAnalysis, level: ChordLevel): Row[] {
 }
 
 /** Chords over the lyrics, by section; the line being sung is bright and its words light up as they are sung. */
-export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onAddLine, onAddLines, onPlayFrom, onPause }: Props) {
+export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onAddLine, onAddLines, onPlayFrom, onPause, onStartEdit }: Props) {
   const [open, setOpen] = useState<number | null>(null)
   // the section whose heading was tapped (edit mode), as an index in analysis.sections
   const [openSection, setOpenSection] = useState<number | null>(null)
@@ -137,7 +140,14 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
         <p className="text-center text-sm text-muted-foreground">No lyrics yet.</p>
       </div>
     ) : (
-      <p className="mt-6 text-center text-sm text-muted-foreground">No lyrics for this song.</p>
+      <div className="mt-6 flex flex-col items-center gap-3">
+        <p className="text-center text-sm text-muted-foreground">No lyrics for this song.</p>
+        {onStartEdit && (
+          <Button type="button" onClick={onStartEdit}>
+            Add lyrics
+          </Button>
+        )}
+      </div>
     )
   return (
     <div className="mx-auto mt-3 max-w-4xl space-y-1 pb-32">

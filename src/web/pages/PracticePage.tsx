@@ -1107,6 +1107,7 @@ export default function PracticePage() {
                 onAddLines={(items) => change((a) => addLines(a, items))}
                 onPlayFrom={(t) => void playFrom(t)}
                 onPause={() => void pauseNow()}
+                onStartEdit={canEditView && !editing ? () => setEditing(true) : undefined}
               />
             )}
             {heard && prefs.view === 'chords' && (
