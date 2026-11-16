@@ -1,4 +1,5 @@
 import type { ChordLevel } from '../../lib/analysis'
+import { Range } from '../Range'
 /**
  * The controls inside the play bar's panels: the click, tempo and key, and the view settings. Each is drawn once and
  * shown in a popover on desktop and in a bottom sheet on mobile, so the two layouts cannot drift apart.
@@ -74,7 +75,7 @@ export function ClickPanel({ on, volume, onOn, onVolume }: { on: boolean; volume
           <span>Volume</span>
           <span>{Math.round(volume * 100)}%</span>
         </span>
-        <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="mt-1 w-full accent-primary mobile:h-8" />
+        <Range max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="mt-1 h-8 w-full" />
       </label>
     </div>
   )

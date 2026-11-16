@@ -75,6 +75,48 @@
     inset 0 1px 0 oklch(1 0 0 / 0.06);
 }
 
+/*
+ * A slim slider (components/Range.tsx sets --p, the share filled): a 4 px track in the brand colour up to the value and a
+ * 12 px round handle. The element keeps the height it is given, which is the area a finger hits.
+ */
+@utility slim-range {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: linear-gradient(to right, var(--primary) var(--p, 0%), oklch(1 0 0 / 0.18) var(--p, 0%));
+  }
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: oklch(1 0 0 / 0.18);
+  }
+  &::-moz-range-progress {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--primary);
+  }
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border: 0;
+    border-radius: 9999px;
+    background: oklch(0.98 0 0);
+    box-shadow: 0 0 0 1px oklch(0 0 0 / 0.25);
+  }
+  &::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 9999px;
+    background: oklch(0.98 0 0);
+    box-shadow: 0 0 0 1px oklch(0 0 0 / 0.25);
+  }
+}
 /* the main action: the brand colour into the second one */
 @utility bg-brand-gradient {
   background-color: var(--brand);

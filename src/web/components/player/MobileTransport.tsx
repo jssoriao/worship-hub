@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { useChurch } from '../../lib/church-context'
 import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
 import { MobileSheet } from '../MobileSheet'
+import { Range } from '../Range'
 import { Toggle } from './panels'
 import type { PlayerView } from './TransportBar'
 
@@ -84,9 +85,7 @@ export function MobileTransport({ title, playing, buffering, position, duration,
   )
   // a visible slider: the thumb is the finger's handle, the drag seeks when it is let go
   const seek = (
-    <input
-      type="range"
-      min={0}
+    <Range
       max={Math.max(duration, 0.1)}
       step={0.1}
       value={shownPos}
@@ -102,7 +101,7 @@ export function MobileTransport({ title, playing, buffering, position, duration,
         setDrag(null)
         onSeek(Number(e.currentTarget.value))
       }}
-      className="h-6 min-w-0 flex-1 cursor-pointer accent-primary"
+      className="h-8 min-w-0 flex-1"
     />
   )
 
@@ -195,7 +194,7 @@ export function MobileTransport({ title, playing, buffering, position, duration,
               <span>Volume</span>
               <span>{Math.round(volume * 100)}%</span>
             </span>
-            <input type="range" min={0} max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="mt-1 h-8 w-full accent-primary" />
+            <Range max={1} step={0.01} value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="mt-1 h-8 w-full" />
           </label>
           <div className="flex items-center justify-between gap-3 text-slate-300">
             <span>Repeat the song</span>

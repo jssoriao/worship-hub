@@ -1,5 +1,6 @@
 import type { StemInfo } from '../lib/engine'
 import type { MixState } from '../lib/mix'
+import { Range } from './Range'
 import { Waveform } from './Waveform'
 
 interface Props {
@@ -40,15 +41,13 @@ export function StemRow({ stem, mix, audible, waiting, note, part, combined, pro
             <Waveform peaks={stem.peaks} progress={progress} height={32} dim={!audible} onSeek={onSeek} />
           </div>
         )}
-        <input
-          type="range"
-          min={0}
+        <Range
           max={1}
           step={0.01}
           value={mix.volume}
           aria-label={`Volume ${stem.name}`}
           onChange={(e) => onPatch({ volume: Number(e.target.value) })}
-          className="h-8 min-w-0 flex-1 accent-primary sm:max-w-40"
+          className="h-8 min-w-0 flex-1 sm:max-w-40"
         />
         <button type="button" aria-pressed={mix.muted} aria-label={`Mute ${stem.name}`} onClick={() => onPatch({ muted: !mix.muted })} className={toggle}>
           <span className={`${face} ${mix.muted ? 'bg-red-600 text-white' : 'bg-accent text-slate-300'}`}>M</span>
