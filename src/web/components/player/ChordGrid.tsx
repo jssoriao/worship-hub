@@ -204,7 +204,13 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                   initial={open.value}
                   placeholder="e.g. D/F#"
                   suggestions={used}
-                  actions={open.half && !open.empty ? [{ label: 'Remove', onClick: () => (onRemoveChord?.(open.t), setOpen(null)) }] : []}
+                  actions={[
+                    ...(open.half && !open.empty ? [{ label: 'Remove', onClick: () => (onRemoveChord?.(open.t), setOpen(null)) }] : []),
+                    // a bar's first beat can also start (or rename) the section, as the bar number does
+                    ...(!open.half && open.k === 0 && onSection
+                      ? [{ label: sectionAt.has(i) ? 'Rename section' : 'Start a section', onClick: () => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' }) }]
+                      : []),
+                  ]}
                   onSave={(v) => {
                     // saving a blank beat as it is changes nothing; emptying a chord and saving clears it
                     if (!(open.empty && v.trim() === '')) onChord?.(open.t, v)
