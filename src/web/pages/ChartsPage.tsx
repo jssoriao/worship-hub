@@ -1,15 +1,15 @@
-import { PlusIcon } from 'lucide-react'
+import { AudioLinesIcon, PlusIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import ChartEditor, { TEMPLATE } from '../components/ChartEditor'
 import ChartPages from '../components/ChartPages'
 import { SongPicker } from '../components/SongPicker'
 import { PageHeader } from '../components/PageHeader'
-import { resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
+import { practicePath, resolveSongParam, songForAddress, songFromAddress } from '../lib/address'
 import { fetchAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { call, songFile, songsApi } from '../lib/api'
 import { useChurch } from '../lib/church-context'
@@ -291,11 +291,19 @@ export default function ChartsPage() {
             onFollow={setFollow}
             playing={playing}
             actions={
-              mayEdit && (
-                <Button variant="outline" size="sm" onClick={() => edit()}>
-                  Edit
-                </Button>
-              )
+              <>
+                {hasStems && (
+                  <Link to={practicePath(songId)} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+                    <AudioLinesIcon aria-hidden="true" />
+                    Practice
+                  </Link>
+                )}
+                {mayEdit && (
+                  <Button variant="outline" size="sm" onClick={() => edit()}>
+                    Edit
+                  </Button>
+                )}
+              </>
             }
           />
         </div>

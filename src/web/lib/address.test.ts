@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keyFromAddress, practicePath, resolveSongParam, serviceKeyShift, songForAddress, songFromAddress } from './address'
+import { chartsPath, keyFromAddress, practicePath, resolveSongParam, serviceKeyShift, songForAddress, songFromAddress } from './address'
 import { pickChurch } from './church-context'
 import { practiceLink } from './now-playing-context'
 
@@ -56,6 +56,13 @@ describe('song ids in the address (no prefix)', () => {
   })
 })
 
+describe('the page links', () => {
+  it('open the same song on the other page, with the id written the same way', () => {
+    expect(chartsPath('song_aaaaaaaaaaaaaaaaaaaaaaaa')).toBe('/charts?song=aaaaaaaaaaaaaaaaaaaaaaaa')
+    expect(practicePath('song_aaaaaaaaaaaaaaaaaaaaaaaa')).toBe('/practice?song=aaaaaaaaaaaaaaaaaaaaaaaa')
+    expect(songFromAddress('aaaaaaaaaaaaaaaaaaaaaaaa')).toBe('song_aaaaaaaaaaaaaaaaaaaaaaaa')
+  })
+})
 describe('a service asking for its key', () => {
   it('adds the key to the Practice address only when there is one (0 is a key too)', () => {
     expect(practicePath('song_aaaaaaaaaaaaaaaaaaaaaaaa')).toBe('/practice?song=aaaaaaaaaaaaaaaaaaaaaaaa')

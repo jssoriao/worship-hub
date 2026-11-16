@@ -22,6 +22,8 @@ export const songForAddress = (id: string): string => bare(id)
 
 /** The Practice page with this song open, in a key `shift` semitones from the recording when a service asks for one. */
 export const practicePath = (id: string, shift?: number): string => `/practice?song=${encodeURIComponent(songForAddress(id))}${shift === undefined ? '' : `&key=${shift}`}`
+/** The Charts page with this song open (it reads `?song=` the same way Practice does). */
+export const chartsPath = (id: string): string => `/charts?song=${encodeURIComponent(songForAddress(id))}`
 /** The key the address asks for, as semitones from the recording (-6..6), or null when it asks for none or nonsense. */
 export function keyFromAddress(value: string | null): number | null {
   if (value === null || !/^[+-]?\d{1,2}$/.test(value.trim())) return null
