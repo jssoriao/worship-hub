@@ -121,6 +121,25 @@ export function chordAt(a: SongAnalysis, time: number): Chord | undefined {
 }
 
 /** Bars: the beats grouped from each beat 1 to the next. */
+/** How long beat `i` lasts, in seconds: to the next beat (the last beat lasts as long as the one before it). */
+export function beatLength(beats: Beat[], i: number): number {
+  const next = beats[i + 1]
+  const gap = next ? next.t - beats[i].t : i > 0 ? beats[i].t - beats[i - 1].t : 0.5
+  return gap > 0 ? gap : 0.5
+}
+/** The moment half way through beat `i`: the "and" of the beat, where a chord can change between two beats. */
+export const halfBeatTime = (beats: Beat[], i: number): number => beats[i].t + beatLength(beats, i) / 2
+// A chord that starts between these shares of a beat is "on the half beat". Chords found by listening start within
+// the first 30% of a beat (they follow the beat grid), so only chords put there by hand show up this way.
+const HALF_FROM = 0.3
+const HALF_TO = 0.7
+/** The chord that starts on the half beat of beat `i` (a change between two beats), if there is one. */
+export function halfBeatChord(a: SongAnalysis, beats: Beat[], i: number): Chord | undefined {
+  const t = beats[i].t
+  const len = beatLength(beats, i)
+  const c = a.chords[indexAt(a.chords, t + HALF_TO * len)]
+  return c && c.t > t + HALF_FROM * len ? c : undefined
+}
 export function barsOf(beats: Beat[]): Beat[][] {
   const bars: Beat[][] = []
   for (const b of beats) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseAnalysis, type SongAnalysis, type Word } from './analysis'
-import { addLine, addLines, approveLine, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, setLineText, splitLine, toStored } from './analysis-edit'
+import { beatLength, halfBeatChord, halfBeatTime, parseAnalysis, type Chord, type SongAnalysis, type Word } from './analysis'
+import { addLine, addLines, approveLine, removeChordAt, setChordAt, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, setLineText, splitLine, toStored } from './analysis-edit'
 
 // made-up words only
 const word = (w: string, t: number, doubt?: number): Word => ({ w, t, end: t + 0.5, ...(doubt === undefined ? {} : { doubt }) })
@@ -212,5 +212,55 @@ describe('adding lyric lines', () => {
     const a = addLine({ ...gridSong(), beats: [] }, 1.25, 'only line here')
     expect(a.lines[0].t).toBe(1.25)
     expect(parseAnalysis(JSON.parse(JSON.stringify(toStored(a)))).lines[0].words.map((w) => w.w)).toEqual(['only', 'line', 'here'])
+  })
+})
+
+// chords between two beats (the "and" of a beat): a 4-beat bar every 0.5 s, made-up chords
+const mk = (t: number, end: number, name: string): Chord => ({ t, end, basic: name, simple: name, complex: name, bass: '' })
+const beatSong = (chords: Chord[]): SongAnalysis => ({
+  key: 'D major',
+  bpm: 120,
+  beats: Array.from({ length: 8 }, (_, i) => ({ t: i * 0.5, n: (i % 4) + 1 })),
+  chords,
+  sections: [],
+  lines: [],
+})
+describe('chords on the half beat', () => {
+  it('knows how long a beat is and where its middle is, also for the last beat', () => {
+    const a = beatSong([])
+    expect(beatLength(a.beats, 0)).toBeCloseTo(0.5)
+    expect(beatLength(a.beats, 7)).toBeCloseTo(0.5)
+    expect(halfBeatTime(a.beats, 1)).toBeCloseTo(0.75)
+    expect(beatLength([{ t: 1, n: 1 }], 0)).toBe(0.5)
+  })
+  it('finds a chord that starts in the middle of a beat, and none that start on the beat', () => {
+    // D on beats 1-2, G from the "and" of beat 2 (0.75 s) to the end of bar 1
+    const a = beatSong([mk(0, 0.75, 'D'), mk(0.75, 2, 'G'), mk(2, 4, 'A')])
+    expect(halfBeatChord(a, a.beats, 1)?.complex).toBe('G')
+    for (const i of [0, 2, 3, 4, 5]) expect(halfBeatChord(a, a.beats, i)).toBeUndefined()
+  })
+  it('counts a chord within 30% of a beat as on that beat, as chords found by listening are', () => {
+    const a = beatSong([mk(0, 0.6, 'D'), mk(0.6, 1, 'G'), mk(1.1, 2, 'A')]) // 0.6 = 20% into beat 2, 1.1 = 20% into beat 3
+    expect(halfBeatChord(a, a.beats, 1)).toBeUndefined()
+    expect(halfBeatChord(a, a.beats, 2)).toBeUndefined()
+  })
+  it('puts a chord there with setChordAt, splitting the one that sounds, and takes it away again', () => {
+    const a = beatSong([mk(0, 2, 'D')])
+    const put = setChordAt(a, halfBeatTime(a.beats, 1), 'G')
+    expect(put.chords.map((c) => [c.t, c.end, c.complex])).toEqual([
+      [0, 0.75, 'D'],
+      [0.75, 2, 'G'],
+    ])
+    expect(halfBeatChord(put, put.beats, 1)?.complex).toBe('G')
+    const gone = removeChordAt(put, 0.75)
+    expect(gone.chords.map((c) => [c.t, c.end, c.complex])).toEqual([[0, 2, 'D']])
+    expect(halfBeatChord(gone, gone.beats, 1)).toBeUndefined()
+  })
+  it('removes only a chord that starts at that moment', () => {
+    const a = beatSong([mk(0, 1, 'D'), mk(1, 2, 'G')])
+    expect(removeChordAt(a, 0.5)).toBe(a)
+    expect(removeChordAt(a, 1).chords.map((c) => c.complex)).toEqual(['D'])
+    expect(removeChordAt(a, 1).chords[0].end).toBe(2) // the chord before carries on
+    expect(removeChordAt(a, 0).chords.map((c) => c.complex)).toEqual(['G']) // the first chord has no chord before it
   })
 })

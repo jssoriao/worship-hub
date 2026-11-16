@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
-import { barsOf, chordAt, chordName, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
+import { barsOf, chordAt, chordName, halfBeatChord, halfBeatTime, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
+import { Segmented } from './panels'
 
 interface Props {
   analysis: SongAnalysis
@@ -12,6 +13,8 @@ interface Props {
   /** edit mode: tap a beat to set its chord, a bar number for its section */
   editing?: boolean
   onChord?: (t: number, name: string) => void
+  /** takes away the chord change that starts at `t` (a chord on the half beat) */
+  onRemoveChord?: (t: number) => void
   onSection?: (t: number, label: string | null) => void
   /** copy the chords of section `from` onto section `to` (indexes in the analysis' sections) */
   onCopySection?: (from: number, to: number) => void
@@ -20,35 +23,56 @@ interface Props {
 /**
  * The song as bars of beat boxes: a chord where it changes (a held chord shown faintly at the start
  * of a bar), the box of the beat being played lit, section names where they start. Tap a box to
- * play from that beat.
+ * play from that beat. A chord that changes between two beats (on the "and") splits its beat's box in two:
+ * the chord on the beat on the left, the new one on the right. In edit mode a chord is placed "on the beat"
+ * (the default) or on the half beat.
  */
-export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onSection, onCopySection }: Props) {
-  // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet
-  const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; t: number; value: string; empty?: boolean } | null>(null)
+export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onRemoveChord, onSection, onCopySection }: Props) {
+  // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet; `k`/`half`: which beat of the bar, and whether the chord is on its half beat
+  const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; k?: number; half?: boolean; t: number; value: string; empty?: boolean } | null>(null)
   // the section heading (by bar) whose copy box is open
   const [copying, setCopying] = useState<number | null>(null)
   // the song's chords, for quick picks
   const used = useMemo(() => [...new Set(analysis.chords.map((c) => chordName(c, 'complex')).filter(Boolean))].sort(), [analysis.chords])
   const bars = useMemo(() => {
     const grouped = barsOf(analysis.beats)
-    const names = grouped.flat().map((b) => chordName(chordAt(analysis, b.t + 0.02), level))
-    // the last chord name before each beat, to tell a change from a held chord
-    const before: string[] = []
-    names.reduce((last, n, i) => {
-      before[i] = last
-      return n || last
-    }, '')
+    const flat = grouped.flat()
+    // walk the beats in order, each with its half beat, remembering the last chord to tell a change from a held chord
+    let last = ''
+    const slots: { on: string; change: boolean; halfT: number; half?: { name: string; t: number; full: string } }[] = []
+    for (let i = 0; i < flat.length; i++) {
+      const on = chordName(chordAt(analysis, flat[i].t + 0.02), level)
+      const change = on !== '' && on !== last
+      if (on) last = on
+      const halfChord = halfBeatChord(analysis, flat, i)
+      const halfName = chordName(halfChord, level)
+      const halfChange = halfName !== '' && halfName !== last
+      if (halfName) last = halfName
+      slots.push({ on, change, halfT: halfBeatTime(flat, i), half: halfChord && halfChange ? { name: halfName, t: halfChord.t, full: chordName(halfChord, 'complex') } : undefined })
+    }
     const firstOf = grouped.map((_, g) => grouped.slice(0, g).reduce((n, b) => n + b.length, 0))
     return grouped.map((beats, g) =>
       beats.map((b, k) => {
-        const i = firstOf[g] + k
-        const name = names[i]
-        const change = name !== '' && name !== before[i]
-        return { t: b.t, name: change || (k === 0 && name) ? name : '', held: !change && k === 0 && name !== '' }
+        const s = slots[firstOf[g] + k]
+        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || (k === 0 && s.on) ? s.on : '', held: !s.change && k === 0 && s.on !== '' }
       }),
     )
   }, [analysis, level])
   const starts = useMemo(() => bars.map((b) => ({ t: b[0].t })), [bars])
+  // what the chord box says for a beat: on the beat, or on its half beat. A blank spot opens blank (the chord sounding there
+  // came from an earlier beat), and saving it blank changes nothing.
+  const boxFor = (bar: number, k: number, half: boolean) => {
+    const b = bars[bar][k]
+    return {
+      kind: 'chord' as const,
+      bar,
+      k,
+      half,
+      t: half ? (b.half?.t ?? b.halfT) : b.t,
+      value: half ? (b.half?.full ?? '') : b.name ? chordName(chordAt(analysis, b.t + 0.02), 'complex') : '',
+      empty: half ? !b.half : !b.name,
+    }
+  }
   // the section that starts in each bar
   const sectionAt = useMemo(() => {
     const map = new Map<number, string>()
@@ -136,20 +160,34 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
             <div className={`grid flex-1 gap-1 ${i === bar ? '' : i < bar ? 'opacity-50' : ''}`} style={{ gridTemplateColumns: `repeat(${Math.min(beats.length, 4)}, minmax(0, 1fr))` }}>
               {beats.map((b, k) => {
                 const now = i === bar && k === beat
+                const tone = now ? 'border-highlight/70 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
+                const press = (half: boolean) => (editing ? setOpen(boxFor(i, k, half)) : onSeek(half ? (b.half?.t ?? b.halfT) : b.t))
+                const label = `Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`
+                if (b.half) {
+                  // a chord changes between this beat and the next: the box splits, the new chord on the right
+                  return (
+                    <div key={k} className={`flex h-11 overflow-hidden rounded-md border-l-2 text-sm font-semibold transition-colors ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}>
+                      <button type="button" onClick={() => press(false)} aria-label={label} className="flex min-w-0 flex-1 items-center justify-center px-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <span className="truncate">{b.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => press(true)}
+                        aria-label={`Bar ${i + 1}, beat ${k + 1} and, ${b.half.name}${editing ? ': edit chord' : ''}`}
+                        className={`flex min-w-0 flex-1 items-center justify-center border-l border-white/15 px-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring ${now ? '' : 'text-highlight'}`}
+                      >
+                        <span className="truncate">{b.half.name}</span>
+                      </button>
+                    </div>
+                  )
+                }
                 return (
                   <button
                     key={k}
                     type="button"
-                    onClick={() =>
-                      editing
-                        ? // a blank beat opens blank: the chord of the beat before it is still sounding, but it is not this beat's
-                          setOpen({ kind: 'chord', bar: i, t: b.t, value: b.name ? chordName(chordAt(analysis, b.t + 0.02), 'complex') : '', empty: !b.name })
-                        : onSeek(b.t)
-                    }
-                    aria-label={`Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`}
-                    className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                      now ? 'border-highlight/70 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
-                    } ${b.held && !now ? 'text-muted-foreground' : ''}`}
+                    onClick={() => press(false)}
+                    aria-label={label}
+                    className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}
                   >
                     {b.name}
                   </button>
@@ -161,17 +199,32 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
             <div className="pl-8">
               {open.kind === 'chord' ? (
                 <EditPopover
-                  title={`${open.empty ? 'New chord at' : 'Chord from'} bar ${i + 1}, beat ${bars[i].findIndex((b) => b.t === open.t) + 1}`}
+                  key={`${open.bar}-${open.k}-${open.half ? 'half' : 'beat'}`}
+                  title={`${open.empty ? 'New chord at' : 'Chord from'} bar ${i + 1}, beat ${(open.k ?? 0) + 1}${open.half ? ' and' : ''}`}
                   initial={open.value}
                   placeholder="e.g. D/F#"
                   suggestions={used}
+                  actions={open.half && !open.empty ? [{ label: 'Remove', onClick: () => (onRemoveChord?.(open.t), setOpen(null)) }] : []}
                   onSave={(v) => {
                     // saving a blank beat as it is changes nothing; emptying a chord and saving clears it
                     if (!(open.empty && v.trim() === '')) onChord?.(open.t, v)
                     setOpen(null)
                   }}
                   onCancel={() => setOpen(null)}
-                />
+                >
+                  {/* a chord that changes between two beats goes on the half beat, the "and" */}
+                  <div className="mt-2">
+                    <Segmented
+                      label="Where in the beat"
+                      value={open.half ? 'half' : 'beat'}
+                      options={[
+                        ['beat', 'On the beat'],
+                        ['half', 'Half beat'],
+                      ]}
+                      onChange={(v) => setOpen(boxFor(open.bar, open.k ?? 0, v === 'half'))}
+                    />
+                  </div>
+                </EditPopover>
               ) : (
                 <EditPopover
                   title={sectionAt.has(i) ? `Section starting at bar ${i + 1}` : `Start a section at bar ${i + 1}`}
