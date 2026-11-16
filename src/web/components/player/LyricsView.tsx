@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
-import { LyricTools } from './LyricTools'
+import { LyricTools, WordTap } from './LyricTools'
 import { chordName, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
 import { sectionLines } from '../../lib/analysis-edit'
 
@@ -31,6 +31,8 @@ interface Props {
   /** start the song playing from a moment / stop it, for tapping along */
   onPlayFrom?: (t: number) => void
   onPause?: () => void
+  /** set when each word of line `index` starts, from taps (seconds, in order) */
+  onRetimeLine?: (index: number, starts: number[]) => void
   /** with no lyrics yet: start edit mode from the empty page (editors only) */
   onStartEdit?: () => void
 }
@@ -99,8 +101,10 @@ function buildRows(a: SongAnalysis, level: ChordLevel): Row[] {
 }
 
 /** Chords over the lyrics, by section; the line being sung is bright and its words light up as they are sung. */
-export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onAddLine, onAddLines, onPlayFrom, onPause, onStartEdit }: Props) {
+export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onAddLine, onAddLines, onPlayFrom, onPause, onRetimeLine, onStartEdit }: Props) {
   const [open, setOpen] = useState<number | null>(null)
+  // the line whose words are being tapped (edit mode), as an index in analysis.lines
+  const [tapping, setTapping] = useState<number | null>(null)
   // the section whose heading was tapped (edit mode), as an index in analysis.sections
   const [openSection, setOpenSection] = useState<number | null>(null)
   const rows = useMemo(() => buildRows(analysis, level), [analysis, level])
@@ -262,6 +266,17 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               )
             })}
           </button>
+          {editing && tapping === r.index && onRetimeLine && onPlayFrom && onPause && (
+            <WordTap
+              words={r.tokens.map((tk) => tk.w)}
+              lineStart={r.t}
+              position={position}
+              onApply={(starts) => onRetimeLine(r.index, starts)}
+              onPlayFrom={onPlayFrom}
+              onPause={onPause}
+              onClose={() => setTapping(null)}
+            />
+          )}
           {isOpen && (
             <EditPopover
               key={r.index}
@@ -269,6 +284,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               initial={text}
               actions={[
                 ...(onListen ? [{ label: 'Listen', onClick: () => onListen(Math.max(0, r.t - 0.5), r.end + 0.8) }] : []),
+                ...(onRetimeLine && onPlayFrom && onPause ? [{ label: 'Tap the words', onClick: () => (setOpen(null), setReviewing(false), setTapping(r.index)) }] : []),
                 ...(check ? [{ label: 'Approve', onClick: () => (onApproveLine?.(r.index), next(r.index + 1)) }] : []),
                 ...(checking ? [{ label: 'Skip', onClick: () => setCursor(r.index + 1) }] : []),
                 { label: 'Join with next', onClick: () => (onJoinLine?.(r.index), next(r.index)) },

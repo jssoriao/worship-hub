@@ -272,6 +272,32 @@ export function addLines(a: SongAnalysis, items: { t: number; text: string }[]):
 }
 /** Adds one lyric line at `t` (see addLines). */
 export const addLine = (a: SongAnalysis, t: number, text: string): SongAnalysis => addLines(a, [{ t, text }])
+/** A word whose length is not known (it was added while retyping) is taken to last this long, at most until the next. */
+const TAPPED_WORD_SECONDS = 0.5
+/**
+ * Sets when the words of line `index` start, one tap per word in order (`starts[k]` for word k, in seconds). A tapped
+ * word keeps its own length but never runs into the next word. When only the first words were tapped, the rest keep
+ * their spacing and move by as much as the last tapped word did (never starting before it). The line's start and end
+ * follow its words; the words and their doubts are untouched.
+ */
+export function retimeWords(a: SongAnalysis, index: number, starts: number[]): SongAnalysis {
+  const line = a.lines[index]
+  if (!line || starts.length === 0) return a
+  const n = Math.min(starts.length, line.words.length)
+  const tapped = starts.slice(0, n).map((t) => Math.max(0, t))
+  // a tap a hair before the one before it (a double tap) counts as the same moment
+  for (let k = 1; k < n; k++) tapped[k] = Math.max(tapped[k], tapped[k - 1])
+  const moved = tapped[n - 1] - line.words[n - 1].t
+  const t = line.words.map((w, k) => (k < n ? tapped[k] : Math.max(w.t + moved, tapped[n - 1])))
+  const words = line.words.map((w, k) => {
+    const own = w.end - w.t > 0.01 ? w.end - w.t : TAPPED_WORD_SECONDS
+    const next = k + 1 < t.length ? t[k + 1] : Infinity
+    return { ...w, t: t[k], end: Math.max(t[k], Math.min(t[k] + own, next)) }
+  })
+  const lines = [...a.lines]
+  lines[index] = { t: words[0].t, end: Math.max(...words.map((w) => w.end)), words }
+  return { ...a, lines }
+}
 /** Whether a line has a word the speech-to-text was unsure of (and nobody has checked yet). */
 export const hasDoubt = (line: Line) => line.words.some((w) => w.doubt !== undefined)
 
