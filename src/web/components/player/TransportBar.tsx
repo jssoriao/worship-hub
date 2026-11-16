@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Popover } from '../Popover'
 import { useChurch } from '../../lib/church-context'
@@ -6,6 +6,7 @@ import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
 import { Hint } from '../Hint'
 import { useIsMobileLayout } from '../../lib/layout-context'
 import { MobileTransport, type MobileParts } from './MobileTransport'
+import { useSeekDrag } from './use-seek-drag'
 
 export type PlayerView = 'stems' | 'lyrics' | 'chords' | 'shapes'
 
@@ -65,8 +66,8 @@ function DesktopTransport(props: Props) {
   const now = useNowPlaying()
   const church = useChurch()
   // while the seek bar is dragged it shows where you are going, and seeks when you let go
-  const [drag, setDrag] = useState<number | null>(null)
-  const shownPos = drag ?? position
+  const seekDrag = useSeekDrag(position, onSeek)
+  const shownPos = seekDrag.shown
   const iconBase = 'relative flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring'
   const iconBtn = `${iconBase} text-secondary-foreground hover:bg-accent hover:text-accent-foreground`
 
@@ -105,17 +106,7 @@ function DesktopTransport(props: Props) {
             value={Math.min(shownPos, duration)}
             aria-label="Position"
             aria-valuetext={`${fmt(shownPos)} of ${fmt(duration)}`}
-            onChange={(e) => {
-              const t = Number(e.target.value)
-              // a drag waits for the release; arrow keys seek at once
-              if (drag !== null) setDrag(t)
-              else onSeek(t)
-            }}
-            onPointerDown={() => setDrag(position)}
-            onPointerUp={(e) => {
-              setDrag(null)
-              onSeek(Number(e.currentTarget.value))
-            }}
+            {...seekDrag.props}
             className="absolute inset-0 w-full cursor-pointer opacity-0"
           />
         </div>

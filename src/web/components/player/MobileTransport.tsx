@@ -6,6 +6,7 @@ import { practiceLink, useNowPlaying } from '../../lib/now-playing-context'
 import { MobileSheet } from '../MobileSheet'
 import { Range } from '../Range'
 import { Toggle } from './panels'
+import { useSeekDrag } from './use-seek-drag'
 import type { PlayerView } from './TransportBar'
 
 /** What the mobile layout shows instead of the desktop play bar's popovers (PracticePage builds it from the same panels). */
@@ -62,8 +63,8 @@ export function MobileTransport({ title, playing, buffering, position, duration,
   const now = useNowPlaying()
   const church = useChurch()
   const [sheet, setSheet] = useState<'key' | 'click' | 'settings' | null>(null)
-  const [drag, setDrag] = useState<number | null>(null)
-  const shownPos = Math.min(drag ?? position, duration)
+  const seekDrag = useSeekDrag(position, onSeek)
+  const shownPos = Math.min(seekDrag.shown, duration)
   const close = () => setSheet(null)
   const playButton = (size: string) => (
     <button
@@ -93,16 +94,7 @@ export function MobileTransport({ title, playing, buffering, position, duration,
       value={shownPos}
       aria-label="Position"
       aria-valuetext={`${fmt(shownPos)} of ${fmt(duration)}`}
-      onChange={(e) => {
-        const t = Number(e.target.value)
-        if (drag !== null) setDrag(t)
-        else onSeek(t)
-      }}
-      onPointerDown={() => setDrag(position)}
-      onPointerUp={(e) => {
-        setDrag(null)
-        onSeek(Number(e.currentTarget.value))
-      }}
+      {...seekDrag.props}
       className="h-8 min-w-0 flex-1"
     />
   )
