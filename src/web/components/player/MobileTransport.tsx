@@ -1,4 +1,4 @@
-import { FileMusicIcon, GuitarIcon, MetronomeIcon, MicVocalIcon, RotateCcwIcon, RotateCwIcon, Settings2Icon, SlidersHorizontalIcon, Grid2x2Icon } from 'lucide-react'
+import { FileMusicIcon, GuitarIcon, MetronomeIcon, MicVocalIcon, PencilIcon, RotateCcwIcon, RotateCwIcon, Settings2Icon, SlidersHorizontalIcon, Grid2x2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useChurch } from '../../lib/church-context'
@@ -22,6 +22,8 @@ export interface MobileParts {
   clickOn: boolean
   /** the song's chart (a path), when it may be opened from here */
   chart?: string
+  /** starts edit mode, when this person may edit what is on screen (Lyrics or Chords) */
+  edit?: () => void
   /** the rest of the settings (view, quality, offline, edit, zip); `close` shuts the sheet */
   settings: (close: () => void) => ReactNode
 }
@@ -116,7 +118,7 @@ export function MobileTransport({ title, playing, buffering, position, duration,
   return (
     <div className="relative">
       {/* the views and the settings float over the page just above the bar, taking no room of their own */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex items-center justify-center gap-2 px-3">
+      <div className="pointer-events-none absolute inset-x-0 bottom-full mb-2 flex flex-wrap items-center justify-center gap-1.5 px-2">
         {view && onView && (
           <nav aria-label="Views" className="surface-glass pointer-events-auto flex items-center gap-0.5 rounded-full border p-1">
             {VIEWS.map(([v, label, Icon]) => (
@@ -126,13 +128,19 @@ export function MobileTransport({ title, playing, buffering, position, duration,
                 aria-label={label}
                 aria-pressed={view === v}
                 onClick={() => onView(v)}
-                className={`flex h-11 items-center justify-center gap-1.5 rounded-full text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === v ? 'bg-brand-gradient px-3.5 text-primary-foreground' : 'w-11 text-secondary-foreground'}`}
+                // the active view is the gradient one; its name shows only where the row has room for it
+                className={`flex h-11 items-center justify-center gap-1.5 rounded-full text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring ${view === v ? 'bg-brand-gradient w-11 text-primary-foreground min-[430px]:w-auto min-[430px]:px-3.5' : 'w-11 text-secondary-foreground'}`}
               >
                 <Icon aria-hidden="true" className="size-5 shrink-0" />
-                {view === v && label}
+                {view === v && <span className="hidden min-[430px]:inline">{label}</span>}
               </button>
             ))}
           </nav>
+        )}
+        {mobile?.edit && (
+          <button type="button" aria-label="Edit" onClick={mobile.edit} className={`${round} surface-glass pointer-events-auto border text-secondary-foreground`}>
+            <PencilIcon aria-hidden="true" className="size-5" />
+          </button>
         )}
         {mobile?.chart && (
           <Link to={mobile.chart} aria-label="Chart" className={`${round} surface-glass pointer-events-auto border text-secondary-foreground`}>
