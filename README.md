@@ -170,7 +170,8 @@ current and next chords as guitar diagrams or piano keys (`src/web/lib/chord-sha
 chord shows the chord's own shape), at Basic, Simple or Full chord detail.
 
 Editors (and up) fix what the AI got wrong right there: **Edit** in the Chords view (tap a beat to
-set its chord, a bar number to start, rename or remove a section) or the Lyrics view (tap a line to
+set its chord, on the beat or, with **Half beat**, between two beats for a syncopated change: the beat's box
+then splits in two and the half-beat chord has **Remove**; a bar number to start, rename or remove a section) or the Lyrics view (tap a line to
 change its words; `|` splits it; join or delete lines). Changes collect until **Save changes**; the
 Worker then replaces `analysis.json` and keeps the version it replaced in
 `analysis/history/` in the song's folder, which **Versions** lists and can bring back. `songs:publish`

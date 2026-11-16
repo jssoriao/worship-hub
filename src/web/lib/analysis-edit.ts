@@ -30,6 +30,18 @@ export function setChordAt(a: SongAnalysis, t: number, name: string): SongAnalys
   return { ...a, chords }
 }
 
+/**
+ * Takes away the chord that starts at `t`: the chord before it carries on until the next change.
+ * Does nothing when no chord starts there.
+ */
+export function removeChordAt(a: SongAnalysis, t: number): SongAnalysis {
+  const i = a.chords.findIndex((c) => Math.abs(c.t - t) < EPS)
+  if (i < 0) return a
+  const chords = [...a.chords]
+  const [gone] = chords.splice(i, 1)
+  if (i > 0 && Math.abs(chords[i - 1].end - gone.t) < 0.05) chords[i - 1] = { ...chords[i - 1], end: gone.end }
+  return { ...a, chords }
+}
 /** A time as a (fractional) beat number on the song's beat grid. */
 function beatPos(beats: { t: number }[], t: number): number {
   const i = indexAt(beats, t)
