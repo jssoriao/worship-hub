@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useBlocker, useLocation, useNavigate } from 'react-router'
+import { FileMusicIcon } from 'lucide-react'
+import { Link, useBlocker, useLocation, useNavigate } from 'react-router'
 import { usePlayerSlot } from '../lib/player-slot'
 import { audioCache } from '../lib/audio-cache'
 import { MAX_TEMPO, MIN_TEMPO, StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
@@ -28,7 +29,7 @@ import { StemTimeline, type TimelineStem } from '../components/player/StemTimeli
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
-import { keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
+import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { useIsMobileLayout } from '../lib/layout-context'
 import { Hint } from '../components/Hint'
@@ -768,6 +769,8 @@ export default function PracticePage() {
   const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : keyMoved || 'Key'
   const tempoText = music?.bpm ? `${Math.round(music.bpm * tempo)} bpm` : `${Math.round(tempo * 100)}%`
   const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
+  // the song's chart, one tap from the dock; not while editing (edit mode keeps its hold on navigation)
+  const chartLink = songId && !editing ? chartsPath(songId) : undefined
   const clickPanel = <ClickPanel on={click.on} volume={click.volume} onOn={(on) => setClick((c) => ({ ...c, on }))} onVolume={(volume) => setClick((c) => ({ ...c, volume }))} />
   const tempoKeyPanel = (
     <TempoKeyPanel
@@ -847,6 +850,14 @@ export default function PracticePage() {
         >
           {viewPanel}
         </Popover>
+      )}
+      {chartLink && (
+        <Hint text="Open this song's chart">
+          <Link to={chartLink} className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-300 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring">
+            <FileMusicIcon aria-hidden="true" className="size-4" />
+            Chart
+          </Link>
+        </Hint>
       )}
       {canEditView && !editing && (
         <Hint text={prefs.view === 'chords' ? 'Fix chords and sections' : 'Fix the lyrics'}>
@@ -954,6 +965,7 @@ export default function PracticePage() {
     tempoKey: stems.length > 0 ? tempoKeyPanel : undefined,
     click: music && music.beats.length > 0 ? clickPanel : undefined,
     clickOn: click.on,
+    chart: chartLink,
     settings: (close: () => void) => (
       <div className="space-y-5">
         {shown && (

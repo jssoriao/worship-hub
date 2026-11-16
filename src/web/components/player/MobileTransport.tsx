@@ -1,4 +1,4 @@
-import { GuitarIcon, MetronomeIcon, MicVocalIcon, RotateCcwIcon, RotateCwIcon, Settings2Icon, SlidersHorizontalIcon, Grid2x2Icon } from 'lucide-react'
+import { FileMusicIcon, GuitarIcon, MetronomeIcon, MicVocalIcon, RotateCcwIcon, RotateCwIcon, Settings2Icon, SlidersHorizontalIcon, Grid2x2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useChurch } from '../../lib/church-context'
@@ -19,6 +19,8 @@ export interface MobileParts {
   /** the click panel, when the song has beats */
   click?: ReactNode
   clickOn: boolean
+  /** the song's chart (a path), when it may be opened from here */
+  chart?: string
   /** the rest of the settings (view, quality, offline, edit, zip); `close` shuts the sheet */
   settings: (close: () => void) => ReactNode
 }
@@ -139,6 +141,11 @@ export function MobileTransport({ title, playing, buffering, position, duration,
               </button>
             ))}
           </nav>
+        )}
+        {mobile?.chart && (
+          <Link to={mobile.chart} aria-label="Chart" className={`${round} surface-glass pointer-events-auto border text-secondary-foreground`}>
+            <FileMusicIcon aria-hidden="true" className="size-5" />
+          </Link>
         )}
         <button type="button" aria-label="Settings" onClick={() => setSheet('settings')} className={`${round} surface-glass pointer-events-auto border text-secondary-foreground`}>
           <Settings2Icon aria-hidden="true" className="size-5" />
