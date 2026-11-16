@@ -94,6 +94,11 @@ describe('copying chords', () => {
     expect(names(a)).toEqual(['0-2 C', '2-3 F', '3-4 G', '4-6 C', '6-7 F', '7-8 G', '8-12 E'])
     expect(a.chords[3].t).toBe(4)
   })
+  it('copies a chord on the half beat to the same place in the other section', () => {
+    // Am from the "and" of the last beat of bar 2 (3.25 s) to the end of the section
+    const a = copySectionChords(setChordAt(grid(), 3.25, 'Am'), 0, 1)
+    expect(names(a)).toEqual(['0-2 C', '2-3 F', '3-3.25 G', '3.25-4 Am', '4-6 C', '6-7 F', '7-7.25 G', '7.25-8 Am', '8-12 E'])
+  })
   it('stops at the end of a shorter section', () => {
     const a = grid()
     a.sections[1] = { t: 4, end: 6, label: 'B' }
