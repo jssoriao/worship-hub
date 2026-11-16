@@ -718,9 +718,15 @@ export default function PracticePage() {
     return { rows, byIndex }
   }, [stems, mix, gains, need, family, groups])
 
+  // a combined stem's parts fold under it, closed to start with (as in the timeline); the ones opened are kept for this song
+  const [opened, setOpened] = useState<{ song: string; ids: string[] }>({ song: '', ids: [] })
+  const openIds = opened.song === songId ? opened.ids : []
+  const toggleFold = (id: string) => setOpened({ song: songId, ids: openIds.includes(id) ? openIds.filter((x) => x !== id) : [...openIds, id] })
+  const hiddenParts = new Set(family.filter((f) => !openIds.includes(stems[f.parent]?.id)).flatMap((f) => f.children))
   const renderRow = (i: number) => {
     const m = mix[i]
     if (!stems[i] || !m) return null
+    const parts = family.find((f) => f.parent === i)
     return (
       <StemRow
         key={stems[i].id}
@@ -732,6 +738,7 @@ export default function PracticePage() {
         combined={family.some((f) => f.parent === i)}
         part={family.some((f) => f.children.includes(i))}
         compact={mobile}
+        fold={parts ? { open: openIds.includes(stems[i].id), onToggle: () => toggleFold(stems[i].id), flagged: parts.children.some((c) => mix[c]?.muted || mix[c]?.solo) } : undefined}
         progress={progress}
         onSeek={seekFraction}
         onPatch={(p) => patch(i, p)}
@@ -1051,7 +1058,7 @@ export default function PracticePage() {
                   return (
                     <div key={group || 'root'}>
                       {group && !hasCombined && <h2 className="mb-1 px-1 text-xs uppercase tracking-wide text-muted-foreground">{group}</h2>}
-                      <ul className={mobile ? '' : 'space-y-2'}>{idxs.map(renderRow)}</ul>
+                      <ul className={mobile ? '' : 'space-y-2'}>{idxs.filter((i) => !hiddenParts.has(i)).map(renderRow)}</ul>
                     </div>
                   )
                 })}
