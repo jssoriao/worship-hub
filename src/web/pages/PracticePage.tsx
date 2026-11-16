@@ -966,6 +966,7 @@ export default function PracticePage() {
     click: music && music.beats.length > 0 ? clickPanel : undefined,
     clickOn: click.on,
     chart: chartLink,
+    edit: canEditView && !editing ? () => setEditing(true) : undefined,
     settings: (close: () => void) => (
       <div className="space-y-5">
         {shown && (
