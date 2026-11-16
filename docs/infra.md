@@ -54,9 +54,11 @@ Non-secret settings (`APP_URL`, `MAIL_FROM`) live in `wrangler.jsonc` under `var
   put songs into its local R2 with a dev publish (`pnpm songs:publish "Song Folder" --church <slug>`).
 
 ## Deploy (GitHub Actions)
-Every push to `main` runs `.github/workflows/deploy.yml`: the CI checks, then in the GitHub environment
-`production` (no approval step): `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`. A failed check or
-migration stops the run before anything is deployed. If the smoke test fails, the job runs `wrangler rollback`
+Every push to `main` runs `.github/workflows/deploy.yml`: in the GitHub environment `production` (no approval
+step) `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`. A failed migration stops the run before
+anything is deployed. The lint, build and test checks are not repeated there: they run on every pull request
+(`ci.yml`, the required status check "Lint, build and test"), so a change that reached `main` through a pull request
+was already checked. A direct push to `main` (the repo admin can bypass the ruleset) deploys without them. If the smoke test fails, the job runs `wrangler rollback`
 to the previous Worker version and the run is marked failed. Runs never overlap and are never cancelled halfway.
 Manual deploy from a laptop still works: `pnpm db:migrate --target prod`, `pnpm cf:deploy`, `pnpm smoke`.
 

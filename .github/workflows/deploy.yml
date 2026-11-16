@@ -1,8 +1,9 @@
 name: Deploy
 
-# Every push to main: run the checks, migrate the production database, deploy the Worker, smoke
-# test it, and roll the Worker back if the smoke test fails. A failed check or migration stops
-# the run before anything is deployed.
+# Every push to main: migrate the production database, deploy the Worker, smoke test it, and roll
+# the Worker back if the smoke test fails. A failed migration stops the run before any code is
+# deployed. The lint, build and test checks are not repeated here: they run on every pull request
+# (ci.yml) and "Lint, build and test" is a required status check of the main ruleset.
 on:
   push:
     branches: [main]
@@ -16,13 +17,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  checks:
-    name: Checks
-    uses: ./.github/workflows/ci.yml
-
   deploy:
     name: Migrate and deploy
-    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # secrets and variables live in the GitHub environment "production"
