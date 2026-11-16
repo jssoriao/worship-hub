@@ -28,7 +28,7 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { useIsMobileLayout } from '../lib/layout-context'
@@ -1118,6 +1118,7 @@ export default function PracticePage() {
                 onCopyLyrics={(from, to) => change((a) => copySectionLyrics(a, from, to))}
                 onAddLine={(t, text) => change((a) => addLine(a, t, text))}
                 onAddLines={(items) => change((a) => addLines(a, items))}
+                onRetimeLine={(i, starts) => change((a) => retimeWords(a, i, starts))}
                 onPlayFrom={(t) => void playFrom(t)}
                 onPause={() => void pauseNow()}
                 onStartEdit={canEditView && !editing ? () => setEditing(true) : undefined}

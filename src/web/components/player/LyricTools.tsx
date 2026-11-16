@@ -161,3 +161,112 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
     </div>
   )
 }
+/** Tapping the words of a line starts the song this long before the line, to hear it coming. */
+const WORD_TAP_LEAD_IN = 2
+/**
+ * Times the words of one line: press Start (the song plays from just before the line) and tap (the button or the
+ * space bar) as each word is sung. Backspace or Undo takes the last tap back; the last word's tap, or Done, keeps
+ * them (Done with only some words tapped moves the rest along with the last one).
+ */
+export function WordTap({
+  words,
+  lineStart,
+  position,
+  onApply,
+  onPlayFrom,
+  onPause,
+  onClose,
+}: {
+  words: string[]
+  /** where the line starts now, in seconds */
+  lineStart: number
+  position: number
+  onApply: (starts: number[]) => void
+  onPlayFrom: (t: number) => void
+  onPause: () => void
+  onClose: () => void
+}) {
+  const [taps, setTaps] = useState<number[] | null>(null)
+  const where = useRef(position)
+  useEffect(() => {
+    where.current = position
+  }, [position])
+  const stop = () => {
+    onPause()
+    onClose()
+  }
+  const finish = (list: number[]) => {
+    onApply(list)
+    stop()
+  }
+  const start = () => {
+    setTaps([])
+    onPlayFrom(Math.max(0, lineStart - WORD_TAP_LEAD_IN))
+  }
+  const tap = () => {
+    if (!taps) return
+    const next = [...taps, Math.max(0, where.current - TAP_LEAD)]
+    if (next.length >= words.length) finish(next)
+    else setTaps(next)
+  }
+  const undo = () => setTaps((t) => (t && t.length > 0 ? t.slice(0, -1) : t))
+  const keys = useRef({ tap, undo, stop })
+  useEffect(() => {
+    keys.current = { tap, undo, stop }
+  })
+  const running = taps !== null
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        keys.current.stop()
+      } else if (running && e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        keys.current.tap()
+      } else if (running && e.key === 'Backspace') {
+        e.preventDefault()
+        keys.current.undo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [running])
+  const done = taps?.length ?? 0
+  return (
+    <div role="dialog" aria-label="Tap the words" className="mt-1 rounded-xl border border-primary/40 bg-card p-3 shadow-xl shadow-black/50">
+      <p className="text-xs text-muted-foreground">
+        {running ? `Tap as each word is sung (space bar). ${done} of ${words.length}` : `The song plays from ${clock(Math.max(0, lineStart - WORD_TAP_LEAD_IN))}.`}
+      </p>
+      <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xl leading-snug">
+        {words.map((w, k) => (
+          <span key={k} className={`inline-flex flex-col ${running && k === done ? 'text-white underline decoration-highlight decoration-2 underline-offset-4' : k < done ? 'text-highlight' : 'text-muted-foreground'}`}>
+            <span>{w}</span>
+            <span className="text-[11px] tabular-nums text-muted-foreground">{taps && k < done ? clock(taps[k]) : '\u00a0'}</span>
+          </span>
+        ))}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {running ? (
+          <>
+            <Button type="button" size="lg" className="min-w-40" onClick={tap}>
+              Tap
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={done === 0} onClick={undo}>
+              Undo
+            </Button>
+            <Button type="button" variant="outline" size="sm" disabled={done === 0} onClick={() => finish(taps)}>
+              Done
+            </Button>
+          </>
+        ) : (
+          <Button type="button" size="sm" onClick={start}>
+            Start
+          </Button>
+        )}
+        <Button type="button" variant="outline" size="sm" onClick={stop}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
