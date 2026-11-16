@@ -58,8 +58,8 @@ function ChurchSwitcher() {
     <>
       <Mark logo={church.logo} name={church.name || '?'} />
       <span className="grid min-w-0 flex-1 text-left leading-tight">
-        <span className="truncate text-sm font-medium">{church.name || 'Church'}</span>
-        {church.role && <span className="truncate text-xs capitalize text-muted-foreground">{church.role}</span>}
+        <span className="truncate text-sm font-medium mobile:text-base">{church.name || 'Church'}</span>
+        {church.role && <span className="truncate text-xs capitalize text-muted-foreground mobile:text-sm">{church.role}</span>}
       </span>
     </>
   )
@@ -86,7 +86,7 @@ function ChurchSwitcher() {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-60">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Churches</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-xs text-muted-foreground mobile:text-sm">Churches</DropdownMenuLabel>
             {church.churches.length > 6 && (
               <div className="relative px-1 pb-1">
                 <SearchIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,7 +97,7 @@ function ChurchSwitcher() {
                   onKeyDown={(e) => e.stopPropagation()}
                   placeholder="Search churches"
                   aria-label="Search churches"
-                  className="h-8 w-full rounded-md border border-input bg-transparent pr-2 pl-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-8 w-full rounded-md border border-input bg-transparent pr-2 pl-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring mobile:h-11"
                 />
               </div>
             )}
@@ -132,15 +132,15 @@ function Account() {
                 {initialOf(name || email)}
               </span>
               <span className="grid min-w-0 flex-1 text-left leading-tight">
-                <span className="truncate text-sm font-medium">{name || email}</span>
-                {name && <span className="truncate text-xs text-muted-foreground">{email}</span>}
+                <span className="truncate text-sm font-medium mobile:text-base">{name || email}</span>
+                {name && <span className="truncate text-xs text-muted-foreground mobile:text-sm">{email}</span>}
               </span>
               <ChevronsUpDownIcon aria-hidden="true" className="ml-auto text-muted-foreground" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent side={isMobile ? 'top' : 'right'} align="end" className="min-w-56">
             <DropdownMenuLabel className="font-normal">
-              <p className="truncate text-xs text-muted-foreground">Signed in as</p>
+              <p className="truncate text-xs text-muted-foreground mobile:text-sm">Signed in as</p>
               <p className="truncate">{email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -180,7 +180,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex h-8 items-center gap-2 px-2 group-data-[collapsible=icon]:px-0">
           <AudioLinesIcon aria-hidden="true" className="size-5 shrink-0 text-highlight" />
-          <span className="truncate text-sm font-semibold tracking-wide uppercase group-data-[collapsible=icon]:hidden">{appName}</span>
+          <span className="truncate text-sm font-semibold tracking-wide uppercase mobile:text-base group-data-[collapsible=icon]:hidden">{appName}</span>
         </div>
         <ChurchSwitcher />
       </SidebarHeader>

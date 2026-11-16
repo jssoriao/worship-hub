@@ -292,9 +292,11 @@ export default function ServicePage() {
             </Link>
             {canPlan && (
               <div className="ml-auto flex gap-1">
-                <Button type="button" variant="outline" size="sm" disabled={dirty || busy} title={dirty || busy ? 'Save your changes first' : undefined} onClick={() => setDialog('clone')}>
-                  <CopyIcon /> Clone
-                </Button>
+                <Hint text={dirty || busy ? 'Save your changes first' : undefined}>
+                  <Button type="button" variant="outline" size="sm" disabled={dirty || busy} onClick={() => setDialog('clone')}>
+                    <CopyIcon /> Clone
+                  </Button>
+                </Hint>
                 <Button type="button" variant="outline" size="sm" onClick={() => setDialog('edit')}>
                   <PencilIcon /> Edit
                 </Button>

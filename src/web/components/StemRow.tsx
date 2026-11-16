@@ -1,5 +1,6 @@
 import type { StemInfo } from '../lib/engine'
 import type { MixState } from '../lib/mix'
+import { Range } from './Range'
 import { Waveform } from './Waveform'
 
 interface Props {
@@ -18,14 +19,88 @@ interface Props {
   progress: number
   onSeek: (fraction: number) => void
   onPatch: (patch: Partial<MixState>) => void
+  /**
+   * The mobile layout's mixer row: the name, the volume and Mute / Solo on ONE line, so a whole song fits on a phone and
+   * every stem can be muted with a thumb. A waveform joins the line only when the screen is wide enough for it (from 640 px).
+   */
+  compact?: boolean
+  /**
+   * A combined stem folds its parts away: `open` shows them, and `flagged` says a hidden part is muted or soloed
+   * (a dot, so a muted part is not forgotten behind a closed row).
+   */
+  fold?: { open: boolean; onToggle: () => void; flagged: boolean }
 }
 
-export function StemRow({ stem, mix, audible, waiting, note, part, combined, progress, onSeek, onPatch }: Props) {
+/** The arrow and the dot of a folding row: the arrow shows the state, the dot says a part inside is muted or soloed. */
+function foldLabel(stem: StemInfo, open: boolean) {
+  return `${open ? 'Hide' : 'Show'} the parts of ${stem.name}`
+}
+
+export function StemRow({ stem, mix, audible, waiting, note, part, combined, progress, onSeek, onPatch, compact = false, fold }: Props) {
+  if (compact) {
+    // the buttons are 44 px to hit, drawn smaller
+    const toggle = 'grid size-11 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring'
+    const face = 'grid size-8 place-items-center rounded-lg text-sm font-bold'
+    return (
+      <li className="flex h-11 items-center gap-1.5 border-b border-border/40" aria-busy={waiting}>
+        {fold ? (
+          // the whole name is the button: a big target on a small screen
+          <button
+            type="button"
+            aria-expanded={fold.open}
+            aria-label={foldLabel(stem, fold.open)}
+            onClick={fold.onToggle}
+            className={`flex h-11 w-28 shrink-0 items-center gap-1 rounded-md text-left text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-36 ${audible ? '' : 'text-muted-foreground'} ${waiting ? 'animate-pulse' : ''}`}
+          >
+            <span aria-hidden="true" className="w-3 shrink-0 text-xs text-muted-foreground">
+              {fold.open ? '▾' : '▸'}
+            </span>
+            <span className="min-w-0 truncate">{stem.name}</span>
+            {fold.flagged && !fold.open && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-amber-500" />}
+          </button>
+        ) : (
+          <span className={`w-28 shrink-0 truncate text-sm sm:w-36 ${part ? 'border-l border-border/60 pl-3' : ''} ${combined ? 'font-semibold' : 'font-medium'} ${audible ? '' : 'text-muted-foreground'} ${waiting ? 'animate-pulse' : ''}`}>{stem.name}</span>
+        )}
+        {stem.peaks.length > 0 && (
+          <div className="hidden min-w-0 flex-1 sm:block">
+            <Waveform peaks={stem.peaks} progress={progress} height={32} dim={!audible} onSeek={onSeek} />
+          </div>
+        )}
+        <Range
+          max={1}
+          step={0.01}
+          value={mix.volume}
+          aria-label={`Volume ${stem.name}`}
+          onChange={(e) => onPatch({ volume: Number(e.target.value) })}
+          className="h-8 min-w-0 flex-1 sm:max-w-40"
+        />
+        <button type="button" aria-pressed={mix.muted} aria-label={`Mute ${stem.name}`} onClick={() => onPatch({ muted: !mix.muted })} className={toggle}>
+          <span className={`${face} ${mix.muted ? 'bg-red-600 text-white' : 'bg-accent text-slate-300'}`}>M</span>
+        </button>
+        <button type="button" aria-pressed={mix.solo} aria-label={`Solo ${stem.name}`} onClick={() => onPatch({ solo: !mix.solo })} className={toggle}>
+          <span className={`${face} ${mix.solo ? 'bg-amber-500 text-slate-950' : 'bg-accent text-slate-300'}`}>S</span>
+        </button>
+        {waiting && <span className="sr-only">Downloading {stem.name}</span>}
+      </li>
+    )
+  }
   return (
     <li
       className={`rounded-xl border p-2 ${part ? 'ml-4 border-border/80 bg-card/40' : combined ? 'border-primary/40 bg-card' : 'border-border bg-card/70'}`}
     >
       <div className="flex items-center gap-2">
+        {fold && (
+          <button
+            type="button"
+            aria-expanded={fold.open}
+            aria-label={foldLabel(stem, fold.open)}
+            onClick={fold.onToggle}
+            className="relative grid size-8 shrink-0 place-items-center rounded-md text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {fold.open ? '▾' : '▸'}
+            {fold.flagged && !fold.open && <span aria-hidden="true" className="absolute top-1 right-1 size-1.5 rounded-full bg-amber-500" />}
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <span className={`block truncate text-sm ${combined ? 'font-semibold' : 'font-medium'} ${audible ? '' : 'text-muted-foreground'}`}>
             {stem.name}

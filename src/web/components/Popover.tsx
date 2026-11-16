@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { Hint } from './Hint'
 import { Popover as Root, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
@@ -25,16 +26,17 @@ interface Props {
 export function Popover({ label, button, title, children, active = false, className, align = 'end' }: Props) {
   return (
     <Root>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          aria-label={label}
-          title={label}
-          className={cn('h-9 px-2.5 text-secondary-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground', active && 'text-highlight', className)}
-        >
-          {button}
-        </Button>
-      </PopoverTrigger>
+      <Hint text={label}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            aria-label={label}
+            className={cn('h-9 px-2.5 text-secondary-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground', active && 'text-highlight', className)}
+          >
+            {button}
+          </Button>
+        </PopoverTrigger>
+      </Hint>
       <PopoverContent side="top" align={align} aria-label={title} className="w-72 p-3 text-sm">
         <p className="mb-2 font-medium">{title}</p>
         {children}

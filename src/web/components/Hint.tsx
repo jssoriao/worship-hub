@@ -5,9 +5,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
  * focus) and takes no room on the page. It never shows on a touch screen, which has no hover: there the control's own
  * icon and label must be enough (and the mobile layout gets a small "i" where an explanation really matters).
  * The child must be the control itself (a button, a link, a label); give an icon-only control an `aria-label` too.
- * A disabled control gets its hint as well (a disabled button receives no pointer events, so its wrapper does).
+ * Without a text it shows nothing. A disabled control gets its hint as well (a disabled button receives no pointer events, so its wrapper does).
  */
-export function Hint({ text, children, side = 'top' }: { text: string; children: ReactElement<{ disabled?: boolean }>; side?: 'top' | 'right' | 'bottom' | 'left' }) {
+export function Hint({ text, children, side = 'top' }: { text: string | undefined; children: ReactElement<{ disabled?: boolean }>; side?: 'top' | 'right' | 'bottom' | 'left' }) {
+  // no text, no hint (a hint that only applies sometimes)
+  if (!text) return children
   const disabled = children.props.disabled === true
   return (
     <Tooltip delayDuration={450}>
