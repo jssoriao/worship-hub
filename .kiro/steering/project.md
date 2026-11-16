@@ -237,11 +237,18 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   laptop.
 - Deploys should run `pnpm db:migrate --target prod` before `pnpm cf:deploy` (GitHub Actions, planned).
 
+## Service positions
+- A service line of kind `position` (title + `people` jsonb `[{userId|null, name}]`, max 8): who plays or serves where.
+  Suggestions are the code constant `src/shared/positions.ts` (no table); any free-text title works. A member is saved by
+  `userId` and shown by their current name; someone who left the church shows as plain text. `GET /api/church/services/people`
+  (planners, names only) feeds the picker. `ChoicePicker` (popover, bottom sheet on mobile) and `PositionPeople` are the shared parts.
+- `PATCH /api/church/members/:id` takes `{role?, name?}`; the name is `users.name`, so it is the same in every church.
+
 ## Possible next steps
 - See the GitHub issues (P1 first).
 - Backups of edited data (analysis, charts, arrangements) beyond R2 history.
 - Admin pages: members, songs (presigned-PUT upload, peaks at upload), Music.AI from the app.
-- Services, lineups, volunteer assignments; A-B loop, playback speed, key/tempo change.
+- Lineups, recurring assignments, availability; A-B loop, playback speed, key/tempo change.
 
 ## Repo
 - Code is public; all rights reserved (see `LICENSE`). Before every commit and push, follow

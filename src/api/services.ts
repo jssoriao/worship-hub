@@ -9,22 +9,26 @@
  *   DELETE /api/church/services/<id>
  *   POST   /api/church/services/<id>/clone        {date, time?}: a copy with the same title, notes and setlist
  *   PUT    /api/church/services/<id>/items         {items: [...]}: the whole setlist, in order (see data.saveItems)
+ *   GET    /api/church/services/people             the church's people by name (no email), to pick who serves
  *
  * A line is `{ id?, kind?, ... }` where kind is `song` (the default when a song is given), `item` (a plain
  * line: prayer, offering, announcement; needs a `title`) or `header` (groups the lines under it; needs a
- * `title`, takes no key, notes or links). A song line is `{ songId, key?, notes?, links? }`, or
+ * `title`, takes no key, notes or links). A `position` is a place somebody serves ("Lead Vocals", "Closing Prayer"; needs a
+ * `title`, takes notes and `people`, no key or links); `people` is `[{ userId }]` for a member of the church or
+ * `[{ name }]` for anyone else, up to 8. A song line is `{ songId, key?, notes?, links? }`, or
  * `{ newSong: { title, artist?, key? } }` to add a chart-only song to the church's list at the same time.
  * Date and time are wall-clock values (`YYYY-MM-DD`, `HH:MM`), no time zone.
  */
 import { Hono } from 'hono'
 import * as z from 'zod'
 import { isId } from '../shared/ids.ts'
+import { NAME_MAX, PEOPLE_MAX } from '../shared/positions.ts'
 import * as data from './data.ts'
 import { church, fail, need, sameOrigin, type AppEnv } from './tenant.ts'
 import { body, only } from './validate.ts'
 const TITLE_MAX = 120
 const NOTES_MAX = 1000
-const MAX_ITEMS = 60
+const MAX_ITEMS = 100
 const MAX_LINKS = 10
 const text = (max: number) =>
   z
@@ -69,18 +73,24 @@ const link = z.object({
     .default('')
     .transform((v) => v.trim().slice(0, 100)),
 })
+/** A member of the church (by user id) or anyone else (by the name typed). */
+const person = z
+  .object({ userId: z.string().max(64).nullable().optional(), name: z.string().trim().max(NAME_MAX).optional() })
+  .refine((v) => Boolean(v.userId) || Boolean(v.name), { message: 'Give every person a name' })
+  .transform((v): { userId: string | null; name: string } => ({ userId: v.userId || null, name: v.name ?? '' }))
 const item = z
   .object({
     id: z.string().optional(),
-    kind: z.enum(['song', 'item', 'header']).optional(),
+    kind: z.enum(['song', 'item', 'header', 'position']).optional(),
     songId: z.string().nullable().optional(),
     newSong: z.object({ title: z.string().trim().min(1, 'Give the song a title').max(TITLE_MAX), artist: text(TITLE_MAX).optional(), key: text(12).optional() }).optional(),
     title: text(TITLE_MAX).optional(),
     key: text(12).optional().default(null),
     notes: text(NOTES_MAX).optional().default(null),
     links: z.array(link).max(MAX_LINKS, 'Too many links on one song').optional().default([]),
+    people: z.array(person).max(PEOPLE_MAX, 'Too many people in one position').optional().default([]),
   })
-  .refine((v) => (v.kind === 'item' || v.kind === 'header' ? Boolean(v.title) : Boolean(v.songId) || Boolean(v.newSong) || Boolean(v.title)), {
+  .refine((v) => (v.kind === 'item' || v.kind === 'header' || v.kind === 'position' ? Boolean(v.title) : Boolean(v.songId) || Boolean(v.newSong) || Boolean(v.title)), {
     message: 'Give every line a name or a song',
   })
 const setlist = z.object({ items: z.array(item).max(MAX_ITEMS, 'That is a long setlist') })
@@ -96,6 +106,9 @@ export const servicesApp = new Hono<AppEnv>({ strict: false })
     if (made === 'taken') return fail(c, 409, taken)
     return c.json({ service: made }, 201)
   })
+  // before the service routes, or "people" would be read as a service id
+  .use('/people', only('GET'))
+  .get('/people', need({ service: ['plan'] }), async (c) => c.json({ people: await data.listPeople(c.get('deps').db, c.get('tenant').orgId) }))
   .use(SERVICE, only('GET', 'PATCH', 'DELETE'))
   .get(SERVICE, need({ service: ['read'] }), async (c) => {
     const id = c.req.param('serviceId')
@@ -142,10 +155,11 @@ export const servicesApp = new Hono<AppEnv>({ strict: false })
         songId = made.id
       }
       if (songId && !isId('song', songId)) return fail(c, 400, 'That song is not in this church')
-      inputs.push({ id: given.id, kind, songId, title: given.title ?? null, key: given.key, notes: given.notes, links: given.links })
+      inputs.push({ id: given.id, kind, songId, title: given.title ?? null, key: given.key, notes: given.notes, links: given.links, people: given.people })
     }
     const saved = await data.saveItems(db, tenant.orgId, id, inputs)
     if (saved === 'song') return fail(c, 400, 'That song is not in this church')
     if (saved === 'item') return fail(c, 400, 'The same line is listed twice')
+    if (saved === 'person') return fail(c, 400, 'That person is not in this church')
     return saved ? c.json({ service: saved }) : fail(c, 404, 'not found')
   })

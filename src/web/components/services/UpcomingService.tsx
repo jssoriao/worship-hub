@@ -37,8 +37,9 @@ export function UpcomingService() {
   const service = loaded.service
   if (!service) return null
   const now = today()
-  // songs and plain lines are numbered, headers are not
-  const numbers = service.items.map((item, i) => (item.kind === 'header' ? 0 : service.items.slice(0, i + 1).filter((l) => l.kind !== 'header').length))
+  // songs and plain lines are numbered; headers and positions are not
+  const counted = (kind: string) => kind !== 'header' && kind !== 'position'
+  const numbers = service.items.map((item, i) => (counted(item.kind) ? service.items.slice(0, i + 1).filter((l) => counted(l.kind)).length : 0))
   return (
     <Card className="gap-4 border-highlight/30 p-5 sm:p-6">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
@@ -69,6 +70,15 @@ export function UpcomingService() {
               return (
                 <li key={item.id} className="pt-3 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase mobile:text-sm">
                   {item.title}
+                </li>
+              )
+            }
+            if (item.kind === 'position') {
+              return (
+                <li key={item.id} className="flex min-h-9 items-baseline gap-3 py-1 text-sm mobile:text-base">
+                  <span className="w-5 shrink-0" />
+                  <span className="w-32 shrink-0 truncate text-muted-foreground">{item.title}</span>
+                  <span className="min-w-0 flex-1">{item.people.length > 0 ? item.people.map((p) => p.name).join(', ') : <span className="text-muted-foreground">Nobody yet</span>}</span>
                 </li>
               )
             }

@@ -11,13 +11,16 @@ import { UnsavedDialog } from '../components/player/EditControls'
 import { MiniPlayer } from '../components/services/MiniPlayer'
 import { NewSongForm, type NewSong } from '../components/services/NewSongForm'
 import { ServiceDialog } from '../components/services/ServiceDialog'
+import { PositionPeople } from '../components/services/PositionPeople'
 import { SongChart } from '../components/services/SongChart'
+import { ChoicePicker } from '../components/ChoicePicker'
 import { practicePath, serviceKeyShift } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { mediaOf } from '../lib/media'
 import { useNowPlaying } from '../lib/now-playing-context'
+import { DEFAULT_POSITIONS, sameName } from '../../shared/positions'
 import { formatDate, formatTime, isHttps, linkText, move, serviceName } from '../lib/services'
-import { cloneService, deleteService, getService, saveItems, updateService, type ItemDraft, type ServiceFull, type ServiceItem } from '../lib/services-api'
+import { cloneService, deleteService, getService, listPeople, saveItems, updateService, type ItemDraft, type ItemPerson, type ServiceFull, type ServiceItem } from '../lib/services-api'
 import { fetchLibrary, type LibrarySong } from '../lib/sources'
 import NotFoundPage from './NotFoundPage'
 import { Hint } from '../components/Hint'
@@ -36,10 +39,12 @@ interface Line {
   archived: boolean
   notes: string
   links: { url: string; label: string }[]
+  /** who serves (a position) */
+  people: ItemPerson[]
 }
 type Tab = 'order' | 'songs'
 const uid = () => crypto.randomUUID()
-const lineOf = (item: ServiceItem): Line => ({ uid: uid(), id: item.id, kind: item.kind, songId: item.songId, title: item.title, key: item.key ?? '', songKey: item.songKey, archived: item.archived, notes: item.notes ?? '', links: item.links })
+const lineOf = (item: ServiceItem): Line => ({ uid: uid(), id: item.id, kind: item.kind, songId: item.songId, title: item.title, key: item.key ?? '', songKey: item.songKey, archived: item.archived, notes: item.notes ?? '', links: item.links, people: item.people })
 /** What changes when saved, as text: two drafts are the same when this is. */
 const snapshot = (lines: Line[]) => JSON.stringify(lines.map(({ uid: _u, ...rest }) => rest))
 const draftOf = (line: Line): ItemDraft => ({
@@ -49,8 +54,11 @@ const draftOf = (line: Line): ItemDraft => ({
   key: line.key.trim() || null,
   notes: line.notes.trim() || null,
   links: line.links,
+  people: line.people,
 })
 const keyOf = (line: Line) => line.key || line.songKey
+/** songs and plain items are numbered in the order; headers and positions are not */
+const numbered = (line: Line) => line.kind !== 'header' && line.kind !== 'position'
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Try again.')
 const iconButton = 'size-7'
 /** Delete with a second click to confirm. */
@@ -93,6 +101,8 @@ export default function ServicePage() {
   const again = useRef(false)
   const [busy, setBusy] = useState(false)
   const [songs, setSongs] = useState<LibrarySong[] | null>(null)
+  // the church's people, to pick who serves in a position (people who plan only)
+  const [members, setMembers] = useState<{ id: string; name: string }[] | null>(null)
   const [selected, setSelected] = useState('')
   // the selected song's media list is folded away (its chart stays)
   const [folded, setFolded] = useState(false)
@@ -126,6 +136,13 @@ export default function ServicePage() {
   useEffect(() => {
     let live = true
     if (canPlan) fetchLibrary(church.id).then((l) => live && setSongs(l), () => live && setSongs([]))
+    return () => {
+      live = false
+    }
+  }, [canPlan, church.id])
+  useEffect(() => {
+    let live = true
+    if (canPlan) listPeople().then(({ people }) => live && setMembers(people), () => live && setMembers([]))
     return () => {
       live = false
     }
@@ -241,15 +258,18 @@ export default function ServicePage() {
   const addSong = (id: string) => {
     const song = songs?.find((s) => s.id === id)
     if (!song) return
-    update((ls) => [...ls, { uid: uid(), kind: 'song', songId: song.id, title: song.title, key: '', songKey: song.key ?? null, archived: false, notes: '', links: [] }])
+    update((ls) => [...ls, { uid: uid(), kind: 'song', songId: song.id, title: song.title, key: '', songKey: song.key ?? null, archived: false, notes: '', links: [], people: [] }])
+  }
+  const addPosition = (name: string) => {
+    update((ls) => [...ls, { uid: uid(), kind: 'position', songId: null, title: name.trim(), key: '', songKey: null, archived: false, notes: '', links: [], people: [] }])
   }
   /** A song from the New song panel. `listed`: also add it to the church's list when saved; otherwise it is only a name in this service. */
   const addNew = (song: NewSong, listed: boolean) => {
     update((ls) => [
       ...ls,
       listed
-        ? { uid: uid(), kind: 'song', songId: null, newSong: song, title: song.title, key: '', songKey: song.key || null, archived: false, notes: '', links: [] }
-        : { uid: uid(), kind: 'song', songId: null, title: song.title, key: song.key, songKey: null, archived: false, notes: '', links: [] },
+        ? { uid: uid(), kind: 'song', songId: null, newSong: song, title: song.title, key: '', songKey: song.key || null, archived: false, notes: '', links: [], people: [] }
+        : { uid: uid(), kind: 'song', songId: null, title: song.title, key: song.key, songKey: null, archived: false, notes: '', links: [], people: [] },
     ])
     setAdding(false)
   }
@@ -330,20 +350,21 @@ export default function ServicePage() {
           </div>
         )}
       </div>
-      {lines.length === 0 && <p className="mt-3 text-sm text-muted-foreground">{canPlan ? 'No songs yet. Add the first one below.' : 'No songs yet.'}</p>}
+      {lines.length === 0 && <p className="mt-3 text-sm text-muted-foreground">{canPlan ? 'Nothing yet. Add a song or a position below.' : 'Nothing in this service yet.'}</p>}
       {tab === 'order' && lines.length > 0 && (
         <Card className="mt-3 gap-0 overflow-hidden py-0">
           <ol className="divide-y divide-border">
             {lines.map((line, i) => (
-              <li key={line.uid} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${line.kind === 'header' ? 'bg-muted/40' : ''}`}>
-                <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">{line.kind === 'header' ? '' : lines.slice(0, i + 1).filter((l) => l.kind !== 'header').length}</span>
-                <span className={`min-w-0 flex-1 truncate ${line.kind === 'header' ? 'text-xs font-semibold tracking-wide text-muted-foreground uppercase' : 'font-medium'}`}>
+              <li key={line.uid} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${line.kind === 'header' ? 'bg-muted/40' : ''} ${line.kind === 'position' ? 'flex-wrap' : ''}`}>
+                <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">{numbered(line) ? lines.slice(0, i + 1).filter(numbered).length : ''}</span>
+                <span className={`min-w-0 truncate ${line.kind === 'position' ? 'w-36 shrink-0 text-muted-foreground' : 'flex-1'} ${line.kind === 'header' ? 'text-xs font-semibold tracking-wide text-muted-foreground uppercase' : 'font-medium'}`}>
                   {line.title}
                   {line.newSong && <span className="ml-2 text-xs font-normal text-muted-foreground">New song</span>}
                 </span>
+                {line.kind === 'position' && <PositionPeople title={line.title} people={line.people} members={members} editable={canPlan} onChange={(people) => type(i, { people })} />}
                 {canPlan ? (
                   <>
-                    {line.kind !== 'header' && (
+                    {line.kind !== 'header' && line.kind !== 'position' && (
                       <>
                     <Input aria-label={`Key of ${line.title}`} maxLength={12} placeholder={line.songKey ?? 'Key'} className="h-7 w-16 text-center" value={line.key} onChange={(e) => type(i, { key: e.target.value })} {...field} />
                     <Input aria-label={`Notes for ${line.title}`} maxLength={1000} placeholder="Notes" className="h-7 w-64" value={line.notes} onChange={(e) => type(i, { notes: e.target.value })} {...field} />
@@ -363,7 +384,7 @@ export default function ServicePage() {
                   </>
                 ) : (
                   <>
-                    {line.notes && <span className="max-w-64 truncate text-xs text-muted-foreground">{line.notes}</span>}
+                    {line.kind !== 'position' && line.notes && <span className="max-w-64 truncate text-xs text-muted-foreground">{line.notes}</span>}
                     {line.kind === 'item' && line.links.length > 0 && <LinkIcon aria-label="Has links" className="size-3 shrink-0 text-muted-foreground" />}
                     {keyOf(line) && <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs">{keyOf(line)}</span>}
                   </>
@@ -488,6 +509,19 @@ export default function ServicePage() {
             <Button type="button" variant="outline" size="sm" aria-expanded={adding} onClick={() => setAdding((v) => !v)}>
               <PlusIcon /> New song
             </Button>
+            <ChoicePicker
+              title="Add a position"
+              placeholder="Search, or type a position"
+              choices={DEFAULT_POSITIONS.filter((p) => !lines.some((l) => l.kind === 'position' && sameName(l.title, p))).map((p) => ({ id: p, label: p }))}
+              onChoose={(c) => addPosition(c.label)}
+              onFree={addPosition}
+              triggerLabel="Add a position"
+              trigger={
+                <>
+                  <PlusIcon aria-hidden="true" /> Position
+                </>
+              }
+            />
           </div>
           {adding && <NewSongForm onAdd={addNew} />}
         </div>

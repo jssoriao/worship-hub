@@ -6,6 +6,9 @@ export type ServiceSummary = ServiceList['services'][number]
 export const getService = (id: string) => call(servicesApi[':serviceId'].$get({ param: { serviceId: id } }))
 export type ServiceFull = Awaited<ReturnType<typeof getService>>['service']
 export type ServiceItem = ServiceFull['items'][number]
+export type ItemPerson = ServiceItem['people'][number]
+/** The church's people by name (no email), to pick who serves (people who plan the service only). */
+export const listPeople = () => call(servicesApi.people.$get())
 export const createService = (input: { date: string; time?: string | null; title?: string | null; notes?: string | null }) => call(servicesApi.$post({ json: input }))
 export const updateService = (id: string, patch: { date?: string; time?: string | null; title?: string | null; notes?: string | null }) =>
   call(servicesApi[':serviceId'].$patch({ param: { serviceId: id }, json: patch }))
@@ -14,12 +17,14 @@ export const deleteService = (id: string) => call(servicesApi[':serviceId'].$del
 /** One line sent when saving the setlist: a church song, a song to add to the list, or a plain line. */
 export interface ItemDraft {
   id?: string
-  kind: 'song' | 'item' | 'header'
+  kind: 'song' | 'item' | 'header' | 'position'
   songId?: string | null
   newSong?: { title: string; artist?: string | null; key?: string | null }
   title?: string | null
   key: string | null
   notes: string | null
   links: { url: string; label: string }[]
+  /** only for a position: a member by `userId`, anyone else by `name` */
+  people?: { userId?: string | null; name?: string }[]
 }
 export const saveItems = (id: string, items: ItemDraft[]) => call(servicesApi[':serviceId'].items.$put({ param: { serviceId: id }, json: { items } }))

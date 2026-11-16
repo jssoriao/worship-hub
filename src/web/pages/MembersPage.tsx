@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ROLE_NAMES, type Role } from '../../shared/permissions'
 import { Alert } from '@/components/ui/alert'
+import { Hint } from '../components/Hint'
 import { JoinLinks } from '../components/JoinLinks'
 import { PageHeader } from '../components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect } from '@/components/ui/native-select'
 import { useChurch } from '../lib/church-context'
-import { addMember, changeRole, listMembers, removeMember, type MemberList } from '../lib/members-api'
+import { PencilIcon } from 'lucide-react'
+import { addMember, changeRole, listMembers, removeMember, renameMember, type MemberList } from '../lib/members-api'
 
 const label = (role: string) => role[0].toUpperCase() + role.slice(1)
 
@@ -23,6 +25,8 @@ export default function MembersPage() {
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('member')
   const [confirming, setConfirming] = useState('')
+  // the person whose name is being edited, and the text so far
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
 
   const load = useCallback(
     () =>
@@ -134,13 +138,56 @@ export default function MembersPage() {
           {list.members.map((m) => {
             const mine = m.userId === list.me
             const editable = !mine && manageable.includes(m.role)
+            // a name may be changed for people whose role you manage, and for yourself
+            const nameEditable = mine || editable
             return (
               <li key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {m.name}
-                    {mine && <span className="ml-2 text-xs font-normal text-muted-foreground">You</span>}
-                  </p>
+                  {renaming?.id === m.id ? (
+                    <form
+                      className="flex items-center gap-1.5"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void run(() => renameMember(m.id, renaming.name)).then((ok) => ok && setRenaming(null))
+                      }}
+                    >
+                      <Label className="sr-only" htmlFor={`name-${m.id}`}>
+                        Name of {m.name}
+                      </Label>
+                      <Input
+                        id={`name-${m.id}`}
+                        autoFocus
+                        maxLength={80}
+                        value={renaming.name}
+                        onChange={(e) => setRenaming({ id: m.id, name: e.target.value })}
+                        onKeyDown={(e) => e.key === 'Escape' && setRenaming(null)}
+                        className="h-8 max-w-64"
+                      />
+                      <Button type="submit" size="sm" disabled={busy || renaming.name.trim() === ''}>
+                        Save
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setRenaming(null)}>
+                        Cancel
+                      </Button>
+                    </form>
+                  ) : (
+                    <p className="flex items-center gap-1 truncate text-sm font-medium">
+                      <span className="truncate">{m.name}</span>
+                      {mine && <span className="ml-1 text-xs font-normal text-muted-foreground">You</span>}
+                      {nameEditable && (
+                        <Hint text="Change the name">
+                          <button
+                            type="button"
+                            aria-label={`Change the name of ${m.name}`}
+                            onClick={() => setRenaming({ id: m.id, name: m.name })}
+                            className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring mobile:size-11"
+                          >
+                            <PencilIcon aria-hidden="true" className="size-3.5" />
+                          </button>
+                        </Hint>
+                      )}
+                    </p>
+                  )}
                   <p className="truncate text-xs text-muted-foreground">{m.email}</p>
                 </div>
                 {editable ? (
