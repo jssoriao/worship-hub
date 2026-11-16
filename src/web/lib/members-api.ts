@@ -6,6 +6,7 @@ export type MemberList = Awaited<ReturnType<typeof listMembers>>
 export type MemberInfo = MemberList['members'][number]
 export const addMember = (input: { email: string; name?: string; role: Role }) => call(membersApi.$post({ json: input }))
 export const changeRole = (id: string, role: Role) => call(membersApi[':memberId'].$patch({ param: { memberId: id }, json: { role } }))
+export const renameMember = (id: string, name: string) => call(membersApi[':memberId'].$patch({ param: { memberId: id }, json: { name } }))
 export const removeMember = (id: string) => call(membersApi[':memberId'].$delete({ param: { memberId: id } }))
 
 /** Join links: made here, opened at /join/<token>. */

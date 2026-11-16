@@ -43,6 +43,13 @@
       "when": 1794641605407,
       "tag": "0005_church_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794847607490,
+      "tag": "0006_service_positions",
+      "breakpoints": true
     }
   ]
 }

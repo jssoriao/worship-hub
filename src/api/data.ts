@@ -7,11 +7,12 @@
  */
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
-import { accounts, aiJobs, aiLimits, appSettings, arrangements, churchPlans, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink } from '../db/schema/index.ts'
+import { accounts, aiJobs, aiLimits, appSettings, arrangements, churchPlans, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink, type ItemPerson } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
 import { DEFAULT_PLAN, isPlanId, PLANS, type PlanId } from '../shared/plans.ts'
+import { sameName } from '../shared/positions.ts'
 
 export type { Db }
 
@@ -127,6 +128,17 @@ export async function setMemberRole(db: Db, orgId: string, memberId: string, rol
   return updated[0] ? getMember(db, orgId, memberId) : null
 }
 
+/**
+ * Changes the person's name. The name belongs to the sign-in record, so it changes everywhere the person is (every
+ * church they are in), and services show the new name at once. null when the church has no such member.
+ */
+export async function setMemberName(db: Db, orgId: string, memberId: string, name: string, cache: Memo = memo): Promise<MemberRow | null> {
+  const target = await getMember(db, orgId, memberId)
+  if (!target) return null
+  await db.update(users).set({ name, updatedAt: sql`now()` }).where(eq(users.id, target.userId))
+  cache.clear()
+  return getMember(db, orgId, memberId)
+}
 /**
  * Takes the person out of the church and ends their sessions there. Someone left in no church (and not
  * the platform admin) is removed entirely, as `pnpm members remove` does. False when there is no such member.
@@ -587,6 +599,8 @@ export interface ItemRow {
   archived: boolean
   notes: string | null
   links: ItemLink[]
+  /** who serves (a position); a member shows by their current name, one who left the church by the name saved */
+  people: ItemPerson[]
 }
 export interface ServiceFull extends ServiceRow {
   items: ItemRow[]
@@ -630,12 +644,42 @@ export async function getService(db: Db, orgId: string, serviceId: string): Prom
       archivedAt: songs.archivedAt,
       notes: serviceItems.notes,
       links: serviceItems.links,
+      people: serviceItems.people,
     })
     .from(serviceItems)
     .leftJoin(songs, and(eq(songs.id, serviceItems.songId), eq(songs.organizationId, orgId)))
     .where(eq(serviceItems.serviceId, serviceId))
     .orderBy(asc(serviceItems.position))
-  return { ...toService(row), items: items.map(({ archivedAt, ...item }) => ({ ...item, archived: archivedAt !== null })) }
+  const names = await memberNames(db, orgId, items.flatMap((i) => i.people.flatMap((p) => (p.userId ? [p.userId] : []))))
+  return {
+    ...toService(row),
+    items: items.map(({ archivedAt, people, ...item }) => ({
+      ...item,
+      archived: archivedAt !== null,
+      // a member is shown by their name today (renaming a person renames them everywhere); one who left keeps the name saved, as plain text
+      people: people.map((p): ItemPerson => (p.userId && names.has(p.userId) ? { userId: p.userId, name: names.get(p.userId)! } : { userId: null, name: p.name })),
+    })),
+  }
+}
+/** The current names of these people, for those who are members of the church (anyone else is left out). */
+async function memberNames(db: Pick<Db, 'select'>, orgId: string, userIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(userIds)]
+  if (ids.length === 0) return new Map()
+  const rows = await db
+    .select({ id: users.id, name: users.name })
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, orgId), inArray(users.id, ids)))
+  return new Map(rows.map((r) => [r.id, r.name]))
+}
+/** The church's people by name, for picking who serves: names only (no email), alphabetical. */
+export async function listPeople(db: Db, orgId: string): Promise<{ id: string; name: string }[]> {
+  return db
+    .select({ id: users.id, name: users.name })
+    .from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(eq(members.organizationId, orgId))
+    .orderBy(sql`lower(${users.name})`, asc(users.id))
 }
 export function serviceBelongs(db: Db, orgId: string, serviceId: string): Promise<boolean> {
   return db
@@ -692,7 +736,7 @@ export async function deleteService(db: Db, orgId: string, serviceId: string): P
 }
 /**
  * A new service on another date (and time) with the same title, notes and setlist (songs, keys, notes,
- * links). 'taken' = a service already has that date and time; null = no such service.
+ * links, positions and the people in them). 'taken' = a service already has that date and time; null = no such service.
  */
 export async function cloneService(db: Db, orgId: string, userId: string, serviceId: string, when: { date: string; time: string | null }): Promise<ServiceFull | null | 'taken'> {
   const source = await getService(db, orgId, serviceId)
@@ -705,7 +749,7 @@ export async function cloneService(db: Db, orgId: string, userId: string, servic
         .returning({ id: services.id })
       if (source.items.length > 0) {
         await tx.insert(serviceItems).values(
-          source.items.map((item, position) => ({ serviceId: row.id, position, kind: item.kind, songId: item.songId, title: item.title, musicKey: item.key, notes: item.notes, links: item.links })),
+          source.items.map((item, position) => ({ serviceId: row.id, position, kind: item.kind, songId: item.songId, title: item.title, musicKey: item.key, notes: item.notes, links: item.links, people: item.people })),
         )
       }
       return row.id
@@ -727,6 +771,8 @@ export interface ItemInput {
   key: string | null
   notes: string | null
   links: ItemLink[]
+  /** only for a position: members by user id, anyone else by the name typed */
+  people: ItemPerson[]
 }
 /**
  * Replaces the order of the service with `items`, in that order. A song in the church's archive cannot be added. Items whose id is listed are updated and keep their
@@ -735,7 +781,7 @@ export interface ItemInput {
  * has no key, notes or links.
  * Everything happens in one transaction.
  */
-export async function saveItems(db: Db, orgId: string, serviceId: string, items: ItemInput[]): Promise<ServiceFull | null | 'song' | 'item'> {
+export async function saveItems(db: Db, orgId: string, serviceId: string, items: ItemInput[]): Promise<ServiceFull | null | 'song' | 'item' | 'person'> {
   if (!(await serviceBelongs(db, orgId, serviceId))) return null
   const wanted = [...new Set(items.flatMap((i) => (i.kind === 'song' && i.songId ? [i.songId] : [])))]
   const titles = new Map<string, string>()
@@ -749,6 +795,20 @@ export async function saveItems(db: Db, orgId: string, serviceId: string, items:
     for (const song of found) if (!song.archived || already.has(song.id)) titles.set(song.id, song.title)
     if (titles.size !== wanted.length) return 'song'
   }
+  // a member in a position must be a member of THIS church; they are saved by the name they have now
+  const asked = items.flatMap((i) => (i.kind === 'position' ? i.people.flatMap((p) => (p.userId ? [p.userId] : [])) : []))
+  const names = await memberNames(db, orgId, asked)
+  if ([...new Set(asked)].some((id) => !names.has(id))) return 'person'
+  const peopleOf = (item: ItemInput): ItemPerson[] => {
+    if (item.kind !== 'position') return []
+    const out: ItemPerson[] = []
+    for (const p of item.people) {
+      const person: ItemPerson = p.userId ? { userId: p.userId, name: names.get(p.userId)! } : { userId: null, name: p.name }
+      // the same person twice in one position is one person
+      if (!out.some((o) => (person.userId ? o.userId === person.userId : o.userId === null && sameName(o.name, person.name)))) out.push(person)
+    }
+    return out
+  }
   const outcome = await db.transaction(async (tx) => {
     const existing = new Set((await tx.select({ id: serviceItems.id }).from(serviceItems).where(eq(serviceItems.serviceId, serviceId))).map((r) => r.id))
     const keep = items.flatMap((i) => (i.id && existing.has(i.id) ? [i.id] : []))
@@ -758,14 +818,17 @@ export async function saveItems(db: Db, orgId: string, serviceId: string, items:
     for (const [position, item] of items.entries()) {
       const song = item.kind === 'song' ? item.songId : null
       const header = item.kind === 'header'
+      // a header and a position have no key or links; a header has no notes either
+      const bare = header || item.kind === 'position'
       const values = {
         position,
         kind: item.kind,
         songId: song,
         title: song ? titles.get(song)! : (item.title ?? ''),
-        musicKey: header ? null : item.key,
+        musicKey: bare ? null : item.key,
         notes: header ? null : item.notes,
-        links: header ? [] : item.links,
+        links: bare ? [] : item.links,
+        people: peopleOf(item),
       }
       if (item.id && existing.has(item.id)) await tx.update(serviceItems).set(values).where(and(eq(serviceItems.serviceId, serviceId), eq(serviceItems.id, item.id)))
       else await tx.insert(serviceItems).values({ ...values, serviceId })

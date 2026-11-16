@@ -136,6 +136,7 @@ pnpm cf-typegen                      # regenerate src/api/worker-configuration.d
   --replace` (new ids, references rewritten), its local R2 files moved with `pnpm r2:rekey`, then `--delete-old`.
 - 2026-11-14: migration `0004_ai_credits` (new tables `ai_limits`, `ai_jobs`, `app_settings`; additive). Manage with `pnpm ai` (README, Music.AI credits). The `ai` permission is replaced by `musicai` (owners).
 - 2026-11-14: migration `0005_church_plans` (new table `church_plans`; additive). A church without a row is on the Free plan, so after deploying set paid churches with `pnpm churches plan <slug> team --target prod`.
+- 2026-11-15: migration `0006_service_positions` (`service_items.people` jsonb, default `[]`; the kind check also allows `position`; additive, the previous Worker keeps working).
 - 2026-11-14: migration `0002_archive_songs` (`songs.archived_at`, `songs.archived_by`; additive, so the previous Worker runs on it). The song permission `delete` is now `archive`.
 - 2026-11-13: migration `0001_join_links` (new tables `join_links`, `join_requests`; nothing else changes, so the
   previous Worker runs on it). Applied to dev by hand; production by the deploy workflow.

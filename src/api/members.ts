@@ -3,11 +3,12 @@
  *
  *   GET    /api/church/members              list
  *   POST   /api/church/members              {email, name?, role}  add (they then sign in with an emailed code)
- *   PATCH  /api/church/members/<id>         {role}                change role
+ *   PATCH  /api/church/members/<id>         {role?, name?}        change the role and / or the name
  *   DELETE /api/church/members/<id>                               remove
  *
  * Who may grant or touch which role: owners any; admins only member and editor. Nobody changes or
- * removes themselves here, so a church can never lose its last owner through the app.
+ * removes themselves here, so a church can never lose its last owner through the app. The same people may
+ * change a name (and a person may change their own): it is the person's name everywhere, in every church they are in.
  */
 import { Hono } from 'hono'
 import * as z from 'zod'
@@ -28,7 +29,16 @@ const newMember = z.object({
   // any string: a role the actor may not give is refused with 403 below, like an unknown one
   role: z.string().optional(),
 })
-const roleChange = z.object({ role: z.string({ error: 'Pick a role' }).refine(isRole, 'Pick a role') })
+const memberChange = z
+  .object({
+    role: z.string({ error: 'Pick a role' }).refine(isRole, 'Pick a role').optional(),
+    name: z
+      .string({ error: 'Give them a name' })
+      .transform((v) => v.trim().replace(/\s+/g, ' '))
+      .pipe(z.string().min(1, 'Give them a name').max(80, 'That name is too long'))
+      .optional(),
+  })
+  .refine((v) => v.role !== undefined || v.name !== undefined, { message: 'Nothing to change' })
 export const members = new Hono<AppEnv>({ strict: false })
   .use(church, sameOrigin)
   .use('/', only('GET', 'POST'))
@@ -45,17 +55,24 @@ export const members = new Hono<AppEnv>({ strict: false })
     return c.json(added, 201)
   })
   .use(MEMBER, only('PATCH', 'DELETE'))
-  .patch(MEMBER, need({ member: ['update'] }), body(roleChange), async (c) => {
+  .patch(MEMBER, need({ member: ['update'] }), body(memberChange), async (c) => {
     const tenant = c.get('tenant')
     const { db, memo } = c.get('deps')
-    const role = c.req.valid('json').role as Role
+    const { role, name } = c.req.valid('json')
     const memberId = c.req.param('memberId')
     const target = await data.getMember(db, tenant.orgId, memberId)
     if (!target) return fail(c, 404, 'not found')
-    if (target.userId === tenant.user.id) return fail(c, 403, 'You cannot change your own role')
     const may = manageableRoles(tenant.role)
-    if (!may.includes(target.role as Role) || !may.includes(role)) return fail(c, 403, 'You cannot give that role')
-    const updated = await data.setMemberRole(db, tenant.orgId, memberId, role, memo)
+    const mine = target.userId === tenant.user.id
+    // check everything first, so a refused change leaves the other one undone too
+    if (role !== undefined) {
+      if (mine) return fail(c, 403, 'You cannot change your own role')
+      if (!may.includes(target.role as Role) || !may.includes(role as Role)) return fail(c, 403, 'You cannot give that role')
+    }
+    if (name !== undefined && !mine && !may.includes(target.role as Role)) return fail(c, 403, 'You cannot rename this person')
+    let updated: data.MemberRow | null = target
+    if (name !== undefined) updated = await data.setMemberName(db, tenant.orgId, memberId, name, memo)
+    if (updated && role !== undefined) updated = await data.setMemberRole(db, tenant.orgId, memberId, role as Role, memo)
     return updated ? c.json(updated) : fail(c, 404, 'not found')
   })
   .delete(MEMBER, need({ member: ['delete'] }), async (c) => {

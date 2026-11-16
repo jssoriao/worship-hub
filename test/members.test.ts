@@ -144,6 +144,39 @@ describe('changing a role', () => {
   })
 })
 
+describe('renaming', () => {
+  const nameOf = async (user: string) => (await pg.query<{ name: string }>('select name from users where id = $1', [user])).rows[0].name
+  it('lets an admin rename members and editors, trimmed', async () => {
+    expect((await call(as('admin'), 'PATCH', `/${await memberId('member')}`, { name: '  Ann Lee ' })).status).toBe(200)
+    expect(await nameOf('member')).toBe('Ann Lee')
+    expect((await call(as('admin'), 'PATCH', `/${await memberId('editor')}`, { name: 'Ed' })).status).toBe(200)
+  })
+  it('stops an admin renaming admins and owners; an owner may', async () => {
+    expect((await call(as('admin'), 'PATCH', `/${await memberId('owner')}`, { name: 'X' })).status).toBe(403)
+    expect(await nameOf('owner')).toBe('owner')
+    expect((await call(as('owner'), 'PATCH', `/${await memberId('admin')}`, { name: 'Adm' })).status).toBe(200)
+  })
+  it('lets anyone with access rename themselves', async () => {
+    expect((await call(as('admin'), 'PATCH', `/${await memberId('admin')}`, { name: 'Me' })).status).toBe(200)
+    expect(await nameOf('admin')).toBe('Me')
+  })
+  it('refuses empty, long and missing changes', async () => {
+    const id = await memberId('member')
+    expect((await call(as('owner'), 'PATCH', `/${id}`, { name: '   ' })).status).toBe(400)
+    expect((await call(as('owner'), 'PATCH', `/${id}`, { name: 'x'.repeat(81) })).status).toBe(400)
+    expect((await call(as('owner'), 'PATCH', `/${id}`, {})).status).toBe(400)
+  })
+  it('changes role and name together, and writes nothing when one part is refused', async () => {
+    const id = await memberId('member')
+    expect((await call(as('owner'), 'PATCH', `/${id}`, { role: 'editor', name: 'Both' })).status).toBe(200)
+    expect(await nameOf('member')).toBe('Both')
+    const own = await memberId('owner')
+    expect((await call(as('owner'), 'PATCH', `/${own}`, { role: 'member', name: 'Nope' })).status).toBe(403)
+    expect(await nameOf('owner')).toBe('owner')
+    expect((await call(as('admin'), 'PATCH', `/${id}`, { role: 'admin', name: 'Nope' })).status).toBe(403)
+    expect(await nameOf('member')).toBe('Both')
+  })
+})
 describe('removing', () => {
   it('removes a person who is in no other church, with their sessions and account', async () => {
     await seedSession(pg, 's1', 'member', A)

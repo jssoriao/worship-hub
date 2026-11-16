@@ -94,8 +94,19 @@ export const joinRequests = pgTable(
   (t) => [index('join_requests_email_idx').on(t.email)],
 )
 
-/** What a line of a service's order is: a song, a plain item (prayer, offering, announcement), or a header that groups the lines under it. */
-export type ItemKind = 'song' | 'item' | 'header'
+/**
+ * What a line of a service's order is: a song, a plain item (prayer, offering, announcement), a header that groups
+ * the lines under it, or a position (a place somebody serves, with its people).
+ */
+export type ItemKind = 'song' | 'item' | 'header' | 'position'
+/**
+ * Someone serving in a position: a member of the church (`userId`, shown by their current name) or a name typed in
+ * (`userId` null). For a member `name` is only what it was when saved, kept in case they leave the church.
+ */
+export interface ItemPerson {
+  userId: string | null
+  name: string
+}
 /** A link attached to a setlist item, for example a video to learn the song from. */
 export interface ItemLink {
   url: string
@@ -143,6 +154,8 @@ export const serviceItems = pgTable(
     musicKey: text('music_key'),
     notes: text('notes'),
     links: jsonb('links').$type<ItemLink[]>().notNull().default([]),
+    /** who serves, for a position; empty for every other kind */
+    people: jsonb('people').$type<ItemPerson[]>().notNull().default([]),
   },
-  (t) => [index('service_items_service_id_position_idx').on(t.serviceId, t.position), check('service_items_kind_check', sql`${t.kind} in ('song', 'item', 'header')`)],
+  (t) => [index('service_items_service_id_position_idx').on(t.serviceId, t.position), check('service_items_kind_check', sql`${t.kind} in ('song', 'item', 'header', 'position')`)],
 )
