@@ -17,6 +17,18 @@ export function splitServices<T extends { date: string; time: string | null }>(l
   return { upcoming, past }
 }
 export const serviceName = (s: { title: string | null }) => s.title || 'Service'
+/** Whole days from `now` (a `YYYY-MM-DD`) to `date`: 0 today, 1 tomorrow, negative when it has passed. */
+export function daysUntil(date: string, now: string): number {
+  return Math.round((atUtc(date).getTime() - atUtc(now).getTime()) / 86_400_000)
+}
+/** How soon a service is, in words: "Today", "Tomorrow", "In 3 days" within the week, else the date itself. */
+export function whenLabel(date: string, now: string): string {
+  const days = daysUntil(date, now)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Tomorrow'
+  if (days > 1 && days < 7) return `In ${days} days`
+  return formatDate(date)
+}
 /** A copy of `list` with the item at `from` moved by `by` places (clamped); same list when nothing moves. */
 export function move<T>(list: T[], from: number, by: number): T[] {
   const to = Math.min(list.length - 1, Math.max(0, from + by))

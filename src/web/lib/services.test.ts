@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { isHttps, linkText, move, splitServices, today } from './services'
+import { daysUntil, isHttps, linkText, move, splitServices, today, whenLabel } from './services'
+describe('how soon a service is', () => {
+  it('counts whole days, across months, years and leap days', () => {
+    expect(daysUntil('2031-03-02', '2031-03-02')).toBe(0)
+    expect(daysUntil('2031-03-03', '2031-03-02')).toBe(1)
+    expect(daysUntil('2031-03-09', '2031-03-02')).toBe(7)
+    expect(daysUntil('2031-04-01', '2031-03-31')).toBe(1)
+    expect(daysUntil('2032-01-01', '2031-12-31')).toBe(1)
+    expect(daysUntil('2032-03-01', '2032-02-28')).toBe(2) // 2032 is a leap year
+    expect(daysUntil('2031-03-01', '2031-03-02')).toBe(-1)
+  })
+  it('says it in words within the week, and with the date after that', () => {
+    expect(whenLabel('2031-03-02', '2031-03-02')).toBe('Today')
+    expect(whenLabel('2031-03-03', '2031-03-02')).toBe('Tomorrow')
+    expect(whenLabel('2031-03-05', '2031-03-02')).toBe('In 3 days')
+    expect(whenLabel('2031-03-08', '2031-03-02')).toBe('In 6 days')
+    expect(whenLabel('2031-03-09', '2031-03-02')).toBe('Sun, Mar 9, 2031')
+  })
+})
 describe('services helpers', () => {
   it('writes today in the device\'s own day', () => {
     expect(today(new Date(2031, 2, 2, 23, 59))).toBe('2031-03-02')

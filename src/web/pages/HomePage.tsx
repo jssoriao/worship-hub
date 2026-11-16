@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '../components/PageHeader'
+import { UpcomingService } from '../components/services/UpcomingService'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
 import { practiceLink, useNowPlaying } from '../lib/now-playing-context'
@@ -11,6 +12,7 @@ import { PAGES, pageShown } from '../lib/pages'
 const ABOUT: Record<string, string> = {
   '/practice': "Play a song's stems together. Mute, solo and balance each part.",
   '/charts': 'Chord and lyric charts that follow the music as it plays.',
+  '/services': 'Plan each service: the order of songs, their keys, notes and links.',
   '/arrange': 'Your own order of the sections, with parts muted where you want.',
   '/members': 'Add people, give them roles, remove them.',
   '/manage-songs': 'See what each song has. Archive songs you no longer use.',
@@ -44,6 +46,10 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pt-3 pb-24 md:px-6">
       <PageHeader title="Home" />
+      {/* the next service leads the page when there is one */}
+      <div className="mt-4">
+        <UpcomingService />
+      </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="justify-between gap-4 p-6 lg:col-span-2">
           <div>
