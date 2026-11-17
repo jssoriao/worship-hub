@@ -88,7 +88,7 @@ const item = z
     key: text(12).optional().default(null),
     notes: text(NOTES_MAX).optional().default(null),
     links: z.array(link).max(MAX_LINKS, 'Too many links on one song').optional().default([]),
-    people: z.array(person).max(PEOPLE_MAX, 'Too many people in one position').optional().default([]),
+    people: z.array(person).max(PEOPLE_MAX, 'Too many people in one assignment').optional().default([]),
   })
   .refine((v) => (v.kind === 'item' || v.kind === 'header' || v.kind === 'position' ? Boolean(v.title) : Boolean(v.songId) || Boolean(v.newSong) || Boolean(v.title)), {
     message: 'Give every line a name or a song',
