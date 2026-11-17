@@ -256,3 +256,12 @@ describe('assignments', () => {
     expect(text).toContain('editor')
   })
 })
+
+describe('line notes', () => {
+  it('keep up to 4000 characters on a line, and cut what is longer', async () => {
+    const { service } = await make()
+    const put = async (notes: string) => ((await (await call(as('editor'), 'PUT', `/${service.id}/items`, { items: [{ songId: SONG_A, notes }] })).json()) as { service: Service }).service.items[0].notes
+    expect(await put('n'.repeat(4000))).toHaveLength(4000)
+    expect(await put('n'.repeat(4500))).toHaveLength(4000)
+  })
+})

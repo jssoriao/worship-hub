@@ -29,6 +29,8 @@ interface Props {
   playing: boolean
   /** extra buttons in the bar (Edit) */
   actions?: ReactNode
+  /** controls at the start of the bar's buttons (a service's Chart / Notes switch); hidden in full screen */
+  lead?: ReactNode
   /**
    * Shown inside another page (a service): it starts at a larger text size instead of Fit (more sheets to
    * turn, readable text), changes made here are not remembered on this device, and the bar shows only the
@@ -58,7 +60,7 @@ const PAPER_COLOURS: Record<Paper, CSSProperties> = {
  * is fixed on the sheet and the sheet is scaled to the screen. Text size "Fit" picks the largest
  * text that shows the whole chart at once. Follow turns to the section being played.
  */
-export default function ChartPages({ chart, songId, title, fallbackKey, serviceKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions, embedded = false }: Props) {
+export default function ChartPages({ chart, songId, title, fallbackKey, serviceKey, bpm, active, onJump, hasCues, follow, onFollow, playing, actions, lead, embedded = false }: Props) {
   const [view, setView] = useState<ViewSettings>(() => (embedded ? { ...loadView(), scale: EMBEDDED_SCALE } : loadView()))
   // a key given for this view moves the chart there; that and any change made here are not remembered
   const forced = useMemo(() => {
@@ -292,6 +294,7 @@ export default function ChartPages({ chart, songId, title, fallbackKey, serviceK
     >
       <div className="flex flex-wrap items-center justify-end gap-2 pb-2">
         <p className="mr-auto min-w-0 truncate text-sm text-muted-foreground">{full ? heading : embedded ? keyLabel : meta}</p>
+        {!full && lead}
         {hasCues && (
           <Hint text="Turn to the section being played">
             <button type="button" aria-pressed={follow} onClick={() => onFollow(!follow)} className={`${small} ${follow ? 'border-highlight/70 text-highlight' : ''}`}>

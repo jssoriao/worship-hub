@@ -13,6 +13,8 @@ import { NewSongForm, type NewSong } from '../components/services/NewSongForm'
 import { ServiceDialog } from '../components/services/ServiceDialog'
 import { AssignmentPeople } from '../components/services/AssignmentPeople'
 import { SongChart } from '../components/services/SongChart'
+import { NotesBody, NotesButton } from '../components/services/NotesButton'
+import { Segmented } from '../components/player/panels'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { practicePath, serviceKeyShift } from '../lib/address'
 import { useChurch } from '../lib/church-context'
@@ -118,6 +120,8 @@ export default function ServicePage() {
   const [selected, setSelected] = useState('')
   // the selected song's media list is folded away (its chart stays)
   const [folded, setFolded] = useState(false)
+  // the Songs tab shows the selected song's chart or its notes
+  const [songView, setSongView] = useState<'chart' | 'notes'>('chart')
   const [video, setVideo] = useState<{ id: string; title: string } | null>(null)
   const [error, setError] = useState('')
   const [dialog, setDialog] = useState<'edit' | 'clone' | null>(null)
@@ -299,6 +303,7 @@ export default function ServicePage() {
   const firstOf = (line: Line) => (isAssignment(line) ? assignments : orderLines)[0]?.uid === line.uid
   const lastOf = (line: Line) => (isAssignment(line) ? assignments : orderLines).at(-1)?.uid === line.uid
   const current = songLines.find((l) => l.uid === selected) ?? songLines[0]
+  const viewSwitch = <Segmented label="Show" value={songView} options={[['chart', 'Chart'], ['notes', current?.notes.trim() ? 'Notes •' : 'Notes']]} onChange={setSongView} size="sm" />
   const when = `${formatDate(service.date)}${service.time ? ` · ${formatTime(service.time)}` : ''}`
   const tabButton = (value: Tab, label: string, count: number) => (
     <button
@@ -391,7 +396,7 @@ export default function ServicePage() {
                     {line.kind !== 'header' && line.kind !== 'assignment' && (
                       <>
                     <Input aria-label={`Key of ${line.title}`} maxLength={12} placeholder={line.songKey ?? 'Key'} className="h-7 w-16 text-center" value={line.key} onChange={(e) => type(i, { key: e.target.value })} {...field} />
-                    <Input aria-label={`Notes for ${line.title}`} maxLength={1000} placeholder="Notes" className="h-7 w-64" value={line.notes} onChange={(e) => type(i, { notes: e.target.value })} {...field} />
+                    <NotesButton title={line.title} notes={line.notes} editable onChange={(notes) => type(i, { notes })} />
                       </>
                     )}
                     <div className="flex shrink-0">
@@ -408,7 +413,7 @@ export default function ServicePage() {
                   </>
                 ) : (
                   <>
-                    {line.kind !== 'assignment' && line.notes && <span className="max-w-64 truncate text-xs text-muted-foreground">{line.notes}</span>}
+                    {line.kind !== 'assignment' && line.kind !== 'header' && <NotesButton title={line.title} notes={line.notes} editable={false} onChange={() => {}} />}
                     {line.kind === 'item' && line.links.length > 0 && <LinkIcon aria-label="Has links" className="size-3 shrink-0 text-muted-foreground" />}
                     {keyOf(line) && <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs">{keyOf(line)}</span>}
                   </>
@@ -522,7 +527,20 @@ export default function ServicePage() {
             })}
           </ul>
           <div className="min-w-0">
-            <SongChart key={current.uid} songId={current.archived ? null : current.songId} archived={current.archived} title={current.title} songKey={current.songKey} serviceKey={current.key.trim() || null} />
+            {songView === 'chart' ? (
+              <SongChart key={current.uid} songId={current.archived ? null : current.songId} archived={current.archived} title={current.title} songKey={current.songKey} serviceKey={current.key.trim() || null} lead={viewSwitch} />
+            ) : (
+              <div>
+                <div className="flex justify-end pb-2">{viewSwitch}</div>
+                <Card className="gap-0 p-4 mobile:p-3">
+                  {canPlan || current.notes.trim() ? (
+                    <NotesBody key={current.uid} tall notes={current.notes} editable={canPlan} label={`Notes for ${current.title}`} onChange={(notes) => type(lines.findIndex((l) => l.uid === current.uid), { notes })} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No notes for this song.</p>
+                  )}
+                </Card>
+              </div>
+            )}
           </div>
         </div>
       )}

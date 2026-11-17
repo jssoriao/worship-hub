@@ -28,6 +28,8 @@ import { church, fail, need, sameOrigin, type AppEnv } from './tenant.ts'
 import { body, only } from './validate.ts'
 const TITLE_MAX = 120
 const NOTES_MAX = 1000
+/** a line's notes have their own view (the Songs tab), so they may be longer than the service's */
+const LINE_NOTES_MAX = 4000
 const MAX_ITEMS = 100
 const MAX_LINKS = 10
 const text = (max: number) =>
@@ -86,7 +88,7 @@ const item = z
     newSong: z.object({ title: z.string().trim().min(1, 'Give the song a title').max(TITLE_MAX), artist: text(TITLE_MAX).optional(), key: text(12).optional() }).optional(),
     title: text(TITLE_MAX).optional(),
     key: text(12).optional().default(null),
-    notes: text(NOTES_MAX).optional().default(null),
+    notes: text(LINE_NOTES_MAX).optional().default(null),
     links: z.array(link).max(MAX_LINKS, 'Too many links on one song').optional().default([]),
     people: z.array(person).max(PEOPLE_MAX, 'Too many people in one assignment').optional().default([]),
   })
