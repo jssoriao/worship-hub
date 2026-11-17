@@ -1,12 +1,14 @@
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { AnalysisVersion } from '../../lib/analysis-edit'
 
 /**
  * The buttons of Practice's edit mode (Save and Discard both end it). They stick to the top of the window, so they are in reach
- * wherever the page is scrolled; the bar has no text of its own, only a failed save shows one.
+ * wherever the page is scrolled; the bar has no text of its own, only a failed save shows one. `children`: the tools of
+ * the view being edited (Lyrics: Add line, Tap), under the buttons, so they stay in reach too.
  */
-export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions }: {
+export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions, children }: {
   /** there are changes not saved yet */
   dirty: boolean
   saving: boolean
@@ -14,6 +16,7 @@ export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions }:
   onSave: () => void
   onDiscard: () => void
   onVersions: () => void
+  children?: ReactNode
 }) {
   return (
     <div role="region" aria-label="Editing" className="surface-glass sticky top-2 z-30 mx-auto w-fit max-w-full rounded-2xl border p-2 text-sm shadow-xl shadow-black/50">
@@ -29,6 +32,7 @@ export function EditBar({ dirty, saving, error, onSave, onDiscard, onVersions }:
           Versions
         </Button>
       </div>
+      {children && <div className="mt-2 border-t border-border pt-2">{children}</div>}
       {error && (
         <p role="alert" className="mt-1.5 max-w-prose px-1 text-xs text-red-300">
           {error}

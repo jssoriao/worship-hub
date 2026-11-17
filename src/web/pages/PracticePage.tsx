@@ -24,6 +24,7 @@ import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
 import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
 import { LyricsView } from '../components/player/LyricsView'
+import { LyricTools } from '../components/player/LyricTools'
 import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
@@ -885,7 +886,19 @@ export default function PracticePage() {
         onSave={() => void saveDraft().then((saved) => saved && exitEdit())}
         onDiscard={exitEdit}
         onVersions={showVersions}
-      />
+      >
+        {prefs.view === 'lyrics' && (
+          <LyricTools
+            position={pos}
+            lines={shown.lines.map((l) => ({ t: l.t, words: l.words.map((w) => w.w) }))}
+            onAddLine={(t, text) => change((a) => addLine(a, t, text))}
+            onAddLines={(items) => change((a) => addLines(a, items))}
+            onRetimeLines={(list) => change((a) => list.reduce((b, x) => retimeWords(b, x.index, x.taps), a))}
+            onPlayFrom={(t) => void playFrom(t)}
+            onPause={() => void pauseNow()}
+          />
+        )}
+      </EditBar>
     ) : null
   // on phones the three controls share one row, so they get smaller there
   const small = `${buttonVariants({ variant: 'outline', size: 'sm' })} max-sm:px-2.5 max-sm:text-xs`
@@ -1116,11 +1129,6 @@ export default function PracticePage() {
                 onApproveLine={(i) => change((a) => approveLine(a, i))}
                 onListen={(t, end) => void listenFrom(t, end)}
                 onCopyLyrics={(from, to) => change((a) => copySectionLyrics(a, from, to))}
-                onAddLine={(t, text) => change((a) => addLine(a, t, text))}
-                onAddLines={(items) => change((a) => addLines(a, items))}
-                onRetimeLine={(i, starts) => change((a) => retimeWords(a, i, starts))}
-                onPlayFrom={(t) => void playFrom(t)}
-                onPause={() => void pauseNow()}
                 onStartEdit={canEditView && !editing ? () => setEditing(true) : undefined}
               />
             )}
