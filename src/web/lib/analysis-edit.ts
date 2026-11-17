@@ -23,13 +23,20 @@ export function setChordAt(a: SongAnalysis, t: number, name: string): SongAnalys
   } else if (c && t < c.end) {
     chords.splice(i, 1, { ...c, end: t }, make(t, c.end))
   } else {
-    // between chords, or before the first: until the next chord starts
+    // where nothing sounds (between chords, before the first, after the last): until the next chord, or the song's end
     const next = chords[i + 1]
-    chords.splice(i + 1, 0, make(t, next ? next.t : t + 2))
+    chords.splice(i + 1, 0, make(t, next ? next.t : songEnd(a, t)))
   }
   return { ...a, chords }
 }
 
+/** Where the song ends, as far as the analysis knows (its last beat, section, line or chord), and never before `t`. */
+function songEnd(a: SongAnalysis, t: number): number {
+  const beats = a.beats
+  const lastBeat = beats.length > 0 ? beats[beats.length - 1].t + (beats.length > 1 ? beats[beats.length - 1].t - beats[beats.length - 2].t : 0.5) : 0
+  const ends = [lastBeat, ...a.sections.map((s) => s.end), ...a.lines.map((l) => l.end), ...a.chords.map((c) => c.end)]
+  return Math.max(t + 0.5, ...ends)
+}
 /**
  * Takes away the chord that starts at `t`: the chord before it carries on until the next change.
  * Does nothing when no chord starts there.

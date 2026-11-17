@@ -54,10 +54,12 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
     return grouped.map((beats, g) =>
       beats.map((b, k) => {
         const s = slots[firstOf[g] + k]
-        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || (k === 0 && s.on) ? s.on : '', held: !s.change && k === 0 && s.on !== '' }
+        // a held chord is shown again at the start of each bar, muted; not while editing, where only the changes show
+        const held = !editing && !s.change && k === 0 && s.on !== ''
+        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || held ? s.on : '', held }
       }),
     )
-  }, [analysis, level])
+  }, [analysis, level, editing])
   const starts = useMemo(() => bars.map((b) => ({ t: b[0].t })), [bars])
   // what the chord box says for a beat: on the beat, or on its half beat. A blank spot opens blank (the chord sounding there
   // came from an earlier beat), and saving it blank changes nothing.
