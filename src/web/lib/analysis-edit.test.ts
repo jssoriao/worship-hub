@@ -392,14 +392,25 @@ describe('tapping lines', () => {
 })
 
 describe('a chord put where nothing sounds', () => {
-  it('lasts until the next chord, or to the end of the song when there is none', () => {
-    const base: SongAnalysis = { ...song(), beats: Array.from({ length: 40 }, (_, i) => ({ t: i * 0.5, n: (i % 4) + 1 })), chords: [] }
-    const one = setChordAt(base, 3, 'D')
-    expect(one.chords).toHaveLength(1)
-    expect(one.chords[0].end).toBeCloseTo(20)
-    const two = setChordAt({ ...base, chords: [{ t: 10, end: 12, basic: 'G', simple: 'G', complex: 'G', bass: '' }] }, 3, 'D')
-    expect(two.chords.map((c) => [c.t, c.end])).toEqual([
-      [3, 10],
+  // 4 beats a bar, 0.5 s a beat: bars start at 0, 2, 4, ...
+  const base = (): SongAnalysis => ({ ...song(), beats: Array.from({ length: 40 }, (_, i) => ({ t: i * 0.5, n: (i % 4) + 1 })), chords: [] })
+  const g = { t: 10, end: 12, basic: 'G', simple: 'G', complex: 'G', bass: '' }
+  it('lasts to the end of its bar, or the next chord if that comes first, never to the end of the song', () => {
+    expect(setChordAt(base(), 3, 'D').chords.map((c) => [c.t, c.end])).toEqual([[3, 4]])
+    expect(setChordAt({ ...base(), chords: [{ ...g, t: 3.5 }] }, 3, 'D').chords.map((c) => [c.t, c.end])).toEqual([
+      [3, 3.5],
+      [3.5, 12],
+    ])
+  })
+  it('stretches the chord before it, so typing chords one after another holds each until the next', () => {
+    const a = setChordAt(setChordAt(base(), 2, 'A'), 6, 'G')
+    expect(a.chords.map((c) => [c.t, c.end, c.simple])).toEqual([
+      [2, 6, 'A'],
+      [6, 8, 'G'],
+    ])
+    const b = setChordAt({ ...base(), chords: [g] }, 3, 'D')
+    expect(b.chords.map((c) => [c.t, c.end])).toEqual([
+      [3, 4],
       [10, 12],
     ])
   })
