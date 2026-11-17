@@ -21,7 +21,7 @@ import { Alert } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
 import { ClickPanel, TempoKeyPanel, ViewPanel } from '../components/player/panels'
 import { TransportBar } from '../components/player/TransportBar'
-import { ChordGrid } from '../components/player/ChordGrid'
+import { BarPaste, ChordGrid, type BarClip } from '../components/player/ChordGrid'
 import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
 import { LyricsView } from '../components/player/LyricsView'
 import { LyricTools, type TapRequest } from '../components/player/LyricTools'
@@ -29,7 +29,7 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { addLine, approveLine, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { addLine, approveLine, copyBars, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { useIsMobileLayout } from '../lib/layout-context'
@@ -60,6 +60,8 @@ interface ViewPrefs {
   level: ChordLevel
   instrument: Instrument
   follow: boolean
+  /** the Chords view shows the words sung in each beat (off at first) */
+  chordLyrics: boolean
 }
 function savedViewPrefs(): ViewPrefs {
   try {
@@ -69,9 +71,10 @@ function savedViewPrefs(): ViewPrefs {
       level: v?.level && ['basic', 'simple', 'complex'].includes(v.level) ? v.level : 'simple',
       instrument: v?.instrument === 'piano' ? 'piano' : 'guitar',
       follow: v?.follow !== false,
+      chordLyrics: v?.chordLyrics === true,
     }
   } catch {
-    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true }
+    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true, chordLyrics: false }
   }
 }
 
@@ -202,7 +205,11 @@ export default function PracticePage() {
     setEditError('')
   }
   /** Ends edit mode and drops what was not saved (callers have asked first). */
+  // bars copied in the Chords view, waiting to be pasted (edit mode)
+  const [barClip, setBarClip] = useState<BarClip | null>(null)
+  const endPaste = useCallback(() => setBarClip(null), [])
   const exitEdit = () => {
+    setBarClip(null)
     setDraft(null)
     setEditing(false)
     setVersionsOpen(false)
@@ -801,6 +808,8 @@ export default function PracticePage() {
       onInstrument={(instrument) => setPrefs((p) => ({ ...p, instrument }))}
       follow={prefs.follow}
       onFollow={(follow) => setPrefs((p) => ({ ...p, follow }))}
+      chordLyrics={prefs.chordLyrics}
+      onChordLyrics={(chordLyrics) => setPrefs((p) => ({ ...p, chordLyrics }))}
     />
   )
   const tools = (
@@ -889,7 +898,9 @@ export default function PracticePage() {
         onDiscard={exitEdit}
         onVersions={showVersions}
       >
-        {prefs.view === 'lyrics' && (
+        {prefs.view === 'chords' ? (
+          barClip ? <BarPaste clip={barClip} onDone={endPaste} /> : null
+        ) : (
           <LyricTools
             position={pos}
             lines={shown.lines.map((l) => ({ t: l.t, words: l.words.map((w) => w.w) }))}
@@ -1148,10 +1159,14 @@ export default function PracticePage() {
                 onSeek={(t) => void seekTo(t)}
                 follow={prefs.follow && playing && !editing}
                 editing={editing}
+                lyrics={prefs.chordLyrics}
                 onChord={(t, name) => change((a) => setChordAt(a, t, name))}
                 onRemoveChord={(t) => change((a) => removeChordAt(a, t))}
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
                 onCopySection={(from, to) => change((a) => copySectionChords(a, from, to))}
+                clipboard={editing ? barClip : null}
+                onCopyBars={setBarClip}
+                onPasteBars={(to) => barClip && change((a) => copyBars(a, barClip.from, barClip.count, to))}
               />
             )}
             {heard && prefs.view === 'shapes' && <ShapesView analysis={heard} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}
