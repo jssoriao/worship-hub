@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { beatLength, halfBeatChord, halfBeatTime, parseAnalysis, type Chord, type SongAnalysis, type Word } from './analysis'
-import { copyBars, lyricsText, retimeLines, setAllLyrics } from './analysis-edit'
+import { copyBars, lyricsText, removeSectionAt, retimeLines, setAllLyrics, setSectionAt } from './analysis-edit'
 import { addLine, addLines, approveLine, removeChordAt, setChordAt, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, retimeWords, setLineText, splitLine, toStored } from './analysis-edit'
 
 // made-up words only
@@ -442,5 +442,15 @@ describe('copying bars', () => {
     const a = copyBars(base(), 0, 2, 5)
     expect(Math.max(...a.chords.map((c) => c.end))).toBeLessThanOrEqual(12.01)
     expect(copyBars(base(), 2, 1, 2)).toEqual(base())
+  })
+})
+
+describe('a section that starts a beat into its bar', () => {
+  const base = (): SongAnalysis => ({ ...song(), sections: [{ t: 0, end: 10.5, label: 'Verse' }, { t: 10.5, end: 20, label: 'Chorus' }] })
+  it('is renamed and removed by its own start (what the grid now passes), not the bar line', () => {
+    expect(removeSectionAt(base(), 10.5).sections).toEqual([{ t: 0, end: 20, label: 'Verse' }])
+    expect(setSectionAt(base(), 10.5, 'Bridge').sections.map((s) => s.label)).toEqual(['Verse', 'Bridge'])
+    // at the bar line (half a second earlier) it was not found
+    expect(removeSectionAt(base(), 10).sections).toHaveLength(2)
   })
 })
