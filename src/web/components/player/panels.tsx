@@ -117,6 +117,9 @@ export function ViewPanel(props: {
   onInstrument: (instrument: 'guitar' | 'piano') => void
   follow: boolean
   onFollow: (follow: boolean) => void
+  /** the Chords view shows the words sung in each beat */
+  chordLyrics: boolean
+  onChordLyrics: (on: boolean) => void
 }) {
   return (
     <div className="space-y-3 text-slate-300">
@@ -148,6 +151,10 @@ export function ViewPanel(props: {
       <div className="flex items-center justify-between gap-3">
         <span>Follow the song</span>
         <Toggle on={props.follow} onChange={props.onFollow} label="Follow the song" />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span>Lyrics in Chords</span>
+        <Toggle on={props.chordLyrics} onChange={props.onChordLyrics} label="Lyrics in Chords" />
       </div>
     </div>
   )

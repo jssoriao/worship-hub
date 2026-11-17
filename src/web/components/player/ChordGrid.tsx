@@ -12,6 +12,8 @@ interface Props {
   follow: boolean
   /** edit mode: tap a beat to set its chord, a bar number for its section */
   editing?: boolean
+  /** show under each beat the words sung in it */
+  lyrics?: boolean
   onChord?: (t: number, name: string) => void
   /** takes away the chord change that starts at `t` (a chord on the half beat) */
   onRemoveChord?: (t: number) => void
@@ -38,7 +40,7 @@ const COPY_COUNTS = [1, 2, 4, 8] as const
  * the chord on the beat on the left, the new one on the right. In edit mode a chord is placed "on the beat"
  * (the default) or on the half beat.
  */
-export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onRemoveChord, onSection, onCopySection, clipboard = null, onCopyBars, onPasteBars }: Props) {
+export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, lyrics = false, onChord, onRemoveChord, onSection, onCopySection, clipboard = null, onCopyBars, onPasteBars }: Props) {
   // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet; `k`/`half`: which beat of the bar, and whether the chord is on its half beat
   const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; k?: number; half?: boolean; t: number; value: string; empty?: boolean } | null>(null)
   // the section heading (by bar) whose copy box is open
@@ -61,16 +63,26 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
       if (halfName) last = halfName
       slots.push({ on, change, halfT: halfBeatTime(flat, i), half: halfChord && halfChange ? { name: halfName, t: halfChord.t, full: chordName(halfChord, 'complex') } : undefined })
     }
+    // the words sung in each beat (a word belongs to the beat it starts in)
+    const words: string[][] = flat.map(() => [])
+    if (lyrics) {
+      for (const line of analysis.lines) {
+        for (const w of line.words) {
+          const i = indexAt(flat, w.t + 0.05)
+          if (i >= 0) words[i].push(w.w)
+        }
+      }
+    }
     const firstOf = grouped.map((_, g) => grouped.slice(0, g).reduce((n, b) => n + b.length, 0))
     return grouped.map((beats, g) =>
       beats.map((b, k) => {
         const s = slots[firstOf[g] + k]
         // a held chord is shown again at the start of each bar, muted; not while editing, where only the changes show
         const held = !editing && !s.change && k === 0 && s.on !== ''
-        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || held ? s.on : '', held }
+        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || held ? s.on : '', held, words: words[firstOf[g] + k].join(' ') }
       }),
     )
-  }, [analysis, level, editing])
+  }, [analysis, level, editing, lyrics])
   const starts = useMemo(() => bars.map((b) => ({ t: b[0].t })), [bars])
   // what the chord box says for a beat: on the beat, or on its half beat. A blank spot opens blank (the chord sounding there
   // came from an earlier beat), and saving it blank changes nothing.
@@ -186,10 +198,16 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                 const tone = now ? 'border-highlight/70 bg-primary text-white' : k === 0 ? 'border-slate-500 bg-accent' : 'border-transparent bg-accent/70'
                 const press = (half: boolean) => (editing ? setOpen(boxFor(i, k, half)) : onSeek(half ? (b.half?.t ?? b.halfT) : b.t))
                 const label = `Bar ${i + 1}, beat ${k + 1}${b.name ? `, ${b.name}` : ''}${editing ? ': edit chord' : ''}`
+                const sung = lyrics && (
+                  <span aria-hidden={b.words ? undefined : true} className="mt-0.5 block h-4 truncate px-0.5 text-[11px] leading-4 text-muted-foreground mobile:text-xs">
+                    {b.words}
+                  </span>
+                )
                 if (b.half) {
                   // a chord changes between this beat and the next: the box splits, the new chord on the right
                   return (
-                    <div key={k} className={`flex h-11 overflow-hidden rounded-md border-l-2 text-sm font-semibold transition-colors ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}>
+                    <div key={k} className="min-w-0">
+                    <div className={`flex h-11 overflow-hidden rounded-md border-l-2 text-sm font-semibold transition-colors ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}>
                       <button type="button" onClick={() => press(false)} aria-label={label} className="flex min-w-0 flex-1 items-center justify-center px-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <span className="truncate">{b.name}</span>
                       </button>
@@ -202,18 +220,22 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                         <span className="truncate">{b.half.name}</span>
                       </button>
                     </div>
+                    {sung}
+                    </div>
                   )
                 }
                 return (
+                  <div key={k} className="min-w-0">
                   <button
-                    key={k}
                     type="button"
                     onClick={() => press(false)}
                     aria-label={label}
-                    className={`flex h-11 items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}
+                    className={`flex h-11 w-full items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}
                   >
                     {b.name}
                   </button>
+                  {sung}
+                  </div>
                 )
               })}
             </div>
