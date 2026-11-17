@@ -32,3 +32,19 @@ describe('rows of chords where nothing is sung', () => {
     expect(parseAnalysis({ ...toStored(song()), barsPerLine: 3 }).barsPerLine).toBeUndefined()
   })
 })
+
+describe('chords where a section starts', () => {
+  it('go under the new section, not the last word of the line before, even when that word is held over them', () => {
+    const a: SongAnalysis = {
+      ...song(),
+      chords: [chord(0, 'C'), chord(4, 'F'), chord(5, 'G')],
+      // the line's last word is held to 6 s, past the F and G that start the next section at 4 s
+      lines: [{ t: 0, end: 6, words: [{ w: 'la', t: 0, end: 1 }, { w: 'lo', t: 3, end: 6 }] }],
+      sections: [{ t: 0, end: 4, label: 'Verse' }, { t: 4, end: 12, label: 'Interlude' }],
+    }
+    const rows = buildRows(a, 'simple')
+    const line = rows.find((r) => r.kind === 'line')
+    expect(line && line.kind === 'line' ? line.tokens.flatMap((tk) => tk.chords) : []).toEqual(['C'])
+    expect(rows.map((r) => (r.kind === 'section' ? r.label : r.kind === 'chords' ? r.chords.join(' ') : 'line'))).toEqual(['Verse', 'line', 'Interlude', 'F G'])
+  })
+})
