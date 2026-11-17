@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { formatClock as clock } from '../../lib/chart'
 import { EditPopover } from './EditPopover'
+import { Segmented } from './panels'
 /** A tap lands a little after the singer starts, so the line is taken to start this much earlier (it then snaps to a beat). */
 const TAP_LEAD = 0.12
 /** Held at least this long (song time), a press also marks where the line or word ends: at the release. */
@@ -94,27 +96,41 @@ function HoldButton({ holding, press, release }: { holding: boolean; press: () =
 }
 /** A tap's time, with how long it was held. */
 const tapClock = (tap: Tap) => (tap.end !== undefined ? `${clock(tap.t)} +${(tap.end - tap.t).toFixed(1)}s` : clock(tap.t))
+/** A lyric line as the Tap panel needs it: where it starts and its words. */
+export interface TapLine {
+  t: number
+  words: string[]
+}
 interface Props {
   /** where the song is now, in seconds */
   position: number
+  /** the song's lyric lines, in order (for tapping their words) */
+  lines: TapLine[]
   onAddLine: (t: number, text: string) => void
   onAddLines: (items: { t: number; end?: number; text: string }[]) => void
+  /** set when the words of these lines start (and, when held, end) */
+  onRetimeLines: (lines: { index: number; taps: Tap[] }[]) => void
   /** start the song playing from here */
   onPlayFrom: (t: number) => void
   onPause: () => void
 }
-/** Edit mode of the Lyrics view: add a line at the playhead, or paste the lyrics and tap along to time them. */
-export function LyricTools({ position, onAddLine, onAddLines, onPlayFrom, onPause }: Props) {
+/**
+ * Edit mode of the Lyrics view: add a line at the playhead, or Tap: time new lines (paste them, tap each start) or the
+ * words of the lines already there (tap each word, line after line).
+ */
+export function LyricTools({ position, lines, onAddLine, onAddLines, onRetimeLines, onPlayFrom, onPause }: Props) {
   const [mode, setMode] = useState<'add' | 'tap' | null>(null)
+  // what Tap times: new lines, or the words of the lines there are (the default once there are some)
+  const [what, setWhat] = useState<'lines' | 'words'>(lines.length > 0 ? 'words' : 'lines')
   const close = () => setMode(null)
   return (
-    <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => setMode('add')}>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Button type="button" variant="outline" size="sm" aria-pressed={mode === 'add'} onClick={() => setMode(mode === 'add' ? null : 'add')}>
           Add line
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => setMode('tap')}>
-          Tap to sync
+        <Button type="button" variant="outline" size="sm" aria-pressed={mode === 'tap'} onClick={() => setMode(mode === 'tap' ? null : 'tap')}>
+          Tap
         </Button>
       </div>
       {mode === 'add' && (
@@ -129,7 +145,16 @@ export function LyricTools({ position, onAddLine, onAddLines, onPlayFrom, onPaus
           onCancel={close}
         />
       )}
-      {mode === 'tap' && <TapSync position={position} onAddLines={onAddLines} onPlayFrom={onPlayFrom} onPause={onPause} onClose={close} />}
+      {mode === 'tap' && (
+        <div role="dialog" aria-label="Tap" className="w-[min(36rem,calc(100vw-2rem))] space-y-2 rounded-xl border border-primary/40 bg-card p-3 text-left shadow-xl shadow-black/50">
+          {lines.length > 0 && <Segmented label="Tap" value={what} options={[['words', 'Words'], ['lines', 'New lines']]} onChange={setWhat} />}
+          {what === 'words' && lines.length > 0 ? (
+            <WordsTap key="words" position={position} lines={lines} onApply={onRetimeLines} onPlayFrom={onPlayFrom} onPause={onPause} onClose={close} />
+          ) : (
+            <TapSync key="lines" position={position} onAddLines={onAddLines} onPlayFrom={onPlayFrom} onPause={onPause} onClose={close} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -138,7 +163,7 @@ export function LyricTools({ position, onAddLine, onAddLines, onPlayFrom, onPaus
  * it until the line ends. Each tap fixes where that line starts (a hold also where it ends); its words are spread
  * over the line's time, to fix by ear.
  */
-function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Props, 'onAddLine'> & { onClose: () => void }) {
+function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Pick<Props, 'position' | 'onAddLines' | 'onPlayFrom' | 'onPause'> & { onClose: () => void }) {
   const [text, setText] = useState('')
   const lines = useMemo(() => text.split('\n').map((l) => l.trim()).filter(Boolean), [text])
   const finish = (list: Tap[]) => {
@@ -161,7 +186,7 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
   }, [onPause, onClose])
   const next = taps ? lines[taps.length] : undefined
   return (
-    <div role="dialog" aria-label="Tap to sync" className="rounded-xl border border-primary/40 bg-card p-3 shadow-xl shadow-black/50">
+    <div>
       {!taps ? (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Paste the lyrics, one line per row. The song plays from where it is now.</p>
@@ -226,44 +251,45 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
     </div>
   )
 }
-/** Tapping the words of a line starts the song this long before the line, to hear it coming. */
+/** Tapping words starts the song this long before the first line, to hear it coming. */
 const WORD_TAP_LEAD_IN = 2
+/** The line sounding at `t` (or the first one), as an index in `lines`. */
+const lineAt = (lines: TapLine[], t: number) => Math.max(0, lines.findLastIndex((l) => l.t <= t + 0.1))
 /**
- * Times the words of one line: press Start (the song plays from just before the line) and tap (the button or the
- * space bar) as each word is sung, or hold it until the word ends. Backspace or Undo takes the last tap back; the last word's tap, or Done, keeps
- * them (Done with only some words tapped moves the rest along with the last one).
+ * Times the words of the lines there are, from a chosen line on: press Start (the song plays from just before it) and
+ * tap (the button or the space bar) as each word is sung, or hold it until the word ends. The words run on into the
+ * next line. Backspace or Undo takes the last tap back; Done keeps them (the untapped words of the last line tapped
+ * move along with it, later lines stay as they are). Esc cancels.
  */
-export function WordTap({
-  words,
-  lineStart,
+function WordsTap({
   position,
+  lines,
   onApply,
   onPlayFrom,
   onPause,
   onClose,
 }: {
-  words: string[]
-  /** where the line starts now, in seconds */
-  lineStart: number
   position: number
-  onApply: (taps: Tap[]) => void
+  lines: TapLine[]
+  onApply: (lines: { index: number; taps: Tap[] }[]) => void
   onPlayFrom: (t: number) => void
   onPause: () => void
   onClose: () => void
 }) {
+  const [from, setFrom] = useState(() => lineAt(lines, position))
+  // every word from the chosen line on, in order
+  const flat = useMemo(() => lines.slice(from).flatMap((l, j) => l.words.map((w, k) => ({ line: from + j, k, w }))), [lines, from])
   const stop = () => {
     onPause()
     onClose()
   }
   const finish = (list: Tap[]) => {
-    onApply(list)
+    const byLine = new Map<number, Tap[]>()
+    list.forEach((tap, n) => byLine.set(flat[n].line, [...(byLine.get(flat[n].line) ?? []), tap]))
+    onApply([...byLine].map(([index, taps]) => ({ index, taps })))
     stop()
   }
-  const { taps, start: begin, holding, press, release, undo } = useHoldTap(position, words.length, finish)
-  const start = () => {
-    begin()
-    onPlayFrom(Math.max(0, lineStart - WORD_TAP_LEAD_IN))
-  }
+  const { taps, start: begin, holding, press, release, undo } = useHoldTap(position, flat.length, finish)
   const running = taps !== null
   const stopRef = useRef(stop)
   useEffect(() => {
@@ -279,20 +305,47 @@ export function WordTap({
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   const done = taps?.length ?? 0
+  // the line the next word is in (the last one once all are tapped)
+  const now = flat[Math.min(done, flat.length - 1)]?.line ?? from
+  const leadIn = Math.max(0, lines[from].t - WORD_TAP_LEAD_IN)
+  const offset = flat.findIndex((x) => x.line === now)
   return (
-    <div role="dialog" aria-label="Tap the words" className="mt-1 rounded-xl border border-primary/40 bg-card p-3 shadow-xl shadow-black/50">
-      <p className="text-xs text-muted-foreground">
-        {running ? `Tap as each word starts, or hold until it ends (space bar). ${done} of ${words.length}` : `The song plays from ${clock(Math.max(0, lineStart - WORD_TAP_LEAD_IN))}.`}
-      </p>
-      <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xl leading-snug">
-        {words.map((w, k) => (
-          <span key={k} className={`inline-flex flex-col ${running && k === done ? 'text-white underline decoration-highlight decoration-2 underline-offset-4' : k < done ? 'text-highlight' : 'text-muted-foreground'}`}>
-            <span>{w}</span>
-            <span className="text-[11px] tabular-nums text-muted-foreground">{taps && k < done ? tapClock(taps[k]) : '\u00a0'}</span>
-          </span>
-        ))}
-      </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+    <div className="space-y-2">
+      {!running ? (
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Start a line earlier" disabled={from === 0} onClick={() => setFrom(from - 1)}>
+            <ChevronLeftIcon />
+          </Button>
+          <p className="min-w-0 flex-1 truncate text-sm">
+            <span className="text-muted-foreground">From {clock(lines[from].t)} · </span>
+            {lines[from].words.join(' ')}
+          </p>
+          <Button type="button" variant="outline" size="icon-sm" aria-label="Start a line later" disabled={from === lines.length - 1} onClick={() => setFrom(from + 1)}>
+            <ChevronRightIcon />
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Tap as each word starts, or hold until it ends (space bar). {done} of {flat.length}
+        </p>
+      )}
+      {running && (
+        <>
+          <p className="flex flex-wrap gap-x-2 gap-y-1 text-xl leading-snug">
+            {lines[now].words.map((w, k) => {
+              const n = offset + k
+              return (
+                <span key={k} className={`inline-flex flex-col ${n === done ? 'text-white underline decoration-highlight decoration-2 underline-offset-4' : n < done ? 'text-highlight' : 'text-muted-foreground'}`}>
+                  <span>{w}</span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">{taps && n < done ? tapClock(taps[n]) : '\u00a0'}</span>
+                </span>
+              )
+            })}
+          </p>
+          {lines[now + 1] && <p className="truncate text-sm text-muted-foreground">{lines[now + 1].words.join(' ')}</p>}
+        </>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
         {running ? (
           <>
             <HoldButton holding={holding} press={press} release={release} />
@@ -304,7 +357,14 @@ export function WordTap({
             </Button>
           </>
         ) : (
-          <Button type="button" size="sm" onClick={start}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              begin()
+              onPlayFrom(leadIn)
+            }}
+          >
             Start
           </Button>
         )}
