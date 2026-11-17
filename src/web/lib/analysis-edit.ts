@@ -366,6 +366,7 @@ export function toStored(a: SongAnalysis) {
     chords: a.chords.map((c) => [ms(c.t), ms(c.end), c.basic, c.simple, c.complex, c.bass]),
     sections: a.sections.map((s) => [ms(s.t), ms(s.end), s.label]),
     lines: a.lines.map((l) => [ms(l.t), ms(l.end), l.words.map((w) => (w.doubt === undefined ? [w.w, ms(w.t), ms(w.end)] : [w.w, ms(w.t), ms(w.end), Math.round(w.doubt * 100)]))]),
+    ...(a.barsPerLine ? { barsPerLine: a.barsPerLine } : {}),
   }
 }
 

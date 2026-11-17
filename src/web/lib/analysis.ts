@@ -40,7 +40,12 @@ export interface SongAnalysis {
   chords: Chord[]
   sections: { t: number; end: number; label: string }[]
   lines: Line[]
+  /** how many bars of chords with no words (an intro, an instrumental) go on one row of the Lyrics view; 2 when not set */
+  barsPerLine?: BarsPerLine
 }
+/** The choices for `barsPerLine`. */
+export const BARS_PER_LINE = [1, 2, 4] as const
+export type BarsPerLine = (typeof BARS_PER_LINE)[number]
 
 type Raw = {
   key?: unknown
@@ -49,6 +54,7 @@ type Raw = {
   chords?: unknown
   sections?: unknown
   lines?: unknown
+  barsPerLine?: unknown
 }
 const arr = (v: unknown): unknown[][] => (Array.isArray(v) ? v.filter((x): x is unknown[] => Array.isArray(x)) : [])
 const sec = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v / 1000 : 0)
@@ -84,6 +90,7 @@ export function parseAnalysis(raw: Raw): SongAnalysis {
       end: sec(l[1]),
       words: arr(l[2]).map((w) => ({ w: str(w[0]), t: sec(w[1]), end: sec(w[2]), ...(typeof w[3] === 'number' ? { doubt: w[3] / 100 } : {}) })),
     })),
+    ...(BARS_PER_LINE.includes(raw.barsPerLine as BarsPerLine) ? { barsPerLine: raw.barsPerLine as BarsPerLine } : {}),
   }
 }
 

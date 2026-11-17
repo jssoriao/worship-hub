@@ -7,6 +7,7 @@ import { useIsMobileLayout } from '../../lib/layout-context'
 import { Hint } from '../Hint'
 import { MobileSheet } from '../MobileSheet'
 import { formatClock as clock } from '../../lib/chart'
+import { BARS_PER_LINE, type BarsPerLine } from '../../lib/analysis'
 import { EditPopover } from './EditPopover'
 import { Segmented } from './panels'
 /** A tap lands a little after the singer starts, so the line is taken to start this much earlier (it then snaps to a beat). */
@@ -128,12 +129,15 @@ interface Props {
   onPlayFrom: (t: number) => void
   onPause: () => void
   request?: TapRequest | null
+  /** bars of chords with no words on one row, and changing it */
+  barsPerLine: BarsPerLine
+  onBarsPerLine: (n: BarsPerLine) => void
 }
 /**
  * Edit mode of the Lyrics view: Add line (at the playhead), All lyrics (all the words in one box, to paste or change),
  * and Tap: time the lines there are, by line or by word, from a chosen line to the end in one pass.
  */
-export function LyricTools({ position, lines, text, onAddLine, onAllLyrics, onRetimeLines, onRetimeWords, onPlayFrom, onPause, request }: Props) {
+export function LyricTools({ position, lines, text, onAddLine, onAllLyrics, onRetimeLines, onRetimeWords, onPlayFrom, onPause, request, barsPerLine, onBarsPerLine }: Props) {
   const [mode, setMode] = useState<'add' | 'all' | 'tap' | null>(null)
   const [what, setWhat] = useState<'lines' | 'words'>('words')
   // the line Tap starts at when it opens (the playhead's line, or the line asked for)
@@ -173,6 +177,12 @@ export function LyricTools({ position, lines, text, onAddLine, onAllLyrics, onRe
           >
             Tap
           </Button>
+        </Hint>
+        <Hint text="Bars of chords per row, where nothing is sung">
+          <div className="flex items-center gap-1.5">
+            <span aria-hidden="true" className="text-xs text-muted-foreground">Bars</span>
+            <Segmented label="Bars of chords per row" size="sm" value={String(barsPerLine) as `${BarsPerLine}`} options={BARS_PER_LINE.map((n) => [`${n}`, `${n}`])} onChange={(v) => onBarsPerLine(Number(v) as BarsPerLine)} />
+          </div>
         </Hint>
       </div>
       {mode === 'add' && (
