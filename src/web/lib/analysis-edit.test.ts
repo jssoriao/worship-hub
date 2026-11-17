@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { beatLength, halfBeatChord, halfBeatTime, parseAnalysis, type Chord, type SongAnalysis, type Word } from './analysis'
+import { lyricsText, retimeLines, setAllLyrics } from './analysis-edit'
 import { addLine, addLines, approveLine, removeChordAt, setChordAt, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, retimeWords, setLineText, splitLine, toStored } from './analysis-edit'
 
 // made-up words only
@@ -332,5 +333,60 @@ describe('holding a tap', () => {
   it('never lets a held line run into the next tapped line', () => {
     const a = addLines(song(), [{ t: 20, end: 30, text: 'aa' }, { t: 22, text: 'bb' }])
     expect(a.lines.find((l) => l.words[0].w === 'aa')!.end).toBeLessThanOrEqual(22)
+  })
+})
+
+describe('all the lyrics in one box', () => {
+  it('writes one line per row, with a blank row before a new section', () => {
+    const a = { ...song(), sections: [{ t: 0, end: 4, label: 'Verse' }, { t: 4, end: 12, label: 'Chorus' }] }
+    expect(lyricsText(a)).toBe('one twu three\n\nfour five\nsicks seven')
+  })
+  it('keeps unchanged lines exactly, doubts included', () => {
+    const a = setAllLyrics(song(), 'one twu three\n\nfour five\nsicks seven\n')
+    expect(a.lines).toEqual(song().lines)
+  })
+  it('gives a changed line the time of the line it replaces', () => {
+    const a = setAllLyrics(song(), 'one twu three\nfour and five\nsicks seven')
+    expect(a.lines[1].t).toBe(5)
+    expect(a.lines[1].words.map((w) => w.w)).toEqual(['four', 'and', 'five'])
+    expect(a.lines[0]).toEqual(song().lines[0])
+    expect(a.lines[2]).toEqual(song().lines[2])
+  })
+  it('puts an added line in the gap between its neighbours, in order', () => {
+    const a = setAllLyrics(song(), 'one twu three\nnew line here\nfour five\nsicks seven')
+    expect(a.lines).toHaveLength(4)
+    expect(a.lines[1].t).toBeGreaterThanOrEqual(3.5)
+    expect(a.lines[1].end).toBeLessThanOrEqual(5)
+    expect(a.lines.map((l) => l.t)).toEqual([...a.lines.map((l) => l.t)].sort((x, y) => x - y))
+  })
+  it('takes a whole new song, and drops lines that are gone', () => {
+    const a = setAllLyrics(song(), 'aa bb\ncc\ndd ee ff\ngg\nhh')
+    expect(a.lines.map((l) => l.words.map((w) => w.w).join(' '))).toEqual(['aa bb', 'cc', 'dd ee ff', 'gg', 'hh'])
+    for (let k = 1; k < a.lines.length; k++) expect(a.lines[k].t).toBeGreaterThan(a.lines[k - 1].t)
+    expect(setAllLyrics(song(), 'one twu three').lines).toEqual([song().lines[0]])
+  })
+})
+describe('tapping lines', () => {
+  it('moves each tapped line to its tap, keeping the spacing of its words', () => {
+    const a = retimeLines(song(), 1, [{ t: 4 }])
+    expect(a.lines[1].words.map((w) => [w.t, w.end])).toEqual([
+      [4, 4.5],
+      [5, 5.5],
+    ])
+    expect(a.lines[0]).toEqual(song().lines[0])
+  })
+  it('squeezes a line that would run into the next tapped one, and stretches a held one', () => {
+    const a = retimeLines(song(), 0, [{ t: 0 }, { t: 1.25 }])
+    expect(a.lines[0].end).toBeLessThanOrEqual(1.25)
+    const b = retimeLines(song(), 1, [{ t: 5, end: 7.5 }])
+    expect(b.lines[1].end).toBeCloseTo(7.5)
+  })
+  it('moves the later lines along when the last tapped line runs past them', () => {
+    const a = retimeLines(song(), 0, [{ t: 7 }])
+    expect(a.lines[0].end).toBeCloseTo(9.5)
+    expect(a.lines[1].t).toBe(11)
+    expect(a.lines[2].t).toBe(14)
+    const b = retimeLines(song(), 0, [{ t: 0.5 }])
+    expect(b.lines[1]).toEqual(song().lines[1])
   })
 })

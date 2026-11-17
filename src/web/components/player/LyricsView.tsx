@@ -23,6 +23,8 @@ interface Props {
   onListen?: (t: number, end: number) => void
   /** copy the lyrics of section `from` onto section `to` (indexes in the analysis' sections) */
   onCopyLyrics?: (from: number, to: number) => void
+  /** open Tap on the words of line `index` (edit mode) */
+  onTapWords?: (index: number) => void
   /** with no lyrics yet: start edit mode from the empty page (editors only) */
   onStartEdit?: () => void
 }
@@ -91,7 +93,7 @@ function buildRows(a: SongAnalysis, level: ChordLevel): Row[] {
 }
 
 /** Chords over the lyrics, by section; the line being sung is bright and its words light up as they are sung. */
-export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onStartEdit }: Props) {
+export function LyricsView({ analysis, level, position, onSeek, follow, editing = false, onLine, onDeleteLine, onJoinLine, onApproveLine, onListen, onCopyLyrics, onTapWords, onStartEdit }: Props) {
   const [open, setOpen] = useState<number | null>(null)
   // the section whose heading was tapped (edit mode), as an index in analysis.sections
   const [openSection, setOpenSection] = useState<number | null>(null)
@@ -125,7 +127,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
 
   if (analysis.lines.length === 0)
     return editing ? (
-      <p className="mx-auto mt-3 max-w-4xl pb-32 text-center text-sm text-muted-foreground">No lyrics yet. Add line or Tap, above.</p>
+      <p className="mx-auto mt-3 max-w-4xl pb-32 text-center text-sm text-muted-foreground">No lyrics yet. Add line or All lyrics, above.</p>
     ) : (
       <div className="mt-6 flex flex-col items-center gap-3">
         <p className="text-center text-sm text-muted-foreground">No lyrics for this song.</p>
@@ -255,6 +257,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               initial={text}
               actions={[
                 ...(onListen ? [{ label: 'Listen', onClick: () => onListen(Math.max(0, r.t - 0.5), r.end + 0.8) }] : []),
+                ...(onTapWords ? [{ label: 'Tap the words', onClick: () => (setOpen(null), setReviewing(false), onTapWords(r.index)) }] : []),
                 ...(check ? [{ label: 'Approve', onClick: () => (onApproveLine?.(r.index), next(r.index + 1)) }] : []),
                 ...(checking ? [{ label: 'Skip', onClick: () => setCursor(r.index + 1) }] : []),
                 { label: 'Join with next', onClick: () => (onJoinLine?.(r.index), next(r.index)) },
