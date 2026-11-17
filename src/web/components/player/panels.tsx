@@ -44,16 +44,17 @@ export function Stepper(props: { label: string; value: string; changed: boolean;
 }
 
 /** A small set of choices, one picked. */
-export function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void }) {
+/** `size` sm: as tall as the small buttons beside it in a bar (a fixed size, not stretched on phones). */
+export function Segmented<T extends string>({ label, value, options, onChange, size }: { label: string; value: T; options: [T, string][]; onChange: (v: T) => void; size?: 'sm' }) {
   return (
-    <div role="group" aria-label={label} className="flex rounded-lg border border-input p-0.5">
+    <div role="group" aria-label={label} className={`flex rounded-lg border border-input p-0.5 ${size === 'sm' ? 'text-sm' : ''}`}>
       {options.map(([v, text]) => (
         <button
           key={v}
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
-          className={`rounded-md px-2.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring mobile:flex-1 mobile:py-2.5 ${value === v ? 'bg-primary text-white' : 'text-slate-300'}`}
+          className={`rounded-md px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring ${size === 'sm' ? 'h-7 mobile:h-10' : 'py-1 mobile:flex-1 mobile:py-2.5'} ${value === v ? 'bg-primary text-white' : 'text-slate-300'}`}
         >
           {text}
         </button>
