@@ -17,7 +17,7 @@ export const deleteService = (id: string) => call(servicesApi[':serviceId'].$del
 /** One line sent when saving the setlist: a church song, a song to add to the list, or a plain line. */
 export interface ItemDraft {
   id?: string
-  kind: 'song' | 'item' | 'header' | 'position'
+  kind: 'song' | 'item' | 'header' | 'assignment'
   songId?: string | null
   newSong?: { title: string; artist?: string | null; key?: string | null }
   title?: string | null

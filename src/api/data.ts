@@ -12,7 +12,7 @@ import { ID_ALPHABET } from '../shared/ids.ts'
 import { isUniqueViolation, type Db } from '../db/client.ts'
 import { isRole, type Role } from '../shared/permissions.ts'
 import { DEFAULT_PLAN, isPlanId, PLANS, type PlanId } from '../shared/plans.ts'
-import { sameName } from '../shared/positions.ts'
+import { sameName } from '../shared/assignments.ts'
 
 export type { Db }
 
@@ -599,7 +599,7 @@ export interface ItemRow {
   archived: boolean
   notes: string | null
   links: ItemLink[]
-  /** who serves (a position); a member shows by their current name, one who left the church by the name saved */
+  /** who serves (an assignment); a member shows by their current name, one who left the church by the name saved */
   people: ItemPerson[]
 }
 export interface ServiceFull extends ServiceRow {
@@ -736,7 +736,7 @@ export async function deleteService(db: Db, orgId: string, serviceId: string): P
 }
 /**
  * A new service on another date (and time) with the same title, notes and setlist (songs, keys, notes,
- * links, positions and the people in them). 'taken' = a service already has that date and time; null = no such service.
+ * links, assignments and the people in them). 'taken' = a service already has that date and time; null = no such service.
  */
 export async function cloneService(db: Db, orgId: string, userId: string, serviceId: string, when: { date: string; time: string | null }): Promise<ServiceFull | null | 'taken'> {
   const source = await getService(db, orgId, serviceId)
@@ -771,7 +771,7 @@ export interface ItemInput {
   key: string | null
   notes: string | null
   links: ItemLink[]
-  /** only for a position: members by user id, anyone else by the name typed */
+  /** only for an assignment: members by user id, anyone else by the name typed */
   people: ItemPerson[]
 }
 /**
@@ -795,16 +795,16 @@ export async function saveItems(db: Db, orgId: string, serviceId: string, items:
     for (const song of found) if (!song.archived || already.has(song.id)) titles.set(song.id, song.title)
     if (titles.size !== wanted.length) return 'song'
   }
-  // a member in a position must be a member of THIS church; they are saved by the name they have now
-  const asked = items.flatMap((i) => (i.kind === 'position' ? i.people.flatMap((p) => (p.userId ? [p.userId] : [])) : []))
+  // a member in an assignment must be a member of THIS church; they are saved by the name they have now
+  const asked = items.flatMap((i) => (i.kind === 'assignment' ? i.people.flatMap((p) => (p.userId ? [p.userId] : [])) : []))
   const names = await memberNames(db, orgId, asked)
   if ([...new Set(asked)].some((id) => !names.has(id))) return 'person'
   const peopleOf = (item: ItemInput): ItemPerson[] => {
-    if (item.kind !== 'position') return []
+    if (item.kind !== 'assignment') return []
     const out: ItemPerson[] = []
     for (const p of item.people) {
       const person: ItemPerson = p.userId ? { userId: p.userId, name: names.get(p.userId)! } : { userId: null, name: p.name }
-      // the same person twice in one position is one person
+      // the same person twice in one assignment is one person
       if (!out.some((o) => (person.userId ? o.userId === person.userId : o.userId === null && sameName(o.name, person.name)))) out.push(person)
     }
     return out
@@ -818,8 +818,8 @@ export async function saveItems(db: Db, orgId: string, serviceId: string, items:
     for (const [position, item] of items.entries()) {
       const song = item.kind === 'song' ? item.songId : null
       const header = item.kind === 'header'
-      // a header and a position have no key or links; a header has no notes either
-      const bare = header || item.kind === 'position'
+      // a header and an assignment have no key or links; a header has no notes either
+      const bare = header || item.kind === 'assignment'
       const values = {
         position,
         kind: item.kind,
