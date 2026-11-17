@@ -901,6 +901,8 @@ export default function PracticePage() {
             onPlayFrom={(t) => void playFrom(t)}
             onPause={() => void pauseNow()}
             request={tapRequest}
+            barsPerLine={shown.barsPerLine ?? 2}
+            onBarsPerLine={(n) => change((a) => ({ ...a, barsPerLine: n }))}
           />
         )}
       </EditBar>
