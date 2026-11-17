@@ -110,7 +110,11 @@ function DesktopTransport(props: Props) {
             className="absolute inset-0 w-full cursor-pointer opacity-0"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4">
+        {/* one row (song, play buttons, tools) when the bar is wide enough for all three, else the play buttons go on a
+            second row. It follows the bar's own width (an open sidebar narrows it), not the window's. The tools'
+            column is never narrower than its buttons, so the song title gives way first. */}
+        <div className="@container">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 @min-[44rem]:grid @min-[44rem]:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] @min-[44rem]:px-4">
           {/* the song */}
           <div className="order-1 min-w-0 flex-1">
             {onPracticePage ? (
@@ -134,7 +138,7 @@ function DesktopTransport(props: Props) {
           </div>
 
           {/* playback */}
-          <div className="order-3 flex w-full flex-col items-center md:order-2 md:w-auto">
+          <div className="order-3 flex w-full flex-col items-center @min-[44rem]:order-2 @min-[44rem]:w-auto">
             <div className="flex items-center gap-1 sm:gap-2">
               <Popover
                 label={`Volume ${Math.round(volume * 100)}%`}
@@ -213,7 +217,8 @@ function DesktopTransport(props: Props) {
           </div>
 
           {/* tools */}
-          <div className="order-2 flex shrink-0 items-center justify-end gap-1 md:order-3">{tools}</div>
+          <div className="order-2 flex shrink-0 items-center justify-end gap-1 @min-[44rem]:order-3">{tools}</div>
+        </div>
         </div>
       </div>
     </div>
