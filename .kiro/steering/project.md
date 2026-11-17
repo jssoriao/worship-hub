@@ -238,7 +238,9 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
 - Deploys should run `pnpm db:migrate --target prod` before `pnpm cf:deploy` (GitHub Actions, planned).
 
 ## Service positions
-- A service line of kind `position` (title + `people` jsonb `[{userId|null, name}]`, max 8): who plays or serves where.
+- Assignments: service lines of kind `position` (title + `people` jsonb `[{userId|null, name}]`, max 8): who plays or serves where.
+  They are not part of the order: the service page shows them in their own Assignments tab (`?tab=assignments`), and the
+  Home card lists them under the setlist. Moving one only passes other assignments.
   Suggestions are the code constant `src/shared/positions.ts` (no table); any free-text title works. A member is saved by
   `userId` and shown by their current name; someone who left the church shows as plain text. `GET /api/church/services/people`
   (planners, names only) feeds the picker. `ChoicePicker` (popover, bottom sheet on mobile) and `PositionPeople` are the shared parts.

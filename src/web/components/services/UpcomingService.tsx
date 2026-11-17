@@ -37,9 +37,10 @@ export function UpcomingService() {
   const service = loaded.service
   if (!service) return null
   const now = today()
-  // songs and plain lines are numbered; headers and positions are not
-  const counted = (kind: string) => kind !== 'header' && kind !== 'position'
-  const numbers = service.items.map((item, i) => (counted(item.kind) ? service.items.slice(0, i + 1).filter((l) => counted(l.kind)).length : 0))
+  // assignments are listed apart from the order; songs and plain lines are numbered, headers are not
+  const order = service.items.filter((item) => item.kind !== 'position')
+  const assignments = service.items.filter((item) => item.kind === 'position')
+  const numbers = order.map((item, i) => (item.kind !== 'header' ? order.slice(0, i + 1).filter((l) => l.kind !== 'header').length : 0))
   return (
     <Card className="gap-4 border-highlight/30 p-5 sm:p-6">
       <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
@@ -61,24 +62,15 @@ export function UpcomingService() {
           </Link>
         </div>
       </div>
-      {service.items.length === 0 ? (
+      {order.length === 0 ? (
         <p className="text-sm text-muted-foreground">No setlist yet.</p>
       ) : (
         <ol className="divide-y divide-border/60 border-t border-border/60">
-          {service.items.map((item, i) => {
+          {order.map((item, i) => {
             if (item.kind === 'header') {
               return (
                 <li key={item.id} className="pt-3 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase mobile:text-sm">
                   {item.title}
-                </li>
-              )
-            }
-            if (item.kind === 'position') {
-              return (
-                <li key={item.id} className="flex min-h-9 items-baseline gap-3 py-1 text-sm mobile:text-base">
-                  <span className="w-5 shrink-0" />
-                  <span className="w-32 shrink-0 truncate text-muted-foreground">{item.title}</span>
-                  <span className="min-w-0 flex-1">{item.people.length > 0 ? item.people.map((p) => p.name).join(', ') : <span className="text-muted-foreground">Nobody yet</span>}</span>
                 </li>
               )
             }
@@ -104,6 +96,19 @@ export function UpcomingService() {
             )
           })}
         </ol>
+      )}
+      {assignments.length > 0 && (
+        <div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase mobile:text-sm">Assignments</p>
+          <ul className="mt-1 divide-y divide-border/60">
+            {assignments.map((item) => (
+              <li key={item.id} className="flex min-h-9 items-baseline gap-3 py-1 text-sm mobile:min-h-12 mobile:items-center mobile:text-base">
+                <span className="w-32 shrink-0 truncate text-muted-foreground">{item.title}</span>
+                <span className="min-w-0 flex-1">{item.people.length > 0 ? item.people.map((p) => p.name).join(', ') : <span className="text-muted-foreground">Nobody yet</span>}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </Card>
   )
