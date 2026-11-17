@@ -8,8 +8,10 @@ import { call, songsApi } from './api'
 const EPS = 0.02
 
 /**
- * Sets the chord from beat `t` until the next chord change ("" clears it: no chord). A chord
- * already starting at `t` is replaced; otherwise the chord sounding there is split.
+ * Sets the chord from beat `t` ("" clears it: no chord). A chord already starting at `t` is replaced; a chord sounding
+ * there is split (the new one lasts as long as it did). Where nothing sounds, the new chord lasts to the end of its bar
+ * (or the next chord, if that comes first), so a song still being written is not filled to its end; and the chord
+ * before it, if it stopped short, now lasts until this one (typing A at bar 10 and G at bar 12 holds A through bar 11).
  */
 export function setChordAt(a: SongAnalysis, t: number, name: string): SongAnalysis {
   const trimmed = name.trim()
@@ -23,13 +25,20 @@ export function setChordAt(a: SongAnalysis, t: number, name: string): SongAnalys
   } else if (c && t < c.end) {
     chords.splice(i, 1, { ...c, end: t }, make(t, c.end))
   } else {
-    // where nothing sounds (between chords, before the first, after the last): until the next chord, or the song's end
+    // where nothing sounds (between chords, before the first, after the last): to the end of the bar, or the next chord
     const next = chords[i + 1]
-    chords.splice(i + 1, 0, make(t, next ? next.t : songEnd(a, t)))
+    if (c) chords[i] = { ...c, end: t }
+    chords.splice(i + 1, 0, make(t, Math.min(next ? next.t : Infinity, barEnd(a, t))))
   }
   return { ...a, chords }
 }
 
+/** Where the bar holding `t` ends (the next bar's first beat, or the song's end); two seconds on when there are no beats. */
+function barEnd(a: SongAnalysis, t: number): number {
+  if (a.beats.length === 0) return t + 2
+  const next = a.beats.find((b) => b.n === 1 && b.t > t + EPS)
+  return next ? next.t : songEnd(a, t)
+}
 /** Where the song ends, as far as the analysis knows (its last beat, section, line or chord), and never before `t`. */
 function songEnd(a: SongAnalysis, t: number): number {
   const beats = a.beats
