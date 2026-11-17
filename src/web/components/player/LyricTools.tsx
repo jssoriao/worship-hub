@@ -5,11 +5,100 @@ import { formatClock as clock } from '../../lib/chart'
 import { EditPopover } from './EditPopover'
 /** A tap lands a little after the singer starts, so the line is taken to start this much earlier (it then snaps to a beat). */
 const TAP_LEAD = 0.12
+/** Held at least this long (song time), a press also marks where the line or word ends: at the release. */
+const HOLD_MIN = 0.25
+/** One tap: where it starts, and where it ends when it was held. */
+export interface Tap {
+  t: number
+  end?: number
+}
+/**
+ * Tap or hold along with the song, `count` times. A press marks a start; let go after `HOLD_MIN` and the release marks
+ * the end as well (a quick tap leaves the end to the next start). The space bar works like the button. `finish` gets
+ * the taps after the last release (or Done).
+ */
+function useHoldTap(position: number, count: number, finish: (taps: Tap[]) => void) {
+  const [taps, setTaps] = useState<Tap[] | null>(null)
+  // the song time of the press being held, if one is
+  const [held, setHeld] = useState<number | null>(null)
+  const where = useRef(position)
+  useEffect(() => {
+    where.current = position
+  }, [position])
+  const press = () => {
+    if (!taps || held !== null) return
+    setHeld(where.current)
+  }
+  const release = () => {
+    if (!taps || held === null) return
+    const now = where.current
+    const tap: Tap = { t: Math.max(0, held - TAP_LEAD) }
+    if (now - held >= HOLD_MIN) tap.end = Math.max(tap.t, now - TAP_LEAD)
+    setHeld(null)
+    const next = [...taps, tap]
+    if (next.length >= count) finish(next)
+    else setTaps(next)
+  }
+  const undo = () => {
+    if (held !== null) setHeld(null)
+    else setTaps((t) => (t && t.length > 0 ? t.slice(0, -1) : t))
+  }
+  const keys = useRef({ press, release, undo })
+  useEffect(() => {
+    keys.current = { press, release, undo }
+  })
+  const running = taps !== null
+  useEffect(() => {
+    if (!running) return
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (!e.repeat) keys.current.press()
+      } else if (e.key === 'Backspace') {
+        e.preventDefault()
+        keys.current.undo()
+      }
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return
+      e.preventDefault()
+      keys.current.release()
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [running])
+  return { taps, start: () => setTaps([]), holding: held !== null, press, release, undo }
+}
+/** The big Tap button: down marks a start, up (after a hold) an end. No long-press menu or scrolling on touch screens. */
+function HoldButton({ holding, press, release }: { holding: boolean; press: () => void; release: () => void }) {
+  return (
+    <Button
+      type="button"
+      size="lg"
+      className={`min-w-40 touch-none select-none ${holding ? 'ring-2 ring-highlight' : ''}`}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        press()
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {holding ? 'Holding…' : 'Tap'}
+    </Button>
+  )
+}
+/** A tap's time, with how long it was held. */
+const tapClock = (tap: Tap) => (tap.end !== undefined ? `${clock(tap.t)} +${(tap.end - tap.t).toFixed(1)}s` : clock(tap.t))
 interface Props {
   /** where the song is now, in seconds */
   position: number
   onAddLine: (t: number, text: string) => void
-  onAddLines: (items: { t: number; text: string }[]) => void
+  onAddLines: (items: { t: number; end?: number; text: string }[]) => void
   /** start the song playing from here */
   onPlayFrom: (t: number) => void
   onPause: () => void
@@ -45,53 +134,31 @@ export function LyricTools({ position, onAddLine, onAddLines, onPlayFrom, onPaus
   )
 }
 /**
- * Paste the lyrics, one line per row, press Start and tap (the button or the space bar) as each line begins.
- * Each tap fixes where that line starts; its words are spread over the time to the next tap, to fix by ear.
+ * Paste the lyrics, one line per row, press Start and tap (the button or the space bar) as each line begins, or hold
+ * it until the line ends. Each tap fixes where that line starts (a hold also where it ends); its words are spread
+ * over the line's time, to fix by ear.
  */
 function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Props, 'onAddLine'> & { onClose: () => void }) {
   const [text, setText] = useState('')
-  // null while the lyrics are pasted; the start of each line tapped so far once it runs
-  const [taps, setTaps] = useState<number[] | null>(null)
   const lines = useMemo(() => text.split('\n').map((l) => l.trim()).filter(Boolean), [text])
-  const where = useRef(position)
-  useEffect(() => {
-    where.current = position
-  }, [position])
-  const finish = (list: number[]) => {
-    onAddLines(list.map((t, k) => ({ t, text: lines[k] })))
+  const finish = (list: Tap[]) => {
+    onAddLines(list.map((tap, k) => ({ ...tap, text: lines[k] })))
     onPause()
     onClose()
   }
-  const tap = () => {
-    if (!taps) return
-    const next = [...taps, Math.max(0, where.current - TAP_LEAD)]
-    if (next.length >= lines.length) finish(next)
-    else setTaps(next)
-  }
-  const undo = () => setTaps((t) => (t && t.length > 0 ? t.slice(0, -1) : t))
-  // keys while tapping: space taps, Backspace takes the last tap back. Esc stops (and the page leaves the edit box alone, see role="dialog")
-  const keys = useRef({ tap, undo })
-  useEffect(() => {
-    keys.current = { tap, undo }
-  })
-  const running = taps !== null
+  // null while the lyrics are pasted; each line tapped so far once it runs
+  const { taps, start, holding, press, release, undo } = useHoldTap(position, lines.length, finish)
+  // Esc stops (and the page leaves the edit box alone, see role="dialog")
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onPause()
-        onClose()
-      } else if (running && e.code === 'Space' && !e.repeat) {
-        e.preventDefault()
-        keys.current.tap()
-      } else if (running && e.key === 'Backspace') {
-        e.preventDefault()
-        keys.current.undo()
-      }
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onPause()
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [running, onPause, onClose])
+  }, [onPause, onClose])
   const next = taps ? lines[taps.length] : undefined
   return (
     <div role="dialog" aria-label="Tap to sync" className="rounded-xl border border-primary/40 bg-card p-3 shadow-xl shadow-black/50">
@@ -105,7 +172,7 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
               size="sm"
               disabled={lines.length === 0}
               onClick={() => {
-                setTaps([])
+                start()
                 onPlayFrom(Math.max(0, position))
               }}
             >
@@ -120,15 +187,13 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Tap as the line begins (space bar). {taps.length} of {lines.length}
+            Tap as the line begins, or hold until it ends (space bar). {taps.length} of {lines.length}
           </p>
           <p className="text-2xl font-semibold leading-snug text-white">{next}</p>
           {lines[taps.length + 1] && <p className="text-lg text-muted-foreground">{lines[taps.length + 1]}</p>}
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="lg" className="min-w-40" onClick={tap}>
-              Tap
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={taps.length === 0} onClick={undo}>
+            <HoldButton holding={holding} press={press} release={release} />
+            <Button type="button" variant="outline" size="sm" disabled={taps.length === 0 && !holding} onClick={undo}>
               Undo
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={taps.length === 0} onClick={() => finish(taps)}>
@@ -148,9 +213,9 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
           </div>
           {taps.length > 0 && (
             <ol className="max-h-28 space-y-0.5 overflow-auto text-xs text-muted-foreground">
-              {taps.map((t, k) => (
+              {taps.map((tap, k) => (
                 <li key={k} className="flex gap-2">
-                  <span className="tabular-nums text-highlight">{clock(t)}</span>
+                  <span className="tabular-nums text-highlight">{tapClock(tap)}</span>
                   <span className="truncate">{lines[k]}</span>
                 </li>
               ))}
@@ -165,7 +230,7 @@ function TapSync({ position, onAddLines, onPlayFrom, onPause, onClose }: Omit<Pr
 const WORD_TAP_LEAD_IN = 2
 /**
  * Times the words of one line: press Start (the song plays from just before the line) and tap (the button or the
- * space bar) as each word is sung. Backspace or Undo takes the last tap back; the last word's tap, or Done, keeps
+ * space bar) as each word is sung, or hold it until the word ends. Backspace or Undo takes the last tap back; the last word's tap, or Done, keeps
  * them (Done with only some words tapped moves the rest along with the last one).
  */
 export function WordTap({
@@ -181,77 +246,57 @@ export function WordTap({
   /** where the line starts now, in seconds */
   lineStart: number
   position: number
-  onApply: (starts: number[]) => void
+  onApply: (taps: Tap[]) => void
   onPlayFrom: (t: number) => void
   onPause: () => void
   onClose: () => void
 }) {
-  const [taps, setTaps] = useState<number[] | null>(null)
-  const where = useRef(position)
-  useEffect(() => {
-    where.current = position
-  }, [position])
   const stop = () => {
     onPause()
     onClose()
   }
-  const finish = (list: number[]) => {
+  const finish = (list: Tap[]) => {
     onApply(list)
     stop()
   }
+  const { taps, start: begin, holding, press, release, undo } = useHoldTap(position, words.length, finish)
   const start = () => {
-    setTaps([])
+    begin()
     onPlayFrom(Math.max(0, lineStart - WORD_TAP_LEAD_IN))
   }
-  const tap = () => {
-    if (!taps) return
-    const next = [...taps, Math.max(0, where.current - TAP_LEAD)]
-    if (next.length >= words.length) finish(next)
-    else setTaps(next)
-  }
-  const undo = () => setTaps((t) => (t && t.length > 0 ? t.slice(0, -1) : t))
-  const keys = useRef({ tap, undo, stop })
-  useEffect(() => {
-    keys.current = { tap, undo, stop }
-  })
   const running = taps !== null
+  const stopRef = useRef(stop)
+  useEffect(() => {
+    stopRef.current = stop
+  })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        keys.current.stop()
-      } else if (running && e.code === 'Space' && !e.repeat) {
-        e.preventDefault()
-        keys.current.tap()
-      } else if (running && e.key === 'Backspace') {
-        e.preventDefault()
-        keys.current.undo()
-      }
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      stopRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [running])
+  }, [])
   const done = taps?.length ?? 0
   return (
     <div role="dialog" aria-label="Tap the words" className="mt-1 rounded-xl border border-primary/40 bg-card p-3 shadow-xl shadow-black/50">
       <p className="text-xs text-muted-foreground">
-        {running ? `Tap as each word is sung (space bar). ${done} of ${words.length}` : `The song plays from ${clock(Math.max(0, lineStart - WORD_TAP_LEAD_IN))}.`}
+        {running ? `Tap as each word starts, or hold until it ends (space bar). ${done} of ${words.length}` : `The song plays from ${clock(Math.max(0, lineStart - WORD_TAP_LEAD_IN))}.`}
       </p>
       <p className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xl leading-snug">
         {words.map((w, k) => (
           <span key={k} className={`inline-flex flex-col ${running && k === done ? 'text-white underline decoration-highlight decoration-2 underline-offset-4' : k < done ? 'text-highlight' : 'text-muted-foreground'}`}>
             <span>{w}</span>
-            <span className="text-[11px] tabular-nums text-muted-foreground">{taps && k < done ? clock(taps[k]) : '\u00a0'}</span>
+            <span className="text-[11px] tabular-nums text-muted-foreground">{taps && k < done ? tapClock(taps[k]) : '\u00a0'}</span>
           </span>
         ))}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {running ? (
           <>
-            <Button type="button" size="lg" className="min-w-40" onClick={tap}>
-              Tap
-            </Button>
-            <Button type="button" variant="outline" size="sm" disabled={done === 0} onClick={undo}>
+            <HoldButton holding={holding} press={press} release={release} />
+            <Button type="button" variant="outline" size="sm" disabled={done === 0 && !holding} onClick={undo}>
               Undo
             </Button>
             <Button type="button" variant="outline" size="sm" disabled={done === 0} onClick={() => finish(taps)}>

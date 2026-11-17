@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CopyFrom } from './CopyFrom'
 import { EditPopover } from './EditPopover'
-import { LyricTools, WordTap } from './LyricTools'
+import { LyricTools, WordTap, type Tap } from './LyricTools'
 import { chordName, indexAt, type ChordLevel, type SongAnalysis } from '../../lib/analysis'
 import { sectionLines } from '../../lib/analysis-edit'
 
@@ -27,12 +27,12 @@ interface Props {
   /** add a lyric line at a moment of the song (edit mode) */
   onAddLine?: (t: number, text: string) => void
   /** add several lyric lines at once, each starting where it was tapped */
-  onAddLines?: (items: { t: number; text: string }[]) => void
+  onAddLines?: (items: { t: number; end?: number; text: string }[]) => void
   /** start the song playing from a moment / stop it, for tapping along */
   onPlayFrom?: (t: number) => void
   onPause?: () => void
-  /** set when each word of line `index` starts, from taps (seconds, in order) */
-  onRetimeLine?: (index: number, starts: number[]) => void
+  /** set when each word of line `index` starts (and, when held, ends), from taps in order */
+  onRetimeLine?: (index: number, taps: Tap[]) => void
   /** with no lyrics yet: start edit mode from the empty page (editors only) */
   onStartEdit?: () => void
 }
@@ -271,7 +271,7 @@ export function LyricsView({ analysis, level, position, onSeek, follow, editing 
               words={r.tokens.map((tk) => tk.w)}
               lineStart={r.t}
               position={position}
-              onApply={(starts) => onRetimeLine(r.index, starts)}
+              onApply={(taps) => onRetimeLine(r.index, taps)}
               onPlayFrom={onPlayFrom}
               onPause={onPause}
               onClose={() => setTapping(null)}
