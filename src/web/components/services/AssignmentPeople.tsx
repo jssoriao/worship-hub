@@ -1,20 +1,20 @@
 import { PlusIcon, XIcon } from 'lucide-react'
-import { PEOPLE_MAX } from '../../../shared/positions'
+import { PEOPLE_MAX } from '../../../shared/assignments'
 import type { ItemPerson } from '../../lib/services-api'
 import { ChoicePicker } from '../ChoicePicker'
 
 /**
- * Who serves in a position: their names as chips, and (for someone who plans the service) a picker to add a member
+ * Who serves in an assignment: their names as chips, and (for someone who plans the service) a picker to add a member
  * of the church or a name typed in, and a way to take each one off. Everyone else just reads the names.
  */
-export function PositionPeople({
+export function AssignmentPeople({
   title,
   people,
   members,
   editable,
   onChange,
 }: {
-  /** the position's name, for screen readers */
+  /** the assignment's name, for screen readers */
   title: string
   people: ItemPerson[]
   /** the church's people to pick from (null while loading) */

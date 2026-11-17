@@ -11,14 +11,14 @@ import { UnsavedDialog } from '../components/player/EditControls'
 import { MiniPlayer } from '../components/services/MiniPlayer'
 import { NewSongForm, type NewSong } from '../components/services/NewSongForm'
 import { ServiceDialog } from '../components/services/ServiceDialog'
-import { PositionPeople } from '../components/services/PositionPeople'
+import { AssignmentPeople } from '../components/services/AssignmentPeople'
 import { SongChart } from '../components/services/SongChart'
 import { ChoicePicker } from '../components/ChoicePicker'
 import { practicePath, serviceKeyShift } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { mediaOf } from '../lib/media'
 import { useNowPlaying } from '../lib/now-playing-context'
-import { DEFAULT_POSITIONS, sameName } from '../../shared/positions'
+import { DEFAULT_ASSIGNMENTS, sameName } from '../../shared/assignments'
 import { formatDate, formatTime, isHttps, linkText, serviceName } from '../lib/services'
 import { cloneService, deleteService, getService, listPeople, saveItems, updateService, type ItemDraft, type ItemPerson, type ServiceFull, type ServiceItem } from '../lib/services-api'
 import { fetchLibrary, type LibrarySong } from '../lib/sources'
@@ -39,12 +39,12 @@ interface Line {
   archived: boolean
   notes: string
   links: { url: string; label: string }[]
-  /** who serves (a position) */
+  /** who serves (an assignment) */
   people: ItemPerson[]
 }
 type Tab = 'order' | 'songs' | 'assignments'
 /** assignments (who serves where) are kept apart from the order of the service */
-const isAssignment = (line: { kind: string }) => line.kind === 'position'
+const isAssignment = (line: { kind: string }) => line.kind === 'assignment'
 /** Moves line `i` past the next line of the same list (order or assignments), up or down. */
 const moveIn = <T extends { kind: string }>(ls: T[], i: number, by: -1 | 1): T[] => {
   const same = isAssignment(ls[i])
@@ -69,8 +69,8 @@ const draftOf = (line: Line): ItemDraft => ({
   people: line.people,
 })
 const keyOf = (line: Line) => line.key || line.songKey
-/** songs and plain items are numbered in the order; headers and positions are not */
-const numbered = (line: Line) => line.kind !== 'header' && line.kind !== 'position'
+/** songs and plain items are numbered in the order; headers and assignments are not */
+const numbered = (line: Line) => line.kind !== 'header' && line.kind !== 'assignment'
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Try again.')
 const iconButton = 'size-7'
 /** Delete with a second click to confirm. */
@@ -113,7 +113,7 @@ export default function ServicePage() {
   const again = useRef(false)
   const [busy, setBusy] = useState(false)
   const [songs, setSongs] = useState<LibrarySong[] | null>(null)
-  // the church's people, to pick who serves in a position (people who plan only)
+  // the church's people, to pick who serves in an assignment (people who plan only)
   const [members, setMembers] = useState<{ id: string; name: string }[] | null>(null)
   const [selected, setSelected] = useState('')
   // the selected song's media list is folded away (its chart stays)
@@ -272,8 +272,8 @@ export default function ServicePage() {
     if (!song) return
     update((ls) => [...ls, { uid: uid(), kind: 'song', songId: song.id, title: song.title, key: '', songKey: song.key ?? null, archived: false, notes: '', links: [], people: [] }])
   }
-  const addPosition = (name: string) => {
-    update((ls) => [...ls, { uid: uid(), kind: 'position', songId: null, title: name.trim(), key: '', songKey: null, archived: false, notes: '', links: [], people: [] }])
+  const addAssignment = (name: string) => {
+    update((ls) => [...ls, { uid: uid(), kind: 'assignment', songId: null, title: name.trim(), key: '', songKey: null, archived: false, notes: '', links: [], people: [] }])
   }
   /** A song from the New song panel. `listed`: also add it to the church's list when saved; otherwise it is only a name in this service. */
   const addNew = (song: NewSong, listed: boolean) => {
@@ -374,21 +374,21 @@ export default function ServicePage() {
         <Card className="mt-3 gap-0 overflow-hidden py-0">
           <ol className="divide-y divide-border">
             {lines.map((line, i) => (tab === 'assignments') !== isAssignment(line) ? null : (
-              <li key={line.uid} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${line.kind === 'header' ? 'bg-muted/40' : ''} ${line.kind === 'position' ? 'mobile:flex-wrap mobile:py-2' : ''}`}>
+              <li key={line.uid} className={`flex items-center gap-2 px-3 py-1.5 text-sm ${line.kind === 'header' ? 'bg-muted/40' : ''} ${line.kind === 'assignment' ? 'mobile:flex-wrap mobile:py-2' : ''}`}>
                 {!isAssignment(line) && <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">{numbered(line) ? lines.slice(0, i + 1).filter(numbered).length : ''}</span>}
-                <span className={`min-w-0 truncate ${line.kind === 'position' ? 'w-40 shrink-0 text-muted-foreground mobile:w-auto mobile:flex-1' : 'flex-1'} ${line.kind === 'header' ? 'text-xs font-semibold tracking-wide text-muted-foreground uppercase' : 'font-medium'}`}>
+                <span className={`min-w-0 truncate ${line.kind === 'assignment' ? 'w-40 shrink-0 text-muted-foreground mobile:w-auto mobile:flex-1' : 'flex-1'} ${line.kind === 'header' ? 'text-xs font-semibold tracking-wide text-muted-foreground uppercase' : 'font-medium'}`}>
                   {line.title}
                   {line.newSong && <span className="ml-2 text-xs font-normal text-muted-foreground">New song</span>}
                 </span>
-                {line.kind === 'position' && (
+                {line.kind === 'assignment' && (
                   // on phones the people go on their own line, under the role and its buttons
                   <span className="flex min-w-0 flex-1 mobile:order-last mobile:basis-full">
-                    <PositionPeople title={line.title} people={line.people} members={members} editable={canPlan} onChange={(people) => type(i, { people })} />
+                    <AssignmentPeople title={line.title} people={line.people} members={members} editable={canPlan} onChange={(people) => type(i, { people })} />
                   </span>
                 )}
                 {canPlan ? (
                   <>
-                    {line.kind !== 'header' && line.kind !== 'position' && (
+                    {line.kind !== 'header' && line.kind !== 'assignment' && (
                       <>
                     <Input aria-label={`Key of ${line.title}`} maxLength={12} placeholder={line.songKey ?? 'Key'} className="h-7 w-16 text-center" value={line.key} onChange={(e) => type(i, { key: e.target.value })} {...field} />
                     <Input aria-label={`Notes for ${line.title}`} maxLength={1000} placeholder="Notes" className="h-7 w-64" value={line.notes} onChange={(e) => type(i, { notes: e.target.value })} {...field} />
@@ -408,7 +408,7 @@ export default function ServicePage() {
                   </>
                 ) : (
                   <>
-                    {line.kind !== 'position' && line.notes && <span className="max-w-64 truncate text-xs text-muted-foreground">{line.notes}</span>}
+                    {line.kind !== 'assignment' && line.notes && <span className="max-w-64 truncate text-xs text-muted-foreground">{line.notes}</span>}
                     {line.kind === 'item' && line.links.length > 0 && <LinkIcon aria-label="Has links" className="size-3 shrink-0 text-muted-foreground" />}
                     {keyOf(line) && <span className="shrink-0 rounded-full border border-input px-2 py-0.5 text-xs">{keyOf(line)}</span>}
                   </>
@@ -542,9 +542,9 @@ export default function ServicePage() {
           <ChoicePicker
             title="Add an assignment"
             placeholder="Search, or type a role"
-            choices={DEFAULT_POSITIONS.filter((p) => !lines.some((l) => l.kind === 'position' && sameName(l.title, p))).map((p) => ({ id: p, label: p }))}
-            onChoose={(c) => addPosition(c.label)}
-            onFree={addPosition}
+            choices={DEFAULT_ASSIGNMENTS.filter((p) => !lines.some((l) => l.kind === 'assignment' && sameName(l.title, p))).map((p) => ({ id: p, label: p }))}
+            onChoose={(c) => addAssignment(c.label)}
+            onFree={addAssignment}
             triggerLabel="Add an assignment"
             trigger={
               <>

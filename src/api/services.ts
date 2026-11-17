@@ -13,7 +13,7 @@
  *
  * A line is `{ id?, kind?, ... }` where kind is `song` (the default when a song is given), `item` (a plain
  * line: prayer, offering, announcement; needs a `title`) or `header` (groups the lines under it; needs a
- * `title`, takes no key, notes or links). A `position` is a place somebody serves ("Lead Vocals", "Closing Prayer"; needs a
+ * `title`, takes no key, notes or links). An `assignment` is a place somebody serves ("Lead Vocals", "Closing Prayer"; needs a
  * `title`, takes notes and `people`, no key or links); `people` is `[{ userId }]` for a member of the church or
  * `[{ name }]` for anyone else, up to 8. A song line is `{ songId, key?, notes?, links? }`, or
  * `{ newSong: { title, artist?, key? } }` to add a chart-only song to the church's list at the same time.
@@ -22,7 +22,7 @@
 import { Hono } from 'hono'
 import * as z from 'zod'
 import { isId } from '../shared/ids.ts'
-import { NAME_MAX, PEOPLE_MAX } from '../shared/positions.ts'
+import { NAME_MAX, PEOPLE_MAX } from '../shared/assignments.ts'
 import * as data from './data.ts'
 import { church, fail, need, sameOrigin, type AppEnv } from './tenant.ts'
 import { body, only } from './validate.ts'
@@ -81,7 +81,7 @@ const person = z
 const item = z
   .object({
     id: z.string().optional(),
-    kind: z.enum(['song', 'item', 'header', 'position']).optional(),
+    kind: z.enum(['song', 'item', 'header', 'assignment']).optional(),
     songId: z.string().nullable().optional(),
     newSong: z.object({ title: z.string().trim().min(1, 'Give the song a title').max(TITLE_MAX), artist: text(TITLE_MAX).optional(), key: text(12).optional() }).optional(),
     title: text(TITLE_MAX).optional(),
@@ -90,7 +90,7 @@ const item = z
     links: z.array(link).max(MAX_LINKS, 'Too many links on one song').optional().default([]),
     people: z.array(person).max(PEOPLE_MAX, 'Too many people in one assignment').optional().default([]),
   })
-  .refine((v) => (v.kind === 'item' || v.kind === 'header' || v.kind === 'position' ? Boolean(v.title) : Boolean(v.songId) || Boolean(v.newSong) || Boolean(v.title)), {
+  .refine((v) => (v.kind === 'item' || v.kind === 'header' || v.kind === 'assignment' ? Boolean(v.title) : Boolean(v.songId) || Boolean(v.newSong) || Boolean(v.title)), {
     message: 'Give every line a name or a song',
   })
 const setlist = z.object({ items: z.array(item).max(MAX_ITEMS, 'That is a long setlist') })

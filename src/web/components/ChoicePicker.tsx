@@ -2,7 +2,7 @@ import { useState, type ComponentProps, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { sameName } from '../../shared/positions'
+import { sameName } from '../../shared/assignments'
 import { useIsMobileLayout } from '../lib/layout-context'
 import { MobileSheet } from './MobileSheet'
 
@@ -27,7 +27,7 @@ interface Props {
 }
 /**
  * Pick one of a list (type to narrow it), or type something new. A popover on desktop and a bottom sheet in the
- * mobile layout, with the same contents. Used for the positions of a service and for the people in them.
+ * mobile layout, with the same contents. Used for the assignments of a service and for the people in them.
  */
 export function ChoicePicker({ title, placeholder, choices, onChoose, onFree, trigger, triggerLabel, variant = 'outline', size = 'sm', className }: Props) {
   const mobile = useIsMobileLayout()

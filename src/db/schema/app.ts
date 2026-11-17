@@ -96,11 +96,11 @@ export const joinRequests = pgTable(
 
 /**
  * What a line of a service's order is: a song, a plain item (prayer, offering, announcement), a header that groups
- * the lines under it, or a position (a place somebody serves, with its people).
+ * the lines under it, or an assignment (a place somebody serves, with its people).
  */
-export type ItemKind = 'song' | 'item' | 'header' | 'position'
+export type ItemKind = 'song' | 'item' | 'header' | 'assignment'
 /**
- * Someone serving in a position: a member of the church (`userId`, shown by their current name) or a name typed in
+ * Someone serving in an assignment: a member of the church (`userId`, shown by their current name) or a name typed in
  * (`userId` null). For a member `name` is only what it was when saved, kept in case they leave the church.
  */
 export interface ItemPerson {
@@ -154,8 +154,8 @@ export const serviceItems = pgTable(
     musicKey: text('music_key'),
     notes: text('notes'),
     links: jsonb('links').$type<ItemLink[]>().notNull().default([]),
-    /** who serves, for a position; empty for every other kind */
+    /** who serves, for an assignment; empty for every other kind */
     people: jsonb('people').$type<ItemPerson[]>().notNull().default([]),
   },
-  (t) => [index('service_items_service_id_position_idx').on(t.serviceId, t.position), check('service_items_kind_check', sql`${t.kind} in ('song', 'item', 'header', 'position')`)],
+  (t) => [index('service_items_service_id_position_idx').on(t.serviceId, t.position), check('service_items_kind_check', sql`${t.kind} in ('song', 'item', 'header', 'assignment')`)],
 )

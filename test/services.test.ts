@@ -207,20 +207,20 @@ describe('setlist', () => {
   })
 })
 
-describe('positions', () => {
+describe('assignments', () => {
   const put = (id: string, items: unknown[], who = 'editor') => call(as(who), 'PUT', `/${id}/items`, { items })
   const read = async (id: string) => ((await (await call(as('editor'), 'GET', `/${id}`)).json()) as { service: { items: { kind: string; title: string; people: { userId: string | null; name: string }[] }[] } }).service.items
   it('saves a member and a free-text person and reads them back', async () => {
     const { service } = await make()
-    const res = await put(service.id, [{ kind: 'position', title: 'Drums', people: [{ userId: 'member', name: 'x' }, { userId: null, name: ' Guest ' }] }])
+    const res = await put(service.id, [{ kind: 'assignment', title: 'Drums', people: [{ userId: 'member', name: 'x' }, { userId: null, name: ' Guest ' }] }])
     expect(res.status).toBe(200)
     const [item] = await read(service.id)
-    expect(item.kind).toBe('position')
+    expect(item.kind).toBe('assignment')
     expect(item.people).toEqual([{ userId: 'member', name: 'member' }, { userId: null, name: 'Guest' }])
   })
   it('shows a renamed member by their current name, and a person who left as plain text', async () => {
     const { service } = await make()
-    await put(service.id, [{ kind: 'position', title: 'Bass Guitar', people: [{ userId: 'member', name: 'member' }] }])
+    await put(service.id, [{ kind: 'assignment', title: 'Bass Guitar', people: [{ userId: 'member', name: 'member' }] }])
     await pg.query(`update users set name = 'New Name' where id = 'member'`)
     expect((await read(service.id))[0].people).toEqual([{ userId: 'member', name: 'New Name' }])
     await pg.query(`delete from members where user_id = 'member'`)
@@ -228,20 +228,20 @@ describe('positions', () => {
   })
   it('refuses people who are not in this church', async () => {
     const { service } = await make()
-    expect((await put(service.id, [{ kind: 'position', title: 'Audio', people: [{ userId: 'bob', name: 'Bob' }] }])).status).toBe(400)
-    expect((await put(service.id, [{ kind: 'position', title: 'Audio', people: [{ userId: 'nobody', name: 'N' }] }])).status).toBe(400)
+    expect((await put(service.id, [{ kind: 'assignment', title: 'Audio', people: [{ userId: 'bob', name: 'Bob' }] }])).status).toBe(400)
+    expect((await put(service.id, [{ kind: 'assignment', title: 'Audio', people: [{ userId: 'nobody', name: 'N' }] }])).status).toBe(400)
   })
   it('needs a title and at most 8 people, and ignores the same person twice', async () => {
     const { service } = await make()
-    expect((await put(service.id, [{ kind: 'position', title: '', people: [] }])).status).toBe(400)
+    expect((await put(service.id, [{ kind: 'assignment', title: '', people: [] }])).status).toBe(400)
     const nine = Array.from({ length: 9 }, (_, i) => ({ userId: null, name: `P${i}` }))
-    expect((await put(service.id, [{ kind: 'position', title: 'Audio', people: nine }])).status).toBe(400)
-    expect((await put(service.id, [{ kind: 'position', title: 'Audio', people: [{ userId: 'editor', name: 'a' }, { userId: 'editor', name: 'a' }, { userId: null, name: 'Sam' }, { userId: null, name: 'sam' }] }])).status).toBe(200)
+    expect((await put(service.id, [{ kind: 'assignment', title: 'Audio', people: nine }])).status).toBe(400)
+    expect((await put(service.id, [{ kind: 'assignment', title: 'Audio', people: [{ userId: 'editor', name: 'a' }, { userId: 'editor', name: 'a' }, { userId: null, name: 'Sam' }, { userId: null, name: 'sam' }] }])).status).toBe(200)
     expect((await read(service.id))[0].people).toHaveLength(2)
   })
   it('copies people when a service is cloned', async () => {
     const { service } = await make()
-    await put(service.id, [{ kind: 'position', title: 'Lead Vocals', people: [{ userId: null, name: 'Guest' }] }])
+    await put(service.id, [{ kind: 'assignment', title: 'Lead Vocals', people: [{ userId: null, name: 'Guest' }] }])
     const res = await call(as('editor'), 'POST', `/${service.id}/clone`, { date: '2031-06-01' })
     const copy = ((await res.json()) as { service: { id: string } }).service
     expect((await read(copy.id))[0].people).toEqual([{ userId: null, name: 'Guest' }])

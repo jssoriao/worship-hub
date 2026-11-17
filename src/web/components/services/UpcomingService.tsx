@@ -38,8 +38,8 @@ export function UpcomingService() {
   if (!service) return null
   const now = today()
   // assignments are listed apart from the order; songs and plain lines are numbered, headers are not
-  const order = service.items.filter((item) => item.kind !== 'position')
-  const assignments = service.items.filter((item) => item.kind === 'position')
+  const order = service.items.filter((item) => item.kind !== 'assignment')
+  const assignments = service.items.filter((item) => item.kind === 'assignment')
   const numbers = order.map((item, i) => (item.kind !== 'header' ? order.slice(0, i + 1).filter((l) => l.kind !== 'header').length : 0))
   return (
     <Card className="gap-4 border-highlight/30 p-5 sm:p-6">
