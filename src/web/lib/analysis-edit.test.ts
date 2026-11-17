@@ -390,3 +390,17 @@ describe('tapping lines', () => {
     expect(b.lines[1]).toEqual(song().lines[1])
   })
 })
+
+describe('a chord put where nothing sounds', () => {
+  it('lasts until the next chord, or to the end of the song when there is none', () => {
+    const base: SongAnalysis = { ...song(), beats: Array.from({ length: 40 }, (_, i) => ({ t: i * 0.5, n: (i % 4) + 1 })), chords: [] }
+    const one = setChordAt(base, 3, 'D')
+    expect(one.chords).toHaveLength(1)
+    expect(one.chords[0].end).toBeCloseTo(20)
+    const two = setChordAt({ ...base, chords: [{ t: 10, end: 12, basic: 'G', simple: 'G', complex: 'G', bass: '' }] }, 3, 'D')
+    expect(two.chords.map((c) => [c.t, c.end])).toEqual([
+      [3, 10],
+      [10, 12],
+    ])
+  })
+})
