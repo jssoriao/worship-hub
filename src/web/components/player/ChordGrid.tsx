@@ -34,8 +34,8 @@ export interface BarClip {
 const COPY_COUNTS = [1, 2, 4, 8] as const
 
 /**
- * The song as bars of beat boxes: a chord where it changes (a held chord shown faintly at the start
- * of a bar), the box of the beat being played lit, section names where they start. Tap a box to
+ * The song as bars of beat boxes: a chord only where it changes (as on a chord sheet, a held chord is not repeated in
+ * later bars), the box of the beat being played lit, section names where they start. Tap a box to
  * play from that beat. A chord that changes between two beats (on the "and") splits its beat's box in two:
  * the chord on the beat on the left, the new one on the right. In edit mode a chord is placed "on the beat"
  * (the default) or on the half beat.
@@ -77,12 +77,11 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
     return grouped.map((beats, g) =>
       beats.map((b, k) => {
         const s = slots[firstOf[g] + k]
-        // a held chord is shown again at the start of each bar, muted; not while editing, where only the changes show
-        const held = !editing && !s.change && k === 0 && s.on !== ''
-        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change || held ? s.on : '', held, words: words[firstOf[g] + k].join(' ') }
+        // a chord shows only where it starts, as on a chord sheet: a bar where it is held looks empty
+        return { t: b.t, halfT: s.halfT, half: s.half, name: s.change ? s.on : '', words: words[firstOf[g] + k].join(' ') }
       }),
     )
-  }, [analysis, level, editing, lyrics])
+  }, [analysis, level, lyrics])
   const starts = useMemo(() => bars.map((b) => ({ t: b[0].t })), [bars])
   // what the chord box says for a beat: on the beat, or on its half beat. A blank spot opens blank (the chord sounding there
   // came from an earlier beat), and saving it blank changes nothing.
@@ -207,7 +206,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                   // a chord changes between this beat and the next: the box splits, the new chord on the right
                   return (
                     <div key={k} className="min-w-0">
-                    <div className={`flex h-11 overflow-hidden rounded-md border-l-2 text-sm font-semibold transition-colors ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}>
+                    <div className={`flex h-11 overflow-hidden rounded-md border-l-2 text-sm font-semibold transition-colors ${tone} `}>
                       <button type="button" onClick={() => press(false)} aria-label={label} className="flex min-w-0 flex-1 items-center justify-center px-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         <span className="truncate">{b.name}</span>
                       </button>
@@ -230,7 +229,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                     type="button"
                     onClick={() => press(false)}
                     aria-label={label}
-                    className={`flex h-11 w-full items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${tone} ${b.held && !now ? 'text-muted-foreground' : ''}`}
+                    className={`flex h-11 w-full items-center justify-center rounded-md border-l-2 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${tone}`}
                   >
                     {b.name}
                   </button>
