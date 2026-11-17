@@ -116,6 +116,12 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
     })
     return map
   }, [analysis.sections, starts])
+  // where the section shown at bar `i` starts (it may start a beat or so into the bar), else the bar's first beat: a
+  // rename or Remove then finds that section, not a new one at the bar line
+  const sectionStart = (i: number) => {
+    const k = sectionIndexAt.get(i)
+    return k === undefined ? bars[i][0].t : analysis.sections[k].t
+  }
   const bar = indexAt(starts, position)
   const beat = bar >= 0 ? indexAt(bars[bar], position) : -1
   const barRefs = useRef<(HTMLElement | null)[]>([])
@@ -182,7 +188,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
             ) : editing ? (
               <button
                 type="button"
-                onClick={() => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' })}
+                onClick={() => setOpen({ kind: 'section', bar: i, t: sectionStart(i), value: sectionAt.get(i) ?? '' })}
                 aria-label={`Section at bar ${i + 1}`}
                 className="w-6 shrink-0 self-center rounded text-right text-xs tabular-nums text-highlight underline decoration-dotted outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -252,7 +258,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                     ...(open.half && !open.empty ? [{ label: 'Remove', onClick: () => (onRemoveChord?.(open.t), setOpen(null)) }] : []),
                     // a bar's first beat can also start (or rename) the section, as the bar number does
                     ...(!open.half && open.k === 0 && onSection
-                      ? [{ label: sectionAt.has(i) ? 'Rename section' : 'Start a section', onClick: () => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' }) }]
+                      ? [{ label: sectionAt.has(i) ? 'Rename section' : 'Start a section', onClick: () => setOpen({ kind: 'section', bar: i, t: sectionStart(i), value: sectionAt.get(i) ?? '' }) }]
                       : []),
                   ]}
                   onSave={(v) => {
