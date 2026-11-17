@@ -235,9 +235,12 @@ function twoBarsAfter(a: SongAnalysis, t: number): number {
 }
 /** A sung word takes about this long: the first guess for how far a line's words reach (it is then fixed by ear). */
 const WORD_SECONDS = 0.6
-/** Words spread over a line from `t`: each takes a share of the time by its length, up to `end`. */
-function spreadWords(words: string[], t: number, end: number): Word[] {
-  const reach = Math.min(Math.max(end - t, 0.5), Math.max(words.length * WORD_SECONDS, 1))
+/**
+ * Words spread over a line from `t`: each takes a share of the time by its length, up to `end`. Without `exact` the
+ * words reach no further than a guess from their count; with it (the end was held) they fill the time to `end`.
+ */
+function spreadWords(words: string[], t: number, end: number, exact = false): Word[] {
+  const reach = exact ? end - t : Math.min(Math.max(end - t, 0.5), Math.max(words.length * WORD_SECONDS, 1))
   const weight = words.map((w) => Math.max(1, w.replace(/[^\p{L}\p{N}]/gu, '').length))
   const total = weight.reduce((x, y) => x + y, 0)
   let used = 0
@@ -249,12 +252,13 @@ function spreadWords(words: string[], t: number, end: number): Word[] {
 }
 /**
  * Adds lyric lines at the given moments (snapped to the nearest beat), each running until the next one starts
- * (the last: two bars, or until a line that is already there). The words of a line are spread over its time
- * by length, a first guess to fix by ear. Existing lines stay; empty text is skipped.
+ * (the last: two bars, or until a line that is already there), or until its `end` when one is given (a held tap;
+ * not snapped, never past the next line). The words of a line are spread over its time by length, a first guess
+ * to fix by ear. Existing lines stay; empty text is skipped.
  */
-export function addLines(a: SongAnalysis, items: { t: number; text: string }[]): SongAnalysis {
+export function addLines(a: SongAnalysis, items: { t: number; end?: number; text: string }[]): SongAnalysis {
   const wanted = items
-    .map((x) => ({ t: snapToBeat(a, Math.max(0, x.t)), words: x.text.trim().split(/\s+/).filter(Boolean) }))
+    .map((x) => ({ t: snapToBeat(a, Math.max(0, x.t)), held: x.end, words: x.text.trim().split(/\s+/).filter(Boolean) }))
     .filter((x) => x.words.length > 0)
     .sort((x, y) => x.t - y.t)
   // two lines on the same beat would fall on each other: the later one moves a hair after
@@ -263,8 +267,12 @@ export function addLines(a: SongAnalysis, items: { t: number; text: string }[]):
   })
   const added: Line[] = wanted.map((x, k) => {
     const nextOld = a.lines.find((l) => l.t > x.t + 0.01)?.t
-    const end = k + 1 < wanted.length ? wanted[k + 1].t : Math.min(twoBarsAfter(a, x.t), nextOld ?? Infinity)
-    const words = spreadWords(x.words, x.t, Math.max(end, x.t + 0.5))
+    const next = k + 1 < wanted.length ? wanted[k + 1].t : Math.min(twoBarsAfter(a, x.t), nextOld ?? Infinity)
+    if (x.held !== undefined && x.held > x.t + 0.05) {
+      const words = spreadWords(x.words, x.t, Math.min(x.held, next), true)
+      return { t: x.t, end: words[words.length - 1].end, words }
+    }
+    const words = spreadWords(x.words, x.t, Math.max(next, x.t + 0.5))
     return { t: x.t, end: words[words.length - 1].end, words }
   })
   if (added.length === 0) return a
@@ -275,24 +283,25 @@ export const addLine = (a: SongAnalysis, t: number, text: string): SongAnalysis 
 /** A word whose length is not known (it was added while retyping) is taken to last this long, at most until the next. */
 const TAPPED_WORD_SECONDS = 0.5
 /**
- * Sets when the words of line `index` start, one tap per word in order (`starts[k]` for word k, in seconds). A tapped
- * word keeps its own length but never runs into the next word. When only the first words were tapped, the rest keep
+ * Sets when the words of line `index` start, one tap per word in order (`taps[k]` for word k, in seconds). A tapped
+ * word keeps its own length but never runs into the next word; a held tap (`end`) sets where the word ends instead. When only the first words were tapped, the rest keep
  * their spacing and move by as much as the last tapped word did (never starting before it). The line's start and end
  * follow its words; the words and their doubts are untouched.
  */
-export function retimeWords(a: SongAnalysis, index: number, starts: number[]): SongAnalysis {
+export function retimeWords(a: SongAnalysis, index: number, taps: { t: number; end?: number }[]): SongAnalysis {
   const line = a.lines[index]
-  if (!line || starts.length === 0) return a
-  const n = Math.min(starts.length, line.words.length)
-  const tapped = starts.slice(0, n).map((t) => Math.max(0, t))
+  if (!line || taps.length === 0) return a
+  const n = Math.min(taps.length, line.words.length)
+  const tapped = taps.slice(0, n).map((x) => Math.max(0, x.t))
   // a tap a hair before the one before it (a double tap) counts as the same moment
   for (let k = 1; k < n; k++) tapped[k] = Math.max(tapped[k], tapped[k - 1])
   const moved = tapped[n - 1] - line.words[n - 1].t
   const t = line.words.map((w, k) => (k < n ? tapped[k] : Math.max(w.t + moved, tapped[n - 1])))
   const words = line.words.map((w, k) => {
+    const held = k < n ? taps[k].end : undefined
     const own = w.end - w.t > 0.01 ? w.end - w.t : TAPPED_WORD_SECONDS
     const next = k + 1 < t.length ? t[k + 1] : Infinity
-    return { ...w, t: t[k], end: Math.max(t[k], Math.min(t[k] + own, next)) }
+    return { ...w, t: t[k], end: Math.max(t[k], Math.min(held ?? t[k] + own, next)) }
   })
   const lines = [...a.lines]
   lines[index] = { t: words[0].t, end: Math.max(...words.map((w) => w.end)), words }

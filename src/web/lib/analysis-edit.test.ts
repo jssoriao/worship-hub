@@ -271,13 +271,14 @@ describe('chords on the half beat', () => {
 })
 
 describe('tapping the words of a line', () => {
+  const starts = (...t: number[]) => t.map((x) => ({ t: x }))
   it('sets each word start, keeps each word length but not past the next word, and moves the line', () => {
-    const a = retimeWords(song(), 1, [5.2, 5.4])
+    const a = retimeWords(song(), 1, starts(5.2, 5.4))
     expect(a.lines[1]).toEqual({ t: 5.2, end: 5.9, words: [{ w: 'four', t: 5.2, end: 5.4 }, { w: 'five', t: 5.4, end: 5.9 }] })
     expect(a.lines[0]).toEqual(song().lines[0])
   })
   it('keeps the words and their doubts', () => {
-    const a = retimeWords(song(), 0, [0.5, 1.5, 2.5])
+    const a = retimeWords(song(), 0, starts(0.5, 1.5, 2.5))
     expect(a.lines[0].words.map((w) => [w.w, w.t, w.doubt])).toEqual([
       ['one', 0.5, undefined],
       ['twu', 1.5, 0.26],
@@ -285,13 +286,13 @@ describe('tapping the words of a line', () => {
     ])
   })
   it('moves the untapped words by as much as the last tapped one, never before it', () => {
-    const a = retimeWords(song(), 0, [1.4])
+    const a = retimeWords(song(), 0, starts(1.4))
     expect(a.lines[0].words.map((w) => w.t)).toEqual([1.4, 2.4, 3.4])
-    const b = retimeWords(song(), 0, [1, 2.9])
+    const b = retimeWords(song(), 0, starts(1, 2.9))
     expect(b.lines[0].words.map((w) => w.t)).toEqual([1, 2.9, 3.9])
   })
   it('treats a tap before the one before it as the same moment, and ignores extra taps', () => {
-    const a = retimeWords(song(), 1, [5.5, 5.3, 9])
+    const a = retimeWords(song(), 1, starts(5.5, 5.3, 9))
     expect(a.lines[1].words.map((w) => [w.t, w.end])).toEqual([
       [5.5, 5.5],
       [5.5, 6],
@@ -300,7 +301,7 @@ describe('tapping the words of a line', () => {
   it('gives a word with no length (added while retyping) half a second, up to the next word', () => {
     const base = song()
     base.lines[1] = { t: 5, end: 6.5, words: [{ w: 'four', t: 5, end: 5 }, word('five', 6)] }
-    const a = retimeWords(base, 1, [5, 5.3])
+    const a = retimeWords(base, 1, starts(5, 5.3))
     expect(a.lines[1].words.map((w) => [w.t, w.end])).toEqual([
       [5, 5.3],
       [5.3, 5.8],
@@ -309,6 +310,27 @@ describe('tapping the words of a line', () => {
   it('changes nothing without taps or for a line that is not there', () => {
     const a = song()
     expect(retimeWords(a, 1, [])).toBe(a)
-    expect(retimeWords(a, 9, [1])).toBe(a)
+    expect(retimeWords(a, 9, starts(1))).toBe(a)
+  })
+})
+
+describe('holding a tap', () => {
+  it('ends a held word at the release, never past the next word', () => {
+    const a = retimeWords(song(), 0, [{ t: 0.5, end: 1.4 }, { t: 1.2, end: 3 }, { t: 2 }])
+    expect(a.lines[0].words.map((w) => [w.t, w.end])).toEqual([
+      [0.5, 1.2],
+      [1.2, 2],
+      [2, 2.5],
+    ])
+  })
+  it('ends a held line at the release and spreads its words over it', () => {
+    const a = addLines(song(), [{ t: 20, end: 23, text: 'aa bb' }])
+    const line = a.lines.find((l) => l.words[0].w === 'aa')!
+    expect(line.end).toBeCloseTo(23)
+    expect(line.words.map((w) => w.end)).toEqual([21.5, 23])
+  })
+  it('never lets a held line run into the next tapped line', () => {
+    const a = addLines(song(), [{ t: 20, end: 30, text: 'aa' }, { t: 22, text: 'bb' }])
+    expect(a.lines.find((l) => l.words[0].w === 'aa')!.end).toBeLessThanOrEqual(22)
   })
 })
