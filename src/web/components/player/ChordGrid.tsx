@@ -18,7 +18,18 @@ interface Props {
   onSection?: (t: number, label: string | null) => void
   /** copy the chords of section `from` onto section `to` (indexes in the analysis' sections) */
   onCopySection?: (from: number, to: number) => void
+  /** copied bars waiting to be pasted (bar indexes, from 0); while set, a bar number pastes them there */
+  clipboard?: BarClip | null
+  onCopyBars?: (clip: BarClip) => void
+  onPasteBars?: (to: number) => void
 }
+/** Bars copied in the Chords view: `count` bars from bar `from` (from 0). */
+export interface BarClip {
+  from: number
+  count: number
+}
+/** How many bars a copy can take. */
+const COPY_COUNTS = [1, 2, 4, 8] as const
 
 /**
  * The song as bars of beat boxes: a chord where it changes (a held chord shown faintly at the start
@@ -27,7 +38,7 @@ interface Props {
  * the chord on the beat on the left, the new one on the right. In edit mode a chord is placed "on the beat"
  * (the default) or on the half beat.
  */
-export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onRemoveChord, onSection, onCopySection }: Props) {
+export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, onChord, onRemoveChord, onSection, onCopySection, clipboard = null, onCopyBars, onPasteBars }: Props) {
   // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet; `k`/`half`: which beat of the bar, and whether the chord is on its half beat
   const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; k?: number; half?: boolean; t: number; value: string; empty?: boolean } | null>(null)
   // the section heading (by bar) whose copy box is open
@@ -147,7 +158,17 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
           }}
         >
           <div className="flex items-stretch gap-1.5">
-            {editing ? (
+            {editing && clipboard && onPasteBars ? (
+              // pasting: the bar number puts the copied bars here
+              <button
+                type="button"
+                onClick={() => onPasteBars(i)}
+                aria-label={`Paste the copied bars at bar ${i + 1}`}
+                className={`w-6 shrink-0 self-stretch rounded text-xs font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring mobile:w-9 ${i >= clipboard.from && i < clipboard.from + clipboard.count ? 'bg-highlight/30 text-white' : 'bg-primary/25 text-highlight hover:bg-primary/40'}`}
+              >
+                {i + 1}
+              </button>
+            ) : editing ? (
               <button
                 type="button"
                 onClick={() => setOpen({ kind: 'section', bar: i, t: beats[0].t, value: sectionAt.get(i) ?? '' })}
@@ -245,12 +266,55 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                     setOpen(null)
                   }}
                   onCancel={() => setOpen(null)}
-                />
+                >
+                  {onCopyBars && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                      <span className="text-muted-foreground">Copy chords of</span>
+                      {COPY_COUNTS.filter((n) => n === 1 || i + n <= bars.length).map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => (onCopyBars({ from: i, count: n }), setOpen(null))}
+                          className="rounded-lg border border-input px-2.5 py-1 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring mobile:px-3.5 mobile:py-2"
+                        >
+                          {n} {n === 1 ? 'bar' : 'bars'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </EditPopover>
               )}
             </div>
           )}
         </div>,
       ])}
+    </div>
+  )
+}
+
+/**
+ * While copied bars wait to be pasted (in the edit bar): what was copied, and Done. Esc is Done too (a dialog, so the
+ * page's own Esc, leaving edit mode, waits).
+ */
+export function BarPaste({ clip, onDone }: { clip: BarClip; onDone: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onDone()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onDone])
+  const bars = clip.count === 1 ? `Bar ${clip.from + 1}` : `Bars ${clip.from + 1}–${clip.from + clip.count}`
+  return (
+    <div role="dialog" aria-label="Paste bars" className="flex flex-wrap items-center justify-center gap-2 text-sm">
+      <span>
+        {bars} copied · <span className="text-muted-foreground">tap a bar number to paste</span>
+      </span>
+      <button type="button" onClick={onDone} className="rounded-lg border border-input px-3 py-1 outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring mobile:py-2">
+        Done
+      </button>
     </div>
   )
 }

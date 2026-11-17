@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { beatLength, halfBeatChord, halfBeatTime, parseAnalysis, type Chord, type SongAnalysis, type Word } from './analysis'
-import { lyricsText, retimeLines, setAllLyrics } from './analysis-edit'
+import { copyBars, lyricsText, retimeLines, setAllLyrics } from './analysis-edit'
 import { addLine, addLines, approveLine, removeChordAt, setChordAt, snapToBeat, copySectionChords, copySectionLyrics, sectionLines, doubtfulLines, hasDoubt, retimeWords, setLineText, splitLine, toStored } from './analysis-edit'
 
 // made-up words only
@@ -402,5 +402,34 @@ describe('a chord put where nothing sounds', () => {
       [3, 10],
       [10, 12],
     ])
+  })
+})
+
+describe('copying bars', () => {
+  // 4 beats a bar, 0.5 s a beat (2 s a bar), 6 bars; bar 1: C then G on beat 3 and an F on the half beat of beat 4
+  const ch = (t: number, end: number, name: string) => ({ t, end, basic: name, simple: name, complex: name, bass: '' })
+  const base = (): SongAnalysis => ({ ...song(), beats: Array.from({ length: 24 }, (_, i) => ({ t: i * 0.5, n: (i % 4) + 1 })), chords: [ch(0, 1, 'C'), ch(1, 1.75, 'G'), ch(1.75, 4, 'F'), ch(8, 12, 'Am')] })
+  const names = (a: SongAnalysis, from: number, to: number) => a.chords.filter((c) => c.t >= from - 0.01 && c.t < to - 0.01).map((c) => [c.t, c.simple])
+  it('copies one bar beat for beat, half beats included, and replaces what was there', () => {
+    const a = copyBars(base(), 0, 1, 4)
+    expect(names(a, 8, 10)).toEqual([
+      [8, 'C'],
+      [9, 'G'],
+      [9.75, 'F'],
+    ])
+    // the Am that was there carries on after the copy
+    expect(names(a, 10, 12)).toEqual([[10, 'Am']])
+    expect(names(a, 0, 2)).toEqual(names(base(), 0, 2))
+  })
+  it('copies the chord sounding as the bars start, and several bars at once', () => {
+    const a = copyBars(base(), 1, 1, 3)
+    expect(names(a, 6, 8)).toEqual([[6, 'F']])
+    const b = copyBars(base(), 0, 2, 2)
+    expect(names(b, 4, 8).map((x) => x[1])).toEqual(['C', 'G', 'F'])
+  })
+  it('stops at the end of the song and ignores a copy onto itself', () => {
+    const a = copyBars(base(), 0, 2, 5)
+    expect(Math.max(...a.chords.map((c) => c.end))).toBeLessThanOrEqual(12.01)
+    expect(copyBars(base(), 2, 1, 2)).toEqual(base())
   })
 })

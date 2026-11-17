@@ -2,7 +2,7 @@
  * Changes to a song's analysis made in the player (chords, sections, lyrics), and saving it.
  * Every function returns a new analysis; nothing is changed in place.
  */
-import { indexAt, type Chord, type Line, type SongAnalysis, type Word } from './analysis'
+import { barsOf, indexAt, type Chord, type Line, type SongAnalysis, type Word } from './analysis'
 import { call, songsApi } from './api'
 
 const EPS = 0.02
@@ -83,15 +83,31 @@ export function copySectionChords(a: SongAnalysis, from: number, to: number): So
   const src = a.sections[from]
   const dst = a.sections[to]
   if (!src || !dst || from === to || a.beats.length === 0) return a
-  const p0 = beatPos(a.beats, src.t)
-  const p1 = beatPos(a.beats, src.end)
-  const q0 = beatPos(a.beats, dst.t)
-  const q1 = Math.min(q0 + (p1 - p0), beatPos(a.beats, dst.end))
+  return copySpan(a, src.t, src.end, dst.t, dst.end)
+}
+/**
+ * Copies the chords of `count` bars from bar `from` onto the bars from bar `to` (bar indexes, from 0), beat for beat,
+ * half beats included; the chord sounding as the copied bars start is copied too. The copy is cut at the song's end.
+ */
+export function copyBars(a: SongAnalysis, from: number, count: number, to: number): SongAnalysis {
+  const bars = barsOf(a.beats)
+  if (from === to || count < 1 || !bars[from] || !bars[to]) return a
+  const last = a.beats[a.beats.length - 1]
+  const songEnd = last.t + (a.beats.length > 1 ? last.t - a.beats[a.beats.length - 2].t : 0.5)
+  const end = (k: number) => bars[k]?.[0].t ?? songEnd
+  return copySpan(a, bars[from][0].t, end(Math.min(from + count, bars.length)), bars[to][0].t, songEnd)
+}
+/** The chords of [srcT, srcEnd) copied to start at `dstT` on the beat grid, no further than `dstEnd`, replacing what is there. */
+function copySpan(a: SongAnalysis, srcT: number, srcEnd: number, dstT: number, dstEnd: number): SongAnalysis {
+  const p0 = beatPos(a.beats, srcT)
+  const p1 = beatPos(a.beats, srcEnd)
+  const q0 = beatPos(a.beats, dstT)
+  const q1 = Math.min(q0 + (p1 - p0), beatPos(a.beats, dstEnd))
   const end = beatTime(a.beats, q1)
   const start = beatTime(a.beats, q0)
   const added: Chord[] = []
   for (const c of a.chords) {
-    if (c.end <= src.t + EPS || c.t >= src.end - EPS) continue
+    if (c.end <= srcT + EPS || c.t >= srcEnd - EPS) continue
     const t = beatTime(a.beats, q0 + Math.max(beatPos(a.beats, c.t) - p0, 0))
     const e = Math.min(beatTime(a.beats, q0 + Math.min(beatPos(a.beats, c.end), p1) - p0), end)
     if (t >= end - EPS) continue

@@ -21,7 +21,7 @@ import { Alert } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
 import { ClickPanel, TempoKeyPanel, ViewPanel } from '../components/player/panels'
 import { TransportBar } from '../components/player/TransportBar'
-import { ChordGrid } from '../components/player/ChordGrid'
+import { BarPaste, ChordGrid, type BarClip } from '../components/player/ChordGrid'
 import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
 import { LyricsView } from '../components/player/LyricsView'
 import { LyricTools, type TapRequest } from '../components/player/LyricTools'
@@ -29,7 +29,7 @@ import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { addLine, approveLine, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { addLine, approveLine, copyBars, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { useIsMobileLayout } from '../lib/layout-context'
@@ -202,7 +202,11 @@ export default function PracticePage() {
     setEditError('')
   }
   /** Ends edit mode and drops what was not saved (callers have asked first). */
+  // bars copied in the Chords view, waiting to be pasted (edit mode)
+  const [barClip, setBarClip] = useState<BarClip | null>(null)
+  const endPaste = useCallback(() => setBarClip(null), [])
   const exitEdit = () => {
+    setBarClip(null)
     setDraft(null)
     setEditing(false)
     setVersionsOpen(false)
@@ -889,7 +893,9 @@ export default function PracticePage() {
         onDiscard={exitEdit}
         onVersions={showVersions}
       >
-        {prefs.view === 'lyrics' && (
+        {prefs.view === 'chords' ? (
+          barClip ? <BarPaste clip={barClip} onDone={endPaste} /> : null
+        ) : (
           <LyricTools
             position={pos}
             lines={shown.lines.map((l) => ({ t: l.t, words: l.words.map((w) => w.w) }))}
@@ -1152,6 +1158,9 @@ export default function PracticePage() {
                 onRemoveChord={(t) => change((a) => removeChordAt(a, t))}
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
                 onCopySection={(from, to) => change((a) => copySectionChords(a, from, to))}
+                clipboard={editing ? barClip : null}
+                onCopyBars={setBarClip}
+                onPasteBars={(to) => barClip && change((a) => copyBars(a, barClip.from, barClip.count, to))}
               />
             )}
             {heard && prefs.view === 'shapes' && <ShapesView analysis={heard} level={prefs.level} instrument={prefs.instrument} position={pos} onSeek={(t) => void seekTo(t)} />}
