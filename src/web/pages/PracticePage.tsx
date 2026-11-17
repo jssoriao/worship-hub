@@ -60,6 +60,8 @@ interface ViewPrefs {
   level: ChordLevel
   instrument: Instrument
   follow: boolean
+  /** the Chords view shows the words sung in each beat (off at first) */
+  chordLyrics: boolean
 }
 function savedViewPrefs(): ViewPrefs {
   try {
@@ -69,9 +71,10 @@ function savedViewPrefs(): ViewPrefs {
       level: v?.level && ['basic', 'simple', 'complex'].includes(v.level) ? v.level : 'simple',
       instrument: v?.instrument === 'piano' ? 'piano' : 'guitar',
       follow: v?.follow !== false,
+      chordLyrics: v?.chordLyrics === true,
     }
   } catch {
-    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true }
+    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true, chordLyrics: false }
   }
 }
 
@@ -801,6 +804,8 @@ export default function PracticePage() {
       onInstrument={(instrument) => setPrefs((p) => ({ ...p, instrument }))}
       follow={prefs.follow}
       onFollow={(follow) => setPrefs((p) => ({ ...p, follow }))}
+      chordLyrics={prefs.chordLyrics}
+      onChordLyrics={(chordLyrics) => setPrefs((p) => ({ ...p, chordLyrics }))}
     />
   )
   const tools = (
@@ -1148,6 +1153,7 @@ export default function PracticePage() {
                 onSeek={(t) => void seekTo(t)}
                 follow={prefs.follow && playing && !editing}
                 editing={editing}
+                lyrics={prefs.chordLyrics}
                 onChord={(t, name) => change((a) => setChordAt(a, t, name))}
                 onRemoveChord={(t) => change((a) => removeChordAt(a, t))}
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
