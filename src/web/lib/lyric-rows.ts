@@ -64,7 +64,9 @@ export function buildRows(a: SongAnalysis, level: ChordLevel): Row[] {
     chordsUntil(line.t)
     sectionsUpTo(line.t)
     const tokens: Token[] = line.words.map((w) => ({ w: w.w, t: w.t, end: w.end, chords: [], doubt: w.doubt !== undefined }))
-    while (ci < changes.length && changes[ci].t < line.end) {
+    // a line holds the chords sung over it, but not those from where the next section starts: they go under its heading
+    const sectionNext = a.sections[si]?.t ?? Infinity
+    while (ci < changes.length && changes[ci].t < line.end && changes[ci].t < sectionNext - 0.05) {
       const c = changes[ci++]
       // the word sounding when the chord starts, or the next one
       let k = tokens.findIndex((tk, i) => c.t < (tokens[i + 1]?.t ?? Infinity) - LEAD && c.t >= tk.t - LEAD)
