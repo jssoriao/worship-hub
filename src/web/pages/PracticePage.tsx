@@ -24,12 +24,12 @@ import { TransportBar } from '../components/player/TransportBar'
 import { ChordGrid } from '../components/player/ChordGrid'
 import { EditBar, UnsavedDialog, VersionsDialog } from '../components/player/EditControls'
 import { LyricsView } from '../components/player/LyricsView'
-import { LyricTools } from '../components/player/LyricTools'
+import { LyricTools, type TapRequest } from '../components/player/LyricTools'
 import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
 import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
-import { addLine, addLines, approveLine, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
+import { addLine, approveLine, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
 import { useIsMobileLayout } from '../lib/layout-context'
@@ -193,6 +193,8 @@ export default function PracticePage() {
   const [asking, setAsking] = useState(false)
   const shown = draft ?? analysis
   // what is read while playing: chords and key as they sound (editing shows the recording's own)
+  // a line's edit box asks the Tap panel (in the edit bar) to open on its words
+  const [tapRequest, setTapRequest] = useState<TapRequest | null>(null)
   const heard = useMemo(() => (shown && !editing ? transposeAnalysis(shown, key) : shown), [shown, editing, key])
   const change = (f: (a: SongAnalysis) => SongAnalysis) => {
     if (!shown) return
@@ -891,11 +893,14 @@ export default function PracticePage() {
           <LyricTools
             position={pos}
             lines={shown.lines.map((l) => ({ t: l.t, words: l.words.map((w) => w.w) }))}
+            text={lyricsText(shown)}
             onAddLine={(t, text) => change((a) => addLine(a, t, text))}
-            onAddLines={(items) => change((a) => addLines(a, items))}
-            onRetimeLines={(list) => change((a) => list.reduce((b, x) => retimeWords(b, x.index, x.taps), a))}
+            onAllLyrics={(text) => change((a) => setAllLyrics(a, text))}
+            onRetimeLines={(from, taps) => change((a) => retimeLines(a, from, taps))}
+            onRetimeWords={(list) => change((a) => list.reduce((b, x) => retimeWords(b, x.index, x.taps), a))}
             onPlayFrom={(t) => void playFrom(t)}
             onPause={() => void pauseNow()}
+            request={tapRequest}
           />
         )}
       </EditBar>
@@ -1129,6 +1134,7 @@ export default function PracticePage() {
                 onApproveLine={(i) => change((a) => approveLine(a, i))}
                 onListen={(t, end) => void listenFrom(t, end)}
                 onCopyLyrics={(from, to) => change((a) => copySectionLyrics(a, from, to))}
+                onTapWords={(line) => setTapRequest((r) => ({ line, n: (r?.n ?? 0) + 1 }))}
                 onStartEdit={canEditView && !editing ? () => setEditing(true) : undefined}
               />
             )}

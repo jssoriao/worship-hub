@@ -369,3 +369,131 @@ export const listVersionsOf = (id: string) => call(songsApi[':songId'].analysis.
 export type AnalysisVersion = Awaited<ReturnType<typeof listVersionsOf>>[number]
 /** Earlier versions of the song's analysis, newest first; none when they cannot be loaded. */
 export const listVersions = (id: string): Promise<AnalysisVersion[]> => listVersionsOf(id).catch(() => [])
+
+/** The lyrics as text: one line per row, a blank row where a new section starts. */
+export function lyricsText(a: SongAnalysis): string {
+  const starts = a.sections.map((s) => s.t)
+  return a.lines
+    .map((l, k) => {
+      const text = l.words.map((w) => w.w).join(' ')
+      // a section starting between the line before and this one
+      const fresh = k > 0 && starts.some((t) => t > a.lines[k - 1].t + EPS && t <= l.t + EPS)
+      return fresh ? `\n${text}` : text
+    })
+    .join('\n')
+}
+/** A line's words as one comparable string (no case, no punctuation, no spaces). */
+const plainLine = (text: string) => text.split(/\s+/).map(plain).join('')
+/**
+ * Replaces all the lyrics with `text` (one line per row; blank rows are ignored), keeping as much timing as it can:
+ * an unchanged line keeps its exact times; changed lines take the time of the line(s) they replace, shared out in
+ * order; added lines share the gap between their neighbours. The times of changed and added lines are a guess, to
+ * fix with Tap. Doubts are kept only on unchanged lines.
+ */
+export function setAllLyrics(a: SongAnalysis, text: string): SongAnalysis {
+  const rows = text.split('\n').map((r) => r.trim().split(/\s+/).filter(Boolean)).filter((r) => r.length > 0)
+  const old = a.lines
+  const pairs = matchWords(
+    old.map((l) => l.words.map((w) => w.w).join(' ')),
+    rows.map((r) => r.join(' ')),
+  )
+  // each new row: the old line it is (unchanged), or the time it may use (null: none, an added row)
+  type Slot = { keep: Line } | { lo: number; hi: number } | null
+  const slots: Slot[] = rows.map((r, j) => {
+    const p = pairs[j]
+    if (!p) return null
+    if (p[1] - p[0] === 1 && plainLine(r.join(' ')) === plainLine(old[p[0]].words.map((w) => w.w).join(' '))) return { keep: old[p[0]] }
+    return { lo: p[0], hi: p[1] }
+  })
+  const out: (Line | null)[] = rows.map(() => null)
+  // unchanged rows first; then rows sharing one old time span split it in order
+  slots.forEach((s, j) => {
+    if (s && 'keep' in s) out[j] = s.keep
+  })
+  for (let j = 0; j < rows.length; ) {
+    const s = slots[j]
+    if (!s || 'keep' in s) {
+      j++
+      continue
+    }
+    let k = j
+    while (k + 1 < rows.length) {
+      const n = slots[k + 1]
+      if (!n || 'keep' in n || n.lo !== s.lo || n.hi !== s.hi) break
+      k++
+    }
+    const from = old[s.lo].t
+    const to = Math.max(old[s.hi - 1].end, from + 0.5)
+    const share = (to - from) / (k - j + 1)
+    for (let m = j; m <= k; m++) {
+      const t = from + share * (m - j)
+      out[m] = { t, end: t + share, words: spreadWords(rows[m], t, t + share, true) }
+    }
+    j = k + 1
+  }
+  // added rows: the gap between the line before and the line after
+  for (let j = 0; j < rows.length; ) {
+    if (out[j]) {
+      j++
+      continue
+    }
+    let k = j
+    while (k + 1 < rows.length && !out[k + 1]) k++
+    const before = j > 0 ? out[j - 1]!.end : 0
+    const after = k + 1 < rows.length ? out[k + 1]!.t : Infinity
+    const count = k - j + 1
+    const share = Number.isFinite(after) ? Math.max(after - before, 0.05 * count) / count : 2
+    for (let m = j; m <= k; m++) {
+      const t = before + share * (m - j)
+      out[m] = { t, end: t + share, words: spreadWords(rows[m], t, t + share, true) }
+    }
+    j = k + 1
+  }
+  // keep them in order (a row never starts before the one above it)
+  const lines = out as Line[]
+  for (let j = 1; j < lines.length; j++) {
+    if (lines[j].t < lines[j - 1].t + 0.01) {
+      const by = lines[j - 1].t + 0.01 - lines[j].t
+      lines[j] = { t: lines[j].t + by, end: lines[j].end + by, words: lines[j].words.map((w) => ({ ...w, t: w.t + by, end: w.end + by })) }
+    }
+  }
+  return { ...a, lines }
+}
+
+/**
+ * Sets where lines start, one tap per line from line `from` on (`taps[k]` for line from + k), each snapped to the
+ * nearest beat. A line keeps the shape of its words (their spacing) and is squeezed only when it would run into the
+ * next line; a held tap (`end`) stretches or squeezes its words to end there. When the last tapped line moved later
+ * past the lines after it, those move along by as much (keeping their spacing).
+ */
+export function retimeLines(a: SongAnalysis, from: number, taps: { t: number; end?: number }[]): SongAnalysis {
+  const n = Math.min(taps.length, a.lines.length - from)
+  if (n <= 0) return a
+  const lines = [...a.lines]
+  const starts = taps.slice(0, n).map((x) => snapToBeat(a, Math.max(0, x.t)))
+  for (let k = 1; k < n; k++) starts[k] = Math.max(starts[k], starts[k - 1] + 0.05)
+  const own = (line: Line) => (line.end - line.t > 0.01 ? line.end - line.t : Math.max(0.5, line.words.length * WORD_SECONDS))
+  // the lines after move along when the last tapped line moved later and now runs into them
+  const lastOld = a.lines[from + n - 1]
+  const by = starts[n - 1] - lastOld.t
+  const after = a.lines[from + n]
+  const shift = by > 0 && after !== undefined && after.t < starts[n - 1] + own(lastOld) ? by : 0
+  for (let k = 0; k < n; k++) {
+    const line = a.lines[from + k]
+    const t = starts[k]
+    const next = k + 1 < n ? starts[k + 1] : after ? after.t + shift : Infinity
+    const span0 = own(line)
+    const held = taps[k].end
+    const span = held !== undefined && held > t + 0.05 ? Math.min(held, next) - t : Math.min(span0, Math.max(next - t, 0.05))
+    const scale = span / span0
+    const words = line.words.map((w) => ({ ...w, t: t + Math.max(0, w.t - line.t) * scale, end: t + Math.max(0, w.end - line.t) * scale }))
+    lines[from + k] = { t, end: Math.max(t, ...words.map((w) => w.end)), words }
+  }
+  if (shift > 0) {
+    for (let j = from + n; j < lines.length; j++) {
+      const l = lines[j]
+      lines[j] = { t: l.t + shift, end: l.end + shift, words: l.words.map((w) => ({ ...w, t: w.t + shift, end: w.end + shift })) }
+    }
+  }
+  return { ...a, lines }
+}
