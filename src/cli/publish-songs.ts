@@ -349,7 +349,8 @@ try {
     fs.writeFileSync(manifestFile, JSON.stringify(manifest(songDir, song.title, true, tiers, versions, sources)))
     console.log('  manifest')
     put(`${songRoot}/stems/manifest.json`, manifestFile, 'application/json')
-    // the analysis (chords, beats, sections, timed lyrics), when the song has been through songs:analyse.
+    // the analysis (chords, beats, sections, timed lyrics), when the song has been through songs:analyse, or from
+    // the stem splitter's beat grid, key and chords (beat_grid.json, key_analysis.json, chords.json in the song folder).
     // Once online it is edited in the app, so it is only uploaded when R2 has none yet, or with --analysis.
     const analysis = currentAnalysis(songDir)
     const onlineAlready = analysis && !args.includes('--analysis') && run(['r2', 'object', 'get', `${BUCKET}/${PREFIX}${songRoot}/${ANALYSIS_FILE}`, ...where, '--pipe'], true).status === 0
