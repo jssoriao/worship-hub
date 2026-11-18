@@ -38,6 +38,11 @@ describe('a song from the stem splitter', () => {
     const sharp = splitterAnalysis(song({ 'beat_grid.json': grid([[0, 1, 1]]), 'key_analysis.json': key('C# minor', 1, 'minor'), 'chords.json': chords }))!
     expect(sharp.chords[1][3]).toBe('C#')
     expect(sharp.chords[2][3]).toBe('A#m7')
+    fs.rmSync(dir, { recursive: true, force: true })
+    // C major: Bb and Ab, but F#
+    const c = { qualities, chords: [[0, 1, 10, 1, 1], [1, 2, 8, 1, 1], [2, 3, 6, 1, 1]] }
+    const natural = splitterAnalysis(song({ 'beat_grid.json': grid([[0, 1, 1]]), 'key_analysis.json': key('C major', 0), 'chords.json': c }))!
+    expect(natural.chords.map((x) => x[3])).toEqual(['Bb', 'Ab', 'F#'])
   })
   it('is only used when there is no Music.AI analysis, and needs a beat grid', () => {
     expect(splitterAnalysis(song({ 'key_analysis.json': key('C major', 0) }))).toBeNull()

@@ -98,6 +98,8 @@ const QUALITY: Record<string, [string, string]> = {
 }
 const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+/** C major and A minor have no sharps or flats: the usual names there (Bb, Eb and Ab borrowed; F# and C# from dominants) */
+const NATURAL = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']
 /** Whether a key is written with flats: F major and the flat keys, and their relative minors. */
 function flatKey(pitchClass: number, mode: string): boolean {
   const major = mode === 'minor' ? (pitchClass + 3) % 12 : pitchClass
@@ -124,7 +126,9 @@ export function splitterAnalysis(songDir: string): Analysis | null {
     n = i < first ? meter - first + i + 1 : b[1] === 1 ? 1 : n + 1
     return [ms(b[0]), Math.max(1, n)]
   })
-  const names = typeof key?.pitchClass === 'number' && flatKey(key.pitchClass, key.mode ?? 'major') ? FLATS : SHARPS
+  const pc = key?.pitchClass
+  const major = typeof pc === 'number' ? (key?.mode === 'minor' ? (pc + 3) % 12 : pc) : null
+  const names = major === null ? SHARPS : major === 0 ? NATURAL : flatKey(pc!, key?.mode ?? 'major') ? FLATS : SHARPS
   const qualities = Array.isArray(file?.qualities) ? file.qualities : []
   const chords = (Array.isArray(file?.chords) ? file.chords : [])
     .filter((c) => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number')
