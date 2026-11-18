@@ -79,7 +79,66 @@ export function buildAnalysis(songDir: string): Analysis | null {
   }
 }
 
-/** The analysis as it stands: an edited copy (analysis/analysis.json in the song folder) or the one made from the raw results. */
+/** Chord qualities of the stem splitter's chord file, as written after the root: full name, then the triad (basic). */
+const QUALITY: Record<string, [string, string]> = {
+  maj: ['', ''],
+  min: ['m', 'm'],
+  dim: ['dim', 'dim'],
+  aug: ['aug', 'aug'],
+  maj6: ['6', ''],
+  min6: ['m6', 'm'],
+  '7': ['7', ''],
+  maj7: ['maj7', ''],
+  min7: ['m7', 'm'],
+  minmaj7: ['m(maj7)', 'm'],
+  dim7: ['dim7', 'dim'],
+  hdim7: ['m7b5', 'dim'],
+  sus2: ['sus2', 'sus2'],
+  sus4: ['sus4', 'sus4'],
+}
+const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+/** Whether a key is written with flats: F major and the flat keys, and their relative minors. */
+function flatKey(pitchClass: number, mode: string): boolean {
+  const major = mode === 'minor' ? (pitchClass + 3) % 12 : pitchClass
+  return [5, 10, 3, 8, 1, 6].includes(major)
+}
+/**
+ * The analysis of a song split by the stem splitter, when it has no Music.AI results: its beat grid (beat_grid.json,
+ * a pickup before the first downbeat counted as the last beats of a bar), key (key_analysis.json) and, when there
+ * is one, its chord file (chords.json: [start, end, root 0-11 or -1, quality index, confidence], spelled in the
+ * key's sharps or flats). Sections and lyrics start empty. null without a beat grid.
+ */
+export function splitterAnalysis(songDir: string): Analysis | null {
+  type Grid = { summary?: { displayBpm?: number; meter?: { numerator?: number } }; beats?: [number, number, number?][] }
+  type Key = { summary?: { key?: { name?: string; pitchClass?: number; mode?: string } } }
+  type Chords = { qualities?: string[]; chords?: [number, number, number, number, number?][] }
+  const grid = read(songDir, 'beat_grid.json') as Grid | undefined
+  if (!grid || !Array.isArray(grid.beats) || grid.beats.length === 0) return null
+  const key = (read(songDir, 'key_analysis.json') as Key | undefined)?.summary?.key
+  const file = read(songDir, 'chords.json') as Chords | undefined
+  const meter = grid.summary?.meter?.numerator || 4
+  const first = Math.max(0, grid.beats.findIndex((b) => b[1] === 1))
+  let n = 0
+  const beats = grid.beats.map((b, i): [number, number] => {
+    n = i < first ? meter - first + i + 1 : b[1] === 1 ? 1 : n + 1
+    return [ms(b[0]), Math.max(1, n)]
+  })
+  const names = typeof key?.pitchClass === 'number' && flatKey(key.pitchClass, key.mode ?? 'major') ? FLATS : SHARPS
+  const qualities = Array.isArray(file?.qualities) ? file.qualities : []
+  const chords = (Array.isArray(file?.chords) ? file.chords : [])
+    .filter((c) => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number')
+    .map((c): Analysis['chords'][number] => {
+      const [full, basic] = QUALITY[qualities[c[3]] ?? ''] ?? ['', '']
+      const root = c[2] >= 0 && c[2] < 12 ? names[c[2]] : null
+      return root ? [ms(c[0]), ms(c[1]), root + basic, root + full, root + full, ''] : [ms(c[0]), ms(c[1]), 'N', 'N', 'N', '']
+    })
+  return { v: 1, key: key?.name ?? '', bpm: grid.summary?.displayBpm ?? 0, beats, chords, sections: [], lines: [] }
+}
+/**
+ * The analysis as it stands: an edited copy (analysis/analysis.json in the song folder), the one made from Music.AI's
+ * raw results, or the one made from the stem splitter's files (see splitterAnalysis).
+ */
 export function currentAnalysis(songDir: string): Analysis | null {
   const edited = path.join(songDir, 'analysis', ANALYSIS_FILE)
   if (fs.existsSync(edited)) {
@@ -89,7 +148,7 @@ export function currentAnalysis(songDir: string): Analysis | null {
       console.warn(`Could not read ${edited}; using the raw results.`)
     }
   }
-  return buildAnalysis(songDir)
+  return buildAnalysis(songDir) ?? splitterAnalysis(songDir)
 }
 
 /**
