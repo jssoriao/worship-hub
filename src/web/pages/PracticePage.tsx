@@ -778,7 +778,8 @@ export default function PracticePage() {
   const keyMoved = key === 0 ? '' : `${key > 0 ? '+' : ''}${key}`
   const keyText = originalKey ? keyName(shiftKey(originalKey, key)) : keyMoved || 'Key'
   const tempoText = music?.bpm ? `${Math.round(music.bpm * tempo)} bpm` : `${Math.round(tempo * 100)}%`
-  const canEditView = !!shown && mayEdit && (prefs.view === 'lyrics' || prefs.view === 'chords')
+  // Edit only on the Practice page: elsewhere the play bar follows the song, but there is nothing on screen to edit
+  const canEditView = !!shown && mayEdit && onPracticePage && (prefs.view === 'lyrics' || prefs.view === 'chords')
   // the song's chart, one tap from the dock; not while editing (edit mode keeps its hold on navigation)
   const chartLink = songId && !editing ? chartsPath(songId) : undefined
   const clickPanel = <ClickPanel on={click.on} volume={click.volume} onOn={(on) => setClick((c) => ({ ...c, on }))} onVolume={(volume) => setClick((c) => ({ ...c, volume }))} />
