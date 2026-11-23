@@ -81,7 +81,7 @@ export default function App() {
             <Route path="/charts" element={<ChartsPage />} />
             {/* owners only for now: it is not ready for everyone (the link is hidden too, pages.ts) */}
             <Route path="/arrange" element={church.role === 'owner' ? <ArrangePage /> : <NotFoundPage />} />
-            <Route path="/midi" element={church.role === 'owner' ? <MidiPage /> : <NotFoundPage />} />
+            <Route path="/midi" element={<MidiPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/services/:serviceId" element={<ServicePage />} />
             <Route path="/members" element={<MembersPage />} />
