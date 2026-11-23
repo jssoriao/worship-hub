@@ -100,7 +100,8 @@ export function ChordFinder({ press, release, onShow }: { press: (pitch: number)
               onFocusCapture={() => setShownId(card.id)}
               onPointerDown={() => setShownId(card.id)}
               className={cn(
-                'w-44 space-y-1.5 rounded-lg border bg-background/40 p-2 transition-colors',
+                // two to a row on a phone, a fixed width on wider screens
+                'w-[calc(50%-0.25rem)] space-y-1.5 rounded-lg border bg-background/40 p-2 transition-colors sm:w-44',
                 card.id === shown.id ? 'border-primary/70' : 'border-border',
                 card.id === hearingId && 'bg-primary/15',
               )}
@@ -135,7 +136,9 @@ export function ChordFinder({ press, release, onShow }: { press: (pitch: number)
                 value={String(Math.min(card.inversion, inversions))}
                 disabled={!keys || inversions === 0}
                 onChange={(e) => edit(card.id, { inversion: Number(e.target.value) })}
-                className="h-8 w-full text-xs"
+                size="sm"
+                wrapperClassName="w-full"
+                className="text-xs"
               >
                 {INVERSIONS.slice(0, Math.max(1, inversions + 1)).map((label, i) => (
                   <option key={i} value={i}>
