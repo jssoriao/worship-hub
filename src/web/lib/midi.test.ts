@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { chordFromNotes, prefersFlatsFor } from './chord-detect'
+import { chordFromNotes, chordKeys, prefersFlatsFor } from './chord-detect'
+import { readMessage } from './midi-input'
 import { MidiError, notesAt, parseMidi } from './midi'
 // builds a MIDI file from tracks of [delta ticks, ...event bytes]
 const vlq = (n: number) => {
@@ -110,5 +111,72 @@ describe('naming the chord the notes make', () => {
     expect(prefersFlatsFor(f)).toBe(true)
     const g = [67, 69, 71, 72, 74, 76, 78].map((pitch, k) => ({ pitch, t: k, end: k + 1 }))
     expect(prefersFlatsFor(g)).toBe(false)
+  })
+})
+
+describe('the keys for a chord name', () => {
+  it('gives the chord in root position from middle C up and its bass an octave or so below', () => {
+    // C4 E4 G4, bass C3
+    expect(chordKeys('C')).toEqual({ bass: 48, keys: [60, 64, 67] })
+    // A4 C5 E5 G5, bass A3
+    expect(chordKeys('Am7')).toEqual({ bass: 57, keys: [69, 72, 76, 79] })
+  })
+  it('puts the note after the slash in the bass', () => {
+    expect(chordKeys('G/B')).toEqual({ bass: 59, keys: [67, 71, 74] })
+    expect(chordKeys('D/F#')?.bass).toBe(54)
+  })
+  it('knows flats, sus and add9, and nothing it cannot name', () => {
+    expect(chordKeys('Bb')?.keys).toEqual([70, 74, 77])
+    expect(chordKeys('Csus4')?.keys).toEqual([60, 65, 67])
+    expect(chordKeys('Cadd9')?.keys).toEqual([60, 62, 64, 67])
+    expect(chordKeys('H7')).toBeNull()
+    expect(chordKeys('Cxyz')).toBeNull()
+  })
+})
+describe('messages from a MIDI keyboard', () => {
+  it('reads key presses and releases on any channel, velocity 0 as a release, and the sustain pedal', () => {
+    expect(readMessage([0x90, 60, 100])).toEqual({ kind: 'on', pitch: 60, velocity: 100 })
+    expect(readMessage([0x93, 64, 1])).toEqual({ kind: 'on', pitch: 64, velocity: 1 })
+    expect(readMessage([0x90, 60, 0])).toEqual({ kind: 'off', pitch: 60 })
+    expect(readMessage([0x80, 60, 64])).toEqual({ kind: 'off', pitch: 60 })
+    expect(readMessage([0xb0, 64, 127])).toEqual({ kind: 'pedal', down: true })
+    expect(readMessage([0xb0, 64, 0])).toEqual({ kind: 'pedal', down: false })
+    expect(readMessage([0xb0, 7, 100])).toEqual({ kind: 'other' })
+    expect(readMessage([0xf8])).toEqual({ kind: 'other' })
+  })
+})
+describe('a MIDI keyboard played live', () => {
+  it('keeps the keys held and the ones ringing on the pedal, from the chosen keyboard only', async () => {
+    const { LiveKeyboard } = await import('./midi-input')
+    type Port = { id: string; name: string; state: string; onmidimessage: ((e: { data: Uint8Array }) => void) | null }
+    const fp10: Port = { id: 'a', name: 'Piano A', state: 'connected', onmidimessage: null }
+    const keylab: Port = { id: 'b', name: 'Synth B', state: 'connected', onmidimessage: null }
+    const access = { inputs: new Map([['a', fp10], ['b', keylab]]), onstatechange: null }
+    const nav = globalThis.navigator as unknown as { requestMIDIAccess?: unknown }
+    const before = nav.requestMIDIAccess
+    Object.defineProperty(globalThis.navigator, 'requestMIDIAccess', { value: async () => access, configurable: true })
+    try {
+      const kb = new LiveKeyboard({} as never)
+      kb.setSound(false)
+      const state = await kb.connect()
+      expect(state).toEqual({ status: 'on', devices: [{ id: 'a', name: 'Piano A' }, { id: 'b', name: 'Synth B' }] })
+      const send = (port: Port, ...bytes: number[]) => port.onmidimessage?.({ data: new Uint8Array(bytes) })
+      send(fp10, 0x90, 60, 90)
+      send(keylab, 0x90, 64, 70)
+      expect([...kb.notes]).toEqual([[60, 90], [64, 70]])
+      send(fp10, 0xb0, 64, 127)
+      send(fp10, 0x80, 60, 0)
+      expect(kb.notes.has(60)).toBe(true) // rings on the pedal
+      send(fp10, 0xb0, 64, 0)
+      expect(kb.notes.has(60)).toBe(false)
+      kb.choose('a')
+      expect(keylab.onmidimessage).toBeNull()
+      send(fp10, 0x90, 67, 80)
+      expect([...kb.notes.keys()]).toEqual([67])
+      kb.disconnect()
+      expect(fp10.onmidimessage).toBeNull()
+    } finally {
+      Object.defineProperty(globalThis.navigator, 'requestMIDIAccess', { value: before, configurable: true })
+    }
   })
 })

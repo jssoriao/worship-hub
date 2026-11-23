@@ -1,3 +1,4 @@
+import { knownChord, parseChord } from './chord-shapes'
 /**
  * Names the chord that a set of sounding notes makes ("C", "Am7", "G/B"), or null when they make none: fewer than
  * three different notes, or notes no chord shape below explains. Doubled notes and octaves do not matter; the lowest
@@ -68,4 +69,25 @@ export function prefersFlatsFor(notes: { pitch: number; t: number; end: number }
   }
   // F, Bb, Eb, Ab, Db, Gb
   return [5, 10, 3, 8, 1, 6].includes(best)
+}
+/**
+ * The keys to press for a chord name, as a pianist would play it with a band: the chord in root position from the
+ * octave above middle C (C4..B4 for its root), and its bass note an octave or so below (C3..B3), which for a slash
+ * chord is the note after the slash. null for a name that is not a chord (or a quality not known).
+ */
+export function chordKeys(name: string): { bass: number; keys: number[] } | null {
+  if (!knownChord(name)) return null
+  const chord = parseChord(name)
+  if (!chord) return null
+  const keys: number[] = []
+  let last = 59
+  // root first, then the others upwards in the order the shape lists them, each above the one before
+  const order = [chord.root, ...chord.notes.filter((pc) => pc !== chord.root).sort((a, b) => ((a - chord.root + 12) % 12) - ((b - chord.root + 12) % 12))]
+  for (const pc of order) {
+    let p = last + 1
+    while (p % 12 !== pc) p++
+    keys.push(p)
+    last = p
+  }
+  return { bass: 48 + chord.bass, keys }
 }
