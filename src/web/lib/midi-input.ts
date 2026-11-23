@@ -90,14 +90,22 @@ export class LiveKeyboard {
       input.onmidimessage = this.only === '' || input.id === this.only ? (e) => this.handle(e.data ?? new Uint8Array()) : null
     }
   }
-  private handle(data: ArrayLike<number>) {
+  /** A key played on the page (mouse or finger): it always sounds, even with the page's sound off for a keyboard. */
+  press(pitch: number, velocity = 90) {
+    void this.synth.resume()
+    this.handle([0x90, pitch, velocity], true)
+  }
+  releaseKey(pitch: number) {
+    this.handle([0x80, pitch, 0])
+  }
+  private handle(data: ArrayLike<number>, sound = this.sound) {
     const e = readMessage(data)
     if (e.kind === 'on') {
       // a key struck again while it rings on the pedal starts afresh
       this.ringing.get(e.pitch)?.voice?.release()
       this.ringing.delete(e.pitch)
       this.down.get(e.pitch)?.voice?.release()
-      this.down.set(e.pitch, { velocity: e.velocity, voice: this.sound ? this.synth.strike(e.pitch, e.velocity) : undefined })
+      this.down.set(e.pitch, { velocity: e.velocity, voice: sound ? this.synth.strike(e.pitch, e.velocity) : undefined })
     } else if (e.kind === 'off') {
       const n = this.down.get(e.pitch)
       if (!n) return

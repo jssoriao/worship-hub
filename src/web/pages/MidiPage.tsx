@@ -233,7 +233,7 @@ export default function MidiPage() {
           </div>
           <div ref={keysBox} className="overflow-x-auto">
             <div className="min-w-[44rem]">
-              <PianoKeys active={active} target={target} />
+              <PianoKeys active={active} target={target} onPress={(p) => keyboard.press(p)} onRelease={(p) => keyboard.releaseKey(p)} />
             </div>
           </div>
         </Card>
