@@ -53,7 +53,7 @@ export default function MidiPage() {
   const [pos, setPos] = useState(0)
   const [tempo, setTempo] = useState(1)
   // the keyboard: not asked yet / asked and refused / connected (with the keyboards plugged in)
-  const [midi, setMidi] = useState<'idle' | 'denied' | 'on'>('idle')
+  const [midi, setMidi] = useState<'idle' | 'asking' | 'denied' | 'on'>('idle')
   const [devices, setDevices] = useState<InputDevice[]>([])
   const [live, setLive] = useState<Map<number, number>>(new Map())
   const [lookup, setLookup] = useState('')
@@ -88,13 +88,14 @@ export default function MidiPage() {
   const connect = async () => {
     // from a click, so the browser lets the page make sound
     await synth.resume()
+    setMidi('asking')
     const state = await keyboard.connect()
     if (state.status === 'on') {
       setMidi('on')
       setDevices(state.devices)
       keyboard.choose(settings.device)
       if (!settings.connect) change({ connect: true })
-    } else if (state.status === 'denied') setMidi('denied')
+    } else setMidi(state.status === 'denied' ? 'denied' : 'idle')
   }
   // connected before on this device: connect again (the browser remembers the permission)
   useEffect(() => {
@@ -243,10 +244,11 @@ export default function MidiPage() {
               <p className="text-sm text-muted-foreground">This browser cannot read MIDI keyboards. Use Chrome or Edge.</p>
             ) : midi !== 'on' ? (
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" size="sm" onClick={() => void connect()}>
+                <Button type="button" size="sm" disabled={midi === 'asking'} onClick={() => void connect()}>
                   <PianoIcon />
                   Connect keyboard
                 </Button>
+                {midi === 'asking' && <span className="text-xs text-muted-foreground">Allow MIDI devices in the browser's prompt.</span>}
                 {midi === 'denied' && <span className="text-xs text-destructive">The browser was not allowed to use MIDI devices.</span>}
               </div>
             ) : (
