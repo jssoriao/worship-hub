@@ -100,7 +100,7 @@ if (!dryRun) {
 }
 
 const root = path.resolve('songs')
-const song = listSongs(root).find((s) => s.id === songName || s.dir === songName)
+const song = listSongs(root).find((s) => s.id === songName || s.dir === songName || s.title === songName)
 if (!song) {
   console.error(`No song "${songName}" in ./songs`)
   process.exit(1)

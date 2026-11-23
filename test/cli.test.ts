@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeEmail, parseArgs, parseRole, parseSlug } from '../src/cli/lib/cli.ts'
 import { dbIdentity, parseVars } from '../src/cli/lib/env.ts'
+import { titleOf } from '../src/cli/lib/song-files.ts'
 
 describe('cli helpers', () => {
   it('parses flags with and without values', () => {
@@ -28,5 +29,12 @@ describe('cli helpers', () => {
     const prod = 'postgresql://u:p@ep-x-pooler.ap.aws.neon.tech/neondb?sslmode=require'
     expect(dbIdentity(prod)).toBe(dbIdentity('postgresql://u:p@ep-x.ap.aws.neon.tech/neondb'))
     expect(dbIdentity(prod)).not.toBe(dbIdentity('postgresql://u:p@ep-x-pooler.ap.aws.neon.tech/neondb_dev'))
+  })
+})
+
+describe('song folder titles', () => {
+  it('turn the ":" macOS stores for a "/" typed in Finder back into "/"', () => {
+    expect(titleOf('Song A : Song B (Made Up Band)')).toBe('Song A / Song B (Made Up Band)')
+    expect(titleOf('Plain Song (Made Up Band)')).toBe('Plain Song (Made Up Band)')
   })
 })

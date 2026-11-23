@@ -199,7 +199,7 @@ if (!isDir(root)) {
 
 const local = listSongs(root)
 // a song can be named by its folder or by its slug
-const matches = (s: { id: string; dir: string }, name: string) => s.dir === name || s.id === name
+const matches = (s: { id: string; dir: string; title: string }, name: string) => s.dir === name || s.title === name || s.id === name
 const selected = only.length ? local.filter((s) => only.some((name) => matches(s, name))) : local
 const missing = only.filter((name) => !local.some((s) => matches(s, name)))
 if (missing.length) {

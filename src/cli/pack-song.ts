@@ -21,7 +21,7 @@ if (!isDir(root)) {
   process.exit(1)
 }
 const songs = listSongs(root)
-const song = songs.find((s) => s.dir === name || s.id === name)
+const song = songs.find((s) => s.dir === name || s.title === name || s.id === name)
 if (!song) {
   console.error(name ? `Not found in ${root}: ${name}` : 'Usage: pnpm songs:pack "Song Folder"')
   console.error(`Available: ${songs.map((s) => s.dir).join(', ') || '(none)'}`)

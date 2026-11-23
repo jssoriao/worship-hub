@@ -55,9 +55,14 @@ export function slugify(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-/** `dir` is the local folder name. It is the display title and the source of the slug, never sent to clients. */
+/**
+ * `dir` is the local folder name: the source of the title and the slug, never sent to clients. A file name cannot hold
+ * "/", so macOS stores a "/" typed in Finder as ":": the title turns it back ("Song A / Song B" for a medley).
+ */
 export type LocalSong = { id: string; title: string; dir: string }
 
+/** The song title of a local folder name (see LocalSong). */
+export const titleOf = (dir: string) => dir.replaceAll(':', '/')
 /** Every subfolder of `root` that contains audio is a song. */
 export function listSongs(root: string): LocalSong[] {
   if (!isDir(root)) return []
@@ -65,7 +70,7 @@ export function listSongs(root: string): LocalSong[] {
     .readdirSync(root)
     .filter((n) => !hidden(n) && isDir(path.join(root, n)) && listAudio(path.join(root, n)).length > 0)
     .sort((a, b) => a.localeCompare(b))
-    .map((n) => ({ id: slugify(n), title: n, dir: n }))
+    .map((n) => ({ id: slugify(n), title: titleOf(n), dir: n }))
   const seen = new Map<string, string>()
   for (const song of songs) {
     if (!song.id) throw new Error(`Cannot make a URL slug from the folder name "${song.dir}". Rename it with letters or digits.`)
