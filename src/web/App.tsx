@@ -11,6 +11,7 @@ import ArrangePage from './pages/ArrangePage'
 import ChartsPage from './pages/ChartsPage'
 import HomePage from './pages/HomePage'
 import MembersPage from './pages/MembersPage'
+import MidiPage from './pages/MidiPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 import ServicePage from './pages/ServicePage'
@@ -80,6 +81,7 @@ export default function App() {
             <Route path="/charts" element={<ChartsPage />} />
             {/* owners only for now: it is not ready for everyone (the link is hidden too, pages.ts) */}
             <Route path="/arrange" element={church.role === 'owner' ? <ArrangePage /> : <NotFoundPage />} />
+            <Route path="/midi" element={church.role === 'owner' ? <MidiPage /> : <NotFoundPage />} />
             <Route path="/services" element={<ServicesPage />} />
             <Route path="/services/:serviceId" element={<ServicePage />} />
             <Route path="/members" element={<MembersPage />} />
