@@ -70,32 +70,34 @@ export function prefersFlatsFor(notes: { pitch: number; t: number; end: number }
   // F, Bb, Eb, Ab, Db, Gb
   return [5, 10, 3, 8, 1, 6].includes(best)
 }
+/** How many inversions a chord has: one fewer than its notes (a triad: root position, 1st, 2nd). */
+export function inversionsOf(name: string): number {
+  const chord = knownChord(name) ? parseChord(name) : null
+  return chord ? chord.notes.length - 1 : 0
+}
 /**
- * The keys to press for a chord name, from middle C up (the first note in C4..B4), lowest first:
- * - "C": root position, C E G.
- * - an inversion, written as a slash chord whose bass is in the chord ("C/E", "C/G", "Cmaj7/B"): the chord starting
- *   from that note, E G C.
- * - a bass that is not in the chord ("C/D", "G/A"): that note an octave lower (C3..B3) under the chord in root position
- *   (`extraBass` true).
- * null for a name that is not a chord (or a quality not known).
+ * The keys to press for a chord name, lowest first. The chord (the right hand) starts in C4..B4: root position, or
+ * with `inversion` 1, 2, 3 starting from its 2nd, 3rd, 4th note (C 1st inversion: E G C). A slash chord adds its bass
+ * note in the left hand, an octave or so lower (C3..B3): C/E is E3 under C4 E4 G4 (`bass` is that note, null without
+ * a slash). null for a name that is not a chord (or a quality not known).
  */
-export function chordKeys(name: string): { keys: number[]; extraBass: boolean } | null {
+export function chordKeys(name: string, inversion = 0): { keys: number[]; bass: number | null; chord: number[] } | null {
   if (!knownChord(name)) return null
-  const chord = parseChord(name)
-  if (!chord) return null
-  const fromRoot = (pc: number) => (pc - chord.root + 12) % 12
-  const tones = [...chord.notes].sort((a, b) => fromRoot(a) - fromRoot(b))
-  const inChord = tones.includes(chord.bass)
-  // an inversion starts from the bass; otherwise from the root
-  const start = inChord ? tones.indexOf(chord.bass) : 0
+  const parsed = parseChord(name)
+  if (!parsed) return null
+  const fromRoot = (pc: number) => (pc - parsed.root + 12) % 12
+  const tones = [...parsed.notes].sort((a, b) => fromRoot(a) - fromRoot(b))
+  const start = Math.min(Math.max(0, Math.floor(inversion)), tones.length - 1)
   const order = [...tones.slice(start), ...tones.slice(0, start)]
-  const keys: number[] = []
+  const chord: number[] = []
   let last = 59
   for (const pc of order) {
     let p = last + 1
     while (p % 12 !== pc) p++
-    keys.push(p)
+    chord.push(p)
     last = p
   }
-  return inChord ? { keys, extraBass: false } : { keys: [48 + chord.bass, ...keys], extraBass: true }
+  const slash = name.includes('/')
+  const bass = slash ? 48 + parsed.bass : null
+  return { keys: bass === null ? chord : [bass, ...chord], bass, chord }
 }

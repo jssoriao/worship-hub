@@ -12,7 +12,7 @@ import { Range } from '../components/Range'
 import { Toggle } from '../components/player/panels'
 import { useSeekDrag } from '../components/player/use-seek-drag'
 import { formatClock as clock } from '../lib/chart'
-import { chordFromNotes, chordKeys, prefersFlatsFor } from '../lib/chord-detect'
+import { chordFromNotes, chordKeys, inversionsOf, prefersFlatsFor } from '../lib/chord-detect'
 import { noteName, parseChord } from '../lib/chord-shapes'
 import { MidiError, notesAt, parseMidi, type MidiSong } from '../lib/midi'
 import { LiveKeyboard, midiSupported, type InputDevice } from '../lib/midi-input'
@@ -57,6 +57,8 @@ export default function MidiPage() {
   const [devices, setDevices] = useState<InputDevice[]>([])
   const [live, setLive] = useState<Map<number, number>>(new Map())
   const [lookup, setLookup] = useState('')
+  // 0 = root position, 1 = 1st inversion, ...
+  const [inversion, setInversion] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
   const keysBox = useRef<HTMLDivElement>(null)
   const change = (patch: Partial<Settings>) =>
@@ -188,7 +190,8 @@ export default function MidiPage() {
   }, [song, pos, live])
   const chord = useMemo(() => chordFromNotes([...active.keys()], flats), [active, flats])
   // the chord looked up: its keys, and whether they are what is being played
-  const wanted = useMemo(() => (lookup.trim() ? chordKeys(lookup.trim()) : null), [lookup])
+  const inversions = inversionsOf(lookup.trim())
+  const wanted = useMemo(() => (lookup.trim() ? chordKeys(lookup.trim(), inversion) : null), [lookup, inversion])
   const target = useMemo(() => (wanted ? new Set(wanted.keys) : undefined), [wanted])
   const pcs = (list: number[]) => [...new Set(list.map((p) => p % 12))].sort().join(',')
   const hit = !!wanted && active.size > 0 && pcs([...active.keys()]) === pcs(wanted.keys) && Math.min(...active.keys()) % 12 === wanted.keys[0] % 12
@@ -229,7 +232,7 @@ export default function MidiPage() {
             <span aria-live="polite" aria-label={chord ? `Chord ${chord}` : 'No chord'} className={`text-4xl font-semibold tabular-nums ${chord ? 'text-highlight' : 'text-muted-foreground/50'}`}>
               {chord ?? '—'}
             </span>
-            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {lookup.trim()}</span>}
+            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {lookup.trim()}{inversion > 0 && inversions > 0 ? `, ${['1st', '2nd', '3rd', '4th', '5th'][Math.min(inversion, inversions) - 1]} inversion` : ''}</span>}
           </div>
           <div ref={keysBox} className="overflow-x-auto">
             <div className="min-w-[44rem]">
@@ -279,9 +282,16 @@ export default function MidiPage() {
           <Card className="surface-glass gap-2 p-3">
             <h2 className="text-sm font-semibold">Find a chord</h2>
             <div className="flex items-center gap-2">
-              <Input value={lookup} onChange={(e) => setLookup(e.target.value)} placeholder="e.g. Dm7, G/B, Csus4" aria-label="Chord" className="h-9" />
+              <Input value={lookup} onChange={(e) => setLookup(e.target.value)} placeholder="e.g. Dm7, G/B, Csus4" aria-label="Chord" className="h-9 min-w-0 flex-1" />
+              <NativeSelect aria-label="Inversion" value={String(Math.min(inversion, inversions))} disabled={inversions === 0} onChange={(e) => setInversion(Number(e.target.value))} className="w-36">
+                {['Root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'].slice(0, Math.max(1, inversions + 1)).map((label, k) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </NativeSelect>
               {lookup && (
-                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => setLookup('')}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => (setLookup(''), setInversion(0))}>
                   <XIcon />
                 </Button>
               )}
@@ -289,12 +299,12 @@ export default function MidiPage() {
             {lookup.trim() &&
               (wanted ? (
                 <p className="text-sm text-muted-foreground">
-                  {wanted.extraBass && (
+                  {wanted.bass !== null && (
                     <>
-                      Bass <span className="font-medium text-foreground">{noteName(wanted.keys[0] % 12, lookupFlats)}</span>, chord{' '}
+                      Left hand <span className="font-medium text-foreground">{noteName(wanted.bass % 12, lookupFlats)}</span>, right hand{' '}
                     </>
                   )}
-                  <span className="font-medium text-foreground">{(wanted.extraBass ? wanted.keys.slice(1) : wanted.keys).map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
+                  <span className="font-medium text-foreground">{wanted.chord.map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Not a chord name this page knows.</p>

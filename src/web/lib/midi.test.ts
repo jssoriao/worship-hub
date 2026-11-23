@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chordFromNotes, chordKeys, prefersFlatsFor } from './chord-detect'
+import { chordFromNotes, chordKeys, inversionsOf, prefersFlatsFor } from './chord-detect'
 import { readMessage } from './midi-input'
 import { MidiError, notesAt, parseMidi } from './midi'
 // builds a MIDI file from tracks of [delta ticks, ...event bytes]
@@ -116,19 +116,28 @@ describe('naming the chord the notes make', () => {
 
 describe('the keys for a chord name', () => {
   it('gives the chord in root position from middle C up', () => {
-    expect(chordKeys('C')).toEqual({ keys: [60, 64, 67], extraBass: false })
-    expect(chordKeys('Am7')).toEqual({ keys: [69, 72, 76, 79], extraBass: false })
+    expect(chordKeys('C')).toEqual({ keys: [60, 64, 67], bass: null, chord: [60, 64, 67] })
+    expect(chordKeys('Am7')?.keys).toEqual([69, 72, 76, 79])
   })
-  it('plays an inversion from the note after the slash when it is in the chord', () => {
+  it('turns the chord to an inversion, starting from its 2nd, 3rd or 4th note', () => {
     // E G C, G C E, B C E G
-    expect(chordKeys('C/E')?.keys).toEqual([64, 67, 72])
-    expect(chordKeys('C/G')?.keys).toEqual([67, 72, 76])
-    expect(chordKeys('Cmaj7/B')?.keys).toEqual([71, 72, 76, 79])
-    expect(chordKeys('D/F#')).toEqual({ keys: [66, 69, 74], extraBass: false })
+    expect(chordKeys('C', 1)?.keys).toEqual([64, 67, 72])
+    expect(chordKeys('C', 2)?.keys).toEqual([67, 72, 76])
+    expect(chordKeys('Cmaj7', 3)?.keys).toEqual([71, 72, 76, 79])
+    // past the last inversion: the last one
+    expect(chordKeys('C', 5)?.keys).toEqual([67, 72, 76])
   })
-  it('puts a bass that is not in the chord an octave lower, under the chord in root position', () => {
-    // D3 under C E G
-    expect(chordKeys('C/D')).toEqual({ keys: [50, 60, 64, 67], extraBass: true })
+  it('puts the note after a slash in the left hand, under the chord in the chosen inversion', () => {
+    // E3 under C4 E4 G4; E3 under E4 G4 C5; D3 under C E G
+    expect(chordKeys('C/E')).toEqual({ keys: [52, 60, 64, 67], bass: 52, chord: [60, 64, 67] })
+    expect(chordKeys('C/E', 1)?.keys).toEqual([52, 64, 67, 72])
+    expect(chordKeys('C/D')?.keys).toEqual([50, 60, 64, 67])
+    expect(chordKeys('D/F#')?.bass).toBe(54)
+  })
+  it('counts the inversions a chord has', () => {
+    expect(inversionsOf('C')).toBe(2)
+    expect(inversionsOf('G7')).toBe(3)
+    expect(inversionsOf('nonsense')).toBe(0)
   })
   it('knows flats, sus and add9, and nothing it cannot name', () => {
     expect(chordKeys('Bb')?.keys).toEqual([70, 74, 77])
