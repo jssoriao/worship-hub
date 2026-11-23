@@ -8,6 +8,7 @@
  *   /api/church/services/* the active church's services and setlists (services.ts)
  *   /api/church/ai/*       the church's Music.AI credits (ai.ts)
  *   /api/join/*            joining a church through a link, signed out or in (join.ts)
+ *   /api/dev/*             local development only: sign in as a role without a code (dev-login.ts; 404 elsewhere)
  *   /songs/*               the active church's songs (songs.ts) and their files in R2 (files.ts)
  *
  * `provide` gives each request its database, session source and Better Auth handler: the Worker
@@ -16,6 +17,7 @@
 import { Hono, type Context } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { ai } from './ai.ts'
+import { devLogin } from './dev-login.ts'
 import { join } from './join.ts'
 import { links } from './links.ts'
 import { members } from './members.ts'
@@ -41,6 +43,7 @@ export function createApp(provide: Provide) {
       .route('/api/church/services', servicesApp)
       .route('/api/church/ai', ai)
       .route('/api/join', join)
+      .route('/api/dev', devLogin)
       .route('/songs', songs)
       .notFound((c) => fail(c, 404, 'not found'))
       .onError((error, c) => {
