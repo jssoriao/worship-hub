@@ -25,6 +25,7 @@ const TEMPO_MIN = 0.5
 const TEMPO_MAX = 1.5
 /** how long each chord sounds when the chords looked up are played */
 const HEAR_SECONDS = 1.6
+const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th']
 /** the keyboard settings, remembered on this device */
 const SETTINGS = 'worship-hub.midi'
 type Settings = { connect: boolean; device: string; sound: boolean; volume: number }
@@ -59,8 +60,8 @@ export default function MidiPage() {
   const [devices, setDevices] = useState<InputDevice[]>([])
   const [live, setLive] = useState<Map<number, number>>(new Map())
   const [lookup, setLookup] = useState('')
-  // 0 = root position, 1 = 1st inversion, ...
-  const [inversion, setInversion] = useState(0)
+  // each chord's inversion, by its place in the list: 0 = root position, 1 = 1st inversion, ...
+  const [inversionAt, setInversionAt] = useState<number[]>([])
   // which of the chords looked up is shown, and the one sounding while they are played (null: none)
   const [step, setStep] = useState(0)
   const [hearing, setHearing] = useState<number | null>(null)
@@ -200,7 +201,17 @@ export default function MidiPage() {
   const names = useMemo(() => lookup.split(/[\s,]+/).filter(Boolean), [lookup])
   const shownName = names[Math.min(step, names.length - 1)] ?? ''
   const unknown = names.filter((n) => chordKeys(n) === null)
-  const inversions = Math.max(0, ...names.map(inversionsOf))
+  const shownIndex = Math.min(step, Math.max(0, names.length - 1))
+  // the inversions the shown chord has, and the one chosen for it (the Inversion choice is for the shown chord)
+  const inversions = inversionsOf(shownName)
+  const inversionOf = (k: number) => Math.min(inversionAt[k] ?? 0, inversionsOf(names[k] ?? ''))
+  const inversion = inversionOf(shownIndex)
+  const setInversion = (v: number) =>
+    setInversionAt((list) => {
+      const next = [...list]
+      next[shownIndex] = v
+      return next
+    })
   const wanted = useMemo(() => (shownName ? chordKeys(shownName, inversion) : null), [shownName, inversion])
   const target = useMemo(() => (wanted ? new Set(wanted.keys) : undefined), [wanted])
   const pcs = (list: number[]) => [...new Set(list.map((p) => p % 12))].sort().join(',')
@@ -218,7 +229,7 @@ export default function MidiPage() {
   /** Plays chords `from`..`to` of the list, one after another (each held HEAR_SECONDS), showing each as it sounds. */
   const hear = (from: number, to: number) => {
     stopHearing()
-    const list = names.slice(from, to + 1).map((n) => chordKeys(n, inversion))
+    const list = names.slice(from, to + 1).map((n, k) => chordKeys(n, inversionOf(from + k)))
     list.forEach((c, k) => {
       timers.current.push(
         setTimeout(() => {
@@ -270,7 +281,7 @@ export default function MidiPage() {
             <span aria-live="polite" aria-label={chord ? `Chord ${chord}` : 'No chord'} className={`text-4xl font-semibold tabular-nums ${chord ? 'text-highlight' : 'text-muted-foreground/50'}`}>
               {chord ?? '—'}
             </span>
-            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {shownName}{inversion > 0 && inversions > 0 ? `, ${['1st', '2nd', '3rd', '4th', '5th'][Math.min(inversion, inversions) - 1]} inversion` : ''}</span>}
+            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {shownName}{inversion > 0 ? `, ${ORDINAL[inversion - 1]} inversion` : ''}</span>}
           </div>
           <div ref={keysBox} className="overflow-x-auto">
             <div className="min-w-[44rem]">
@@ -331,7 +342,7 @@ export default function MidiPage() {
                 aria-label="Chord"
                 className="h-9 min-w-0 flex-1"
               />
-              <NativeSelect aria-label="Inversion" value={String(Math.min(inversion, inversions))} disabled={inversions === 0} onChange={(e) => setInversion(Number(e.target.value))} className="w-36">
+              <NativeSelect aria-label={names.length > 1 ? `Inversion of ${shownName}` : 'Inversion'} value={String(inversion)} disabled={inversions === 0} onChange={(e) => setInversion(Number(e.target.value))} className="w-36">
                 {['Root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'].slice(0, Math.max(1, inversions + 1)).map((label, k) => (
                   <option key={k} value={k}>
                     {label}
@@ -339,7 +350,7 @@ export default function MidiPage() {
                 ))}
               </NativeSelect>
               {lookup && (
-                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => (stopHearing(), setLookup(''), setInversion(0), setStep(0))}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => (stopHearing(), setLookup(''), setInversionAt([]), setStep(0))}>
                   <XIcon />
                 </Button>
               )}
@@ -360,8 +371,9 @@ export default function MidiPage() {
                 {/* several chords: each one shows its keys and sounds when tapped */}
                 {names.length > 1 &&
                   names.map((n, k) => (
-                    <Button key={k} type="button" variant={k === step ? 'secondary' : 'ghost'} size="sm" aria-pressed={k === step} onClick={() => hear(k, k)}>
+                    <Button key={k} type="button" variant={k === shownIndex ? 'secondary' : 'ghost'} size="sm" aria-pressed={k === shownIndex} onClick={() => hear(k, k)}>
                       {n}
+                      {inversionOf(k) > 0 && <span className="text-[10px] text-muted-foreground">{ORDINAL[inversionOf(k) - 1]}</span>}
                     </Button>
                   ))}
               </div>
