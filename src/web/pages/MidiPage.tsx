@@ -23,6 +23,8 @@ const SKIP = 5
 const TEMPO_STEP = 0.05
 const TEMPO_MIN = 0.5
 const TEMPO_MAX = 1.5
+/** how long each chord sounds when the chords looked up are played */
+const HEAR_SECONDS = 1.6
 /** the keyboard settings, remembered on this device */
 const SETTINGS = 'worship-hub.midi'
 type Settings = { connect: boolean; device: string; sound: boolean; volume: number }
@@ -59,6 +61,11 @@ export default function MidiPage() {
   const [lookup, setLookup] = useState('')
   // 0 = root position, 1 = 1st inversion, ...
   const [inversion, setInversion] = useState(0)
+  // which of the chords looked up is shown, and the one sounding while they are played (null: none)
+  const [step, setStep] = useState(0)
+  const [hearing, setHearing] = useState<number | null>(null)
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([])
+  const sounding = useRef<number[]>([])
   const fileInput = useRef<HTMLInputElement>(null)
   const keysBox = useRef<HTMLDivElement>(null)
   const change = (patch: Partial<Settings>) =>
@@ -189,14 +196,45 @@ export default function MidiPage() {
     return out
   }, [song, pos, live])
   const chord = useMemo(() => chordFromNotes([...active.keys()], flats), [active, flats])
-  // the chord looked up: its keys, and whether they are what is being played
-  const inversions = inversionsOf(lookup.trim())
-  const wanted = useMemo(() => (lookup.trim() ? chordKeys(lookup.trim(), inversion) : null), [lookup, inversion])
+  // the chords looked up (one, or several separated by spaces or commas), the one shown, and its keys
+  const names = useMemo(() => lookup.split(/[\s,]+/).filter(Boolean), [lookup])
+  const shownName = names[Math.min(step, names.length - 1)] ?? ''
+  const unknown = names.filter((n) => chordKeys(n) === null)
+  const inversions = Math.max(0, ...names.map(inversionsOf))
+  const wanted = useMemo(() => (shownName ? chordKeys(shownName, inversion) : null), [shownName, inversion])
   const target = useMemo(() => (wanted ? new Set(wanted.keys) : undefined), [wanted])
   const pcs = (list: number[]) => [...new Set(list.map((p) => p % 12))].sort().join(',')
-  const hit = !!wanted && active.size > 0 && pcs([...active.keys()]) === pcs(wanted.keys) && Math.min(...active.keys()) % 12 === wanted.keys[0] % 12
+  const hit = !!wanted && hearing === null && active.size > 0 && pcs([...active.keys()]) === pcs(wanted.keys) && Math.min(...active.keys()) % 12 === wanted.keys[0] % 12
   // spelled as typed: flats when the name has one (as the chord shapes in Practice do)
-  const lookupFlats = parseChord(lookup.trim())?.flats ?? false
+  const lookupFlats = parseChord(shownName)?.flats ?? false
+  /** Lets go of the chord heard and cancels the ones still to come. */
+  const stopHearing = () => {
+    for (const t of timers.current) clearTimeout(t)
+    timers.current = []
+    for (const p of sounding.current) keyboard.releaseKey(p)
+    sounding.current = []
+    setHearing(null)
+  }
+  /** Plays chords `from`..`to` of the list, one after another (each held HEAR_SECONDS), showing each as it sounds. */
+  const hear = (from: number, to: number) => {
+    stopHearing()
+    const list = names.slice(from, to + 1).map((n) => chordKeys(n, inversion))
+    list.forEach((c, k) => {
+      timers.current.push(
+        setTimeout(() => {
+          for (const p of sounding.current) keyboard.releaseKey(p)
+          sounding.current = c?.keys ?? []
+          for (const p of sounding.current) keyboard.press(p, 80)
+          setStep(from + k)
+          setHearing(from + k)
+        }, k * HEAR_SECONDS * 1000),
+      )
+    })
+    timers.current.push(setTimeout(stopHearing, list.length * HEAR_SECONDS * 1000 - 100))
+  }
+  useEffect(() => () => {
+    for (const t of timers.current) clearTimeout(t)
+  }, [])
   const seekDrag = useSeekDrag(pos, (t) => void seek(t))
   const duration = song?.duration ?? 0
   return (
@@ -232,7 +270,7 @@ export default function MidiPage() {
             <span aria-live="polite" aria-label={chord ? `Chord ${chord}` : 'No chord'} className={`text-4xl font-semibold tabular-nums ${chord ? 'text-highlight' : 'text-muted-foreground/50'}`}>
               {chord ?? '—'}
             </span>
-            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {lookup.trim()}{inversion > 0 && inversions > 0 ? `, ${['1st', '2nd', '3rd', '4th', '5th'][Math.min(inversion, inversions) - 1]} inversion` : ''}</span>}
+            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {shownName}{inversion > 0 && inversions > 0 ? `, ${['1st', '2nd', '3rd', '4th', '5th'][Math.min(inversion, inversions) - 1]} inversion` : ''}</span>}
           </div>
           <div ref={keysBox} className="overflow-x-auto">
             <div className="min-w-[44rem]">
@@ -282,7 +320,17 @@ export default function MidiPage() {
           <Card className="surface-glass gap-2 p-3">
             <h2 className="text-sm font-semibold">Find a chord</h2>
             <div className="flex items-center gap-2">
-              <Input value={lookup} onChange={(e) => setLookup(e.target.value)} placeholder="e.g. Dm7, G/B, Csus4" aria-label="Chord" className="h-9 min-w-0 flex-1" />
+              <Input
+                value={lookup}
+                onChange={(e) => {
+                  stopHearing()
+                  setStep(0)
+                  setLookup(e.target.value)
+                }}
+                placeholder="e.g. Dm7, or G D/F# Em C"
+                aria-label="Chord"
+                className="h-9 min-w-0 flex-1"
+              />
               <NativeSelect aria-label="Inversion" value={String(Math.min(inversion, inversions))} disabled={inversions === 0} onChange={(e) => setInversion(Number(e.target.value))} className="w-36">
                 {['Root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion'].slice(0, Math.max(1, inversions + 1)).map((label, k) => (
                   <option key={k} value={k}>
@@ -291,13 +339,35 @@ export default function MidiPage() {
                 ))}
               </NativeSelect>
               {lookup && (
-                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => (setLookup(''), setInversion(0))}>
+                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => (stopHearing(), setLookup(''), setInversion(0), setStep(0))}>
                   <XIcon />
                 </Button>
               )}
             </div>
-            {lookup.trim() &&
-              (wanted ? (
+            {names.length > 0 && unknown.length === 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {hearing !== null ? (
+                  <Button type="button" size="sm" onClick={stopHearing}>
+                    <PauseIcon />
+                    Stop
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" onClick={() => hear(names.length > 1 ? 0 : step, names.length - 1)}>
+                    <PlayIcon />
+                    {names.length > 1 ? 'Play all' : 'Play'}
+                  </Button>
+                )}
+                {/* several chords: each one shows its keys and sounds when tapped */}
+                {names.length > 1 &&
+                  names.map((n, k) => (
+                    <Button key={k} type="button" variant={k === step ? 'secondary' : 'ghost'} size="sm" aria-pressed={k === step} onClick={() => hear(k, k)}>
+                      {n}
+                    </Button>
+                  ))}
+              </div>
+            )}
+            {names.length > 0 &&
+              (unknown.length === 0 && wanted ? (
                 <p className="text-sm text-muted-foreground">
                   {wanted.bass !== null && (
                     <>
@@ -307,7 +377,7 @@ export default function MidiPage() {
                   <span className="font-medium text-foreground">{wanted.chord.map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
                 </p>
               ) : (
-                <p className="text-sm text-muted-foreground">Not a chord name this page knows.</p>
+                <p className="text-sm text-muted-foreground">Not a chord name this page knows: {unknown.join(', ')}</p>
               ))}
           </Card>
         </div>
