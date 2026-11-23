@@ -189,9 +189,9 @@ export default function MidiPage() {
   const chord = useMemo(() => chordFromNotes([...active.keys()], flats), [active, flats])
   // the chord looked up: its keys, and whether they are what is being played
   const wanted = useMemo(() => (lookup.trim() ? chordKeys(lookup.trim()) : null), [lookup])
-  const target = useMemo(() => (wanted ? new Set([wanted.bass, ...wanted.keys]) : undefined), [wanted])
+  const target = useMemo(() => (wanted ? new Set(wanted.keys) : undefined), [wanted])
   const pcs = (list: number[]) => [...new Set(list.map((p) => p % 12))].sort().join(',')
-  const hit = !!wanted && active.size > 0 && pcs([...active.keys()]) === pcs([wanted.bass, ...wanted.keys]) && Math.min(...active.keys()) % 12 === wanted.bass % 12
+  const hit = !!wanted && active.size > 0 && pcs([...active.keys()]) === pcs(wanted.keys) && Math.min(...active.keys()) % 12 === wanted.keys[0] % 12
   // spelled as typed: flats when the name has one (as the chord shapes in Practice do)
   const lookupFlats = parseChord(lookup.trim())?.flats ?? false
   const seekDrag = useSeekDrag(pos, (t) => void seek(t))
@@ -289,8 +289,12 @@ export default function MidiPage() {
             {lookup.trim() &&
               (wanted ? (
                 <p className="text-sm text-muted-foreground">
-                  Bass <span className="font-medium text-foreground">{noteName(wanted.bass % 12, lookupFlats)}</span>, chord{' '}
-                  <span className="font-medium text-foreground">{wanted.keys.map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
+                  {wanted.extraBass && (
+                    <>
+                      Bass <span className="font-medium text-foreground">{noteName(wanted.keys[0] % 12, lookupFlats)}</span>, chord{' '}
+                    </>
+                  )}
+                  <span className="font-medium text-foreground">{(wanted.extraBass ? wanted.keys.slice(1) : wanted.keys).map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">Not a chord name this page knows.</p>

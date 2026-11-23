@@ -71,23 +71,31 @@ export function prefersFlatsFor(notes: { pitch: number; t: number; end: number }
   return [5, 10, 3, 8, 1, 6].includes(best)
 }
 /**
- * The keys to press for a chord name, as a pianist would play it with a band: the chord in root position from the
- * octave above middle C (C4..B4 for its root), and its bass note an octave or so below (C3..B3), which for a slash
- * chord is the note after the slash. null for a name that is not a chord (or a quality not known).
+ * The keys to press for a chord name, from middle C up (the first note in C4..B4), lowest first:
+ * - "C": root position, C E G.
+ * - an inversion, written as a slash chord whose bass is in the chord ("C/E", "C/G", "Cmaj7/B"): the chord starting
+ *   from that note, E G C.
+ * - a bass that is not in the chord ("C/D", "G/A"): that note an octave lower (C3..B3) under the chord in root position
+ *   (`extraBass` true).
+ * null for a name that is not a chord (or a quality not known).
  */
-export function chordKeys(name: string): { bass: number; keys: number[] } | null {
+export function chordKeys(name: string): { keys: number[]; extraBass: boolean } | null {
   if (!knownChord(name)) return null
   const chord = parseChord(name)
   if (!chord) return null
+  const fromRoot = (pc: number) => (pc - chord.root + 12) % 12
+  const tones = [...chord.notes].sort((a, b) => fromRoot(a) - fromRoot(b))
+  const inChord = tones.includes(chord.bass)
+  // an inversion starts from the bass; otherwise from the root
+  const start = inChord ? tones.indexOf(chord.bass) : 0
+  const order = [...tones.slice(start), ...tones.slice(0, start)]
   const keys: number[] = []
   let last = 59
-  // root first, then the others upwards in the order the shape lists them, each above the one before
-  const order = [chord.root, ...chord.notes.filter((pc) => pc !== chord.root).sort((a, b) => ((a - chord.root + 12) % 12) - ((b - chord.root + 12) % 12))]
   for (const pc of order) {
     let p = last + 1
     while (p % 12 !== pc) p++
     keys.push(p)
     last = p
   }
-  return { bass: 48 + chord.bass, keys }
+  return inChord ? { keys, extraBass: false } : { keys: [48 + chord.bass, ...keys], extraBass: true }
 }
