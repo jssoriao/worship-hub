@@ -35,7 +35,7 @@ function loadSettings(): Settings {
   }
 }
 /**
- * Owners only for now. Play a MIDI keyboard (Web MIDI: Chrome, Edge, Firefox) and see its keys and the chord they
+ * Everyone in the church. Play a MIDI keyboard (Web MIDI: Chrome, Edge, Firefox) and see its keys and the chord they
  * make, with the page's sound or with the sound muted (when a piano program or the keyboard itself plays). Look up a
  * chord to see which keys make it. Open a MIDI file from this computer and play it. Nothing is uploaded.
  * Playing the keyboard leaves a song in Practice playing, to play along; playing a file stops it.

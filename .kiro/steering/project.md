@@ -25,9 +25,10 @@ as tenant data in the database, never in code, docs or resource names. The in-ap
   alert). Copied code is listed in `THIRD_PARTY_NOTICES.md`. Player visuals stay custom, on the tokens.
 - UI principle: compact first. The people using it are not technical, so desktop pages stay dense and simple (small controls, one-line rows, few
   clicks). Phones will get their own design later (larger text and controls, not a shrunk copy of desktop); until then work targets desktop.
-- MIDI (`/midi`, `src/web/pages/MidiPage.tsx`) is owner-only for now, last in the sidebar: open a .mid file from the computer (nothing is uploaded),
-  play it with a small Web Audio synth (`src/web/lib/midi-player.ts`, tempo 50-150%), see the keys (`components/PianoKeys.tsx`) and the chord
-  the sounding notes make (`src/web/lib/chord-detect.ts`). The file reader is in-repo (`src/web/lib/midi.ts`: formats 0/1, tempo map, sustain pedal).
+- MIDI (`/midi`, `src/web/pages/MidiPage.tsx`), for everyone, in the sidebar after Services: play a MIDI keyboard (Web MIDI, `src/web/lib/midi-input.ts`;
+  not Safari) or the on-screen keys, see the keys (`components/PianoKeys.tsx`) and the chord they make (`src/web/lib/chord-detect.ts`), look up a
+  chord's keys, and open a .mid file from the computer and play it (in-repo reader `src/web/lib/midi.ts`). Sound: a small Web Audio synth
+  (`src/web/lib/synth.ts`), can be muted for the keyboard. Nothing is uploaded. Playing the keyboard leaves Practice playing; a file stops it.
 - Arrange is owner-only for now (not ready for others): `PAGES[].owner` + `pageShown` (`src/web/lib/pages.ts`) hide its
   sidebar and Home link, and `/arrange` shows Not found to anyone but an owner (UI only; its API is unchanged).
 - Songs are never deleted by the app, only ARCHIVED (`songs.archived_at/archived_by`; permission `song:archive`, admins and
