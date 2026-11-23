@@ -1,9 +1,9 @@
-import { AudioLinesIcon, CalendarDaysIcon, FileMusicIcon, HouseIcon, LibraryIcon, ListMusicIcon, UsersIcon } from 'lucide-react'
+import { AudioLinesIcon, CalendarDaysIcon, FileMusicIcon, HouseIcon, LibraryIcon, ListMusicIcon, PianoIcon, UsersIcon } from 'lucide-react'
 
 /**
  * The pages, in sidebar order. `admin` pages show only to people who may manage members, and the
  * sidebar groups them under a separator below the other pages; `owner` pages (not ready for everyone
- * yet) only to the church's owners. Arrange is in the admin group for now, though owner only.
+ * yet) only to the church's owners. Arrange and MIDI are in the admin group for now, though owner only.
  */
 export const PAGES = [
   { to: '/', label: 'Home', icon: HouseIcon, end: true, admin: false, owner: false },
@@ -13,6 +13,7 @@ export const PAGES = [
   { to: '/manage-songs', label: 'Songs', icon: LibraryIcon, end: false, admin: true, owner: false, group: 'admin' },
   { to: '/arrange', label: 'Arrange', icon: ListMusicIcon, end: false, admin: false, owner: true, group: 'admin' },
   { to: '/members', label: 'Members', icon: UsersIcon, end: false, admin: true, owner: false, group: 'admin' },
+  { to: '/midi', label: 'MIDI', icon: PianoIcon, end: false, admin: false, owner: true, group: 'admin' },
 ] as const
 
 /** Whether a page sits in the sidebar's admin group (under the separator). */

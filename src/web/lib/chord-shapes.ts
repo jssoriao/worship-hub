@@ -66,6 +66,11 @@ export function parseChord(name: string): ParsedChord | null {
   return { root, notes, bass, flats: m[2] === 'b' || (m[5] ?? '') === 'b' }
 }
 
+/** Whether the part after the root is a chord quality this file knows ("m7", "sus4", ...), not a guess. */
+export function knownChord(name: string): boolean {
+  const m = /^([A-G])([#b]?)([^/]*)(?:\/([A-G])([#b]?))?$/.exec(name.trim())
+  return !!m && Object.hasOwn(QUALITIES, m[3])
+}
 export const noteName = (pc: number, flats: boolean) => (flats ? FLAT_NAMES : SHARP_NAMES)[pc]
 
 /** Standard tuning, low E to high E. */

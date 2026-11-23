@@ -14,6 +14,7 @@ const ABOUT: Record<string, string> = {
   '/charts': 'Chord and lyric charts that follow the music as it plays.',
   '/services': 'Plan each service: the order of songs, their keys, notes and links.',
   '/arrange': 'Your own order of the sections, with parts muted where you want.',
+  '/midi': 'Play a MIDI file and watch the keys and chords.',
   '/members': 'Add people, give them roles, remove them.',
   '/manage-songs': 'See what each song has. Archive songs you no longer use.',
 }

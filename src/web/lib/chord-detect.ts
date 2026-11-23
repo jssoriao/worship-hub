@@ -1,0 +1,93 @@
+import { knownChord, parseChord } from './chord-shapes'
+/**
+ * Names the chord that a set of sounding notes makes ("C", "Am7", "G/B"), or null when they make none: fewer than
+ * three different notes, or notes no chord shape below explains. Doubled notes and octaves do not matter; the lowest
+ * note is the bass, and a chord whose root is not the bass is written as a slash chord.
+ */
+const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+/** Chord shapes as intervals from the root, simplest first (ties go to the earlier one). `optional`: may be missing. */
+const SHAPES: { name: string; notes: number[]; optional?: number[] }[] = [
+  { name: '', notes: [0, 4, 7] },
+  { name: 'm', notes: [0, 3, 7] },
+  { name: 'sus4', notes: [0, 5, 7] },
+  { name: 'sus2', notes: [0, 2, 7] },
+  { name: '7', notes: [0, 4, 10], optional: [7] },
+  { name: 'maj7', notes: [0, 4, 11], optional: [7] },
+  { name: 'm7', notes: [0, 3, 10], optional: [7] },
+  { name: 'dim', notes: [0, 3, 6] },
+  { name: 'aug', notes: [0, 4, 8] },
+  { name: '6', notes: [0, 4, 9], optional: [7] },
+  { name: 'm6', notes: [0, 3, 9], optional: [7] },
+  { name: 'add9', notes: [0, 2, 4], optional: [7] },
+  { name: 'madd9', notes: [0, 2, 3], optional: [7] },
+  { name: '7sus4', notes: [0, 5, 10], optional: [7] },
+  { name: 'm7b5', notes: [0, 3, 6, 10] },
+  { name: 'dim7', notes: [0, 3, 6, 9] },
+  { name: 'mmaj7', notes: [0, 3, 11], optional: [7] },
+  { name: '9', notes: [0, 2, 4, 10], optional: [7] },
+  { name: 'maj9', notes: [0, 2, 4, 11], optional: [7] },
+  { name: 'm9', notes: [0, 2, 3, 10], optional: [7] },
+  // piano voicings often leave the third out: root, fifth and seventh still name the chord
+  { name: 'maj7', notes: [0, 7, 11] },
+  { name: '7', notes: [0, 7, 10] },
+]
+/**
+ * `pitches`: MIDI note numbers sounding together. `flats`: spell with flats (as the song's key does). Returns the
+ * chord name, or null.
+ */
+export function chordFromNotes(pitches: number[], flats = false): string | null {
+  if (pitches.length === 0) return null
+  const pcs = [...new Set(pitches.map((p) => ((p % 12) + 12) % 12))]
+  if (pcs.length < 3) return null
+  const bass = ((Math.min(...pitches) % 12) + 12) % 12
+  const names = flats ? FLATS : SHARPS
+  let best: { name: string; score: number } | null = null
+  SHAPES.forEach((shape, rank) => {
+    for (const root of pcs) {
+      const rel = new Set(pcs.map((pc) => (pc - root + 12) % 12))
+      const all = new Set([...shape.notes, ...(shape.optional ?? [])])
+      // every required note sounds, and nothing sounds that the shape does not have
+      if (!shape.notes.every((i) => rel.has(i)) || [...rel].some((i) => !all.has(i))) continue
+      // a chord built on the bass reads simplest; then the simpler shape
+      const score = (root === bass ? 0 : 100) + rank
+      if (!best || score < best.score) best = { name: names[root] + shape.name + (root === bass ? '' : `/${names[bass]}`), score }
+    }
+  })
+  return best === null ? null : (best as { name: string }).name
+}
+/** Whether a piece reads best with flats: the major key whose scale holds most of its notes (by time held) is a flat key. */
+export function prefersFlatsFor(notes: { pitch: number; t: number; end: number }[]): boolean {
+  const weight = new Array<number>(12).fill(0)
+  for (const n of notes) weight[n.pitch % 12] += n.end - n.t
+  const scale = [0, 2, 4, 5, 7, 9, 11]
+  let best = 0
+  let bestScore = -1
+  for (let k = 0; k < 12; k++) {
+    const score = scale.reduce((s, i) => s + weight[(k + i) % 12], 0)
+    if (score > bestScore) [best, bestScore] = [k, score]
+  }
+  // F, Bb, Eb, Ab, Db, Gb
+  return [5, 10, 3, 8, 1, 6].includes(best)
+}
+/**
+ * The keys to press for a chord name, as a pianist would play it with a band: the chord in root position from the
+ * octave above middle C (C4..B4 for its root), and its bass note an octave or so below (C3..B3), which for a slash
+ * chord is the note after the slash. null for a name that is not a chord (or a quality not known).
+ */
+export function chordKeys(name: string): { bass: number; keys: number[] } | null {
+  if (!knownChord(name)) return null
+  const chord = parseChord(name)
+  if (!chord) return null
+  const keys: number[] = []
+  let last = 59
+  // root first, then the others upwards in the order the shape lists them, each above the one before
+  const order = [chord.root, ...chord.notes.filter((pc) => pc !== chord.root).sort((a, b) => ((a - chord.root + 12) % 12) - ((b - chord.root + 12) % 12))]
+  for (const pc of order) {
+    let p = last + 1
+    while (p % 12 !== pc) p++
+    keys.push(p)
+    last = p
+  }
+  return { bass: 48 + chord.bass, keys }
+}
