@@ -1,43 +1,47 @@
 import { useEffect, useRef, useState } from 'react'
-import { PlayIcon, PlusIcon, SquareIcon, XIcon } from 'lucide-react'
+import { PencilIcon, PlayIcon, PlusIcon, SquareIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { NativeSelect } from '@/components/ui/native-select'
 import { chordKeys, inversionsOf } from '../lib/chord-detect'
 import { noteName, parseChord } from '../lib/chord-shapes'
 import { cn } from '@/lib/utils'
+import { Hint } from './Hint'
+import { EditPopover } from './player/EditPopover'
+import { Segmented } from './player/panels'
 /** how long each chord sounds when played */
 const HEAR_SECONDS = 1.6
-const INVERSIONS = ['Root position', '1st inversion', '2nd inversion', '3rd inversion', '4th inversion', '5th inversion']
 const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th']
-type Card = { id: number; name: string; inversion: number }
-/** The chord a card stands for: its keys and how to read them, or null while its name is empty or not a chord. */
-function keysOf(card: Card) {
-  const name = card.name.trim()
-  if (!name) return null
-  const inversion = Math.min(card.inversion, inversionsOf(name))
-  const keys = chordKeys(name, inversion)
-  return keys && { ...keys, inversion, flats: parseChord(name)?.flats ?? false }
+/** quick picks while the row has no chords of its own yet */
+const COMMON = ['C', 'D', 'E', 'F', 'G', 'A', 'Am', 'Bm', 'Dm', 'Em', 'G/B', 'D/F#']
+type Chord = { id: number; name: string; inversion: number }
+/** The keys of a chord, or null when its name is not a chord this page knows. */
+function keysOf(chord: Chord) {
+  const inversion = Math.min(chord.inversion, inversionsOf(chord.name))
+  const keys = chordKeys(chord.name, inversion)
+  return keys && { ...keys, inversion, flats: parseChord(chord.name)?.flats ?? false }
 }
-/** A chord's name with its inversion, as the page says it: "C/E, 1st inversion". */
-const chordLabel = (name: string, inversion: number) => `${name}${inversion > 0 ? `, ${ORDINAL[inversion - 1]} inversion` : ''}`
+/** "Em, 1st inversion" */
+const labelOf = (name: string, inversion: number) => `${name}${inversion > 0 ? `, ${ORDINAL[inversion - 1]} inversion` : ''}`
+/** a name typed with spaces or commas between chords is several chords */
+const split = (text: string) => text.split(/[\s,]+/).filter(Boolean)
 /**
- * A row of chord cards: each has a chord name, its own inversion, ▶ to hear it and × to take it out. The card being
- * looked at (the last one touched or heard) is shown on the keyboard (`onShow`); Play all plays the row in order.
+ * A row of chords, as on a chord sheet: tap one to hear it and see its keys on the keyboard (`onShow`); the pencil
+ * on the chord shown, or a double click, opens the same small editor as Practice's Chords view: the name, quick picks,
+ * and its inversion. "+" adds chords (several at once when typed with spaces), Play all plays the row in order.
  * `press`/`release` sound and light keys through the page's keyboard.
  */
 export function ChordFinder({ press, release, onShow }: { press: (pitch: number) => void; release: (pitch: number) => void; onShow: (shown: { keys: number[]; label: string } | null) => void }) {
-  const [cards, setCards] = useState<Card[]>([{ id: 1, name: '', inversion: 0 }])
-  const [shownId, setShownId] = useState(1)
+  const [chords, setChords] = useState<Chord[]>([])
+  const [shownId, setShownId] = useState<number | null>(null)
+  // the chord being edited, 'new' for one being added
+  const [editing, setEditing] = useState<number | 'new' | null>(null)
   const [hearingId, setHearingId] = useState<number | null>(null)
-  const nextId = useRef(2)
+  const nextId = useRef(1)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   const sounding = useRef<number[]>([])
-  const shown = cards.find((c) => c.id === shownId) ?? cards[0]
-  const shownKeys = keysOf(shown)
-  // tell the page what to mark on the keyboard
+  const shown = chords.find((c) => c.id === shownId) ?? null
+  const shownKeys = shown && keysOf(shown)
   const shownKeyList = shownKeys?.keys.join(',') ?? ''
-  const shownLabel = shownKeys ? chordLabel(shown.name.trim(), shownKeys.inversion) : ''
+  const shownLabel = shown && shownKeys ? labelOf(shown.name, shownKeys.inversion) : ''
   useEffect(() => {
     onShow(shownKeyList ? { keys: shownKeyList.split(',').map(Number), label: shownLabel } : null)
   }, [shownKeyList, shownLabel, onShow])
@@ -51,136 +55,150 @@ export function ChordFinder({ press, release, onShow }: { press: (pitch: number)
   useEffect(() => () => {
     for (const t of timers.current) clearTimeout(t)
   }, [])
-  /** Plays the given cards one after another, each shown on the keyboard as it sounds. */
-  const hear = (list: Card[]) => {
+  /** Plays chords one after another, each shown on the keyboard as it sounds. */
+  const hear = (list: Chord[]) => {
     stop()
     const playable = list.filter((c) => keysOf(c))
-    playable.forEach((card, k) => {
+    playable.forEach((chord, k) => {
       timers.current.push(
         setTimeout(() => {
           for (const p of sounding.current) release(p)
-          sounding.current = keysOf(card)?.keys ?? []
+          sounding.current = keysOf(chord)?.keys ?? []
           for (const p of sounding.current) press(p)
-          setShownId(card.id)
-          setHearingId(card.id)
+          setShownId(chord.id)
+          setHearingId(chord.id)
         }, k * HEAR_SECONDS * 1000),
       )
     })
     if (playable.length) timers.current.push(setTimeout(stop, playable.length * HEAR_SECONDS * 1000 - 100))
   }
-  const edit = (id: number, patch: Partial<Card>) => setCards((list) => list.map((c) => (c.id === id ? { ...c, ...patch } : c)))
-  const add = () => {
-    const id = nextId.current++
-    setCards((list) => [...list, { id, name: '', inversion: 0 }])
-    setShownId(id)
-    // the new card's name box takes the typing
-    requestAnimationFrame(() => document.getElementById(`chord-${id}`)?.focus())
+  const editingChord = typeof editing === 'number' ? chords.find((c) => c.id === editing) : undefined
+  /** Saves the editor: a name (or several) for the chord edited, or new chords at the end. */
+  const save = (text: string) => {
+    const names = split(text)
+    if (editing === 'new') {
+      if (!names.length) return setEditing(null)
+      const added = names.map((name) => ({ id: nextId.current++, name, inversion: 0 }))
+      setChords((list) => [...list, ...added])
+      setShownId(added[0].id)
+      hear(added.slice(0, 1))
+      // one chord added: the editor stays open on it, for its inversion; several: closed
+      setEditing(added.length === 1 ? added[0].id : null)
+      return
+    }
+    if (!editingChord) return setEditing(null)
+    if (!names.length) return remove(editingChord.id)
+    if (names.length === 1 && names[0] === editingChord.name) return setEditing(null)
+    const [first, ...more] = names
+    const extra = more.map((name) => ({ id: nextId.current++, name, inversion: 0 }))
+    setChords((list) => list.flatMap((c) => (c.id === editingChord.id ? [{ ...c, name: first }, ...extra] : [c])))
+    hear([{ ...editingChord, name: first }])
+    if (extra.length) setEditing(null)
   }
   const remove = (id: number) => {
     stop()
-    const at = cards.findIndex((c) => c.id === id)
-    const rest = cards.filter((c) => c.id !== id)
-    const next = rest.length ? rest : [{ id: nextId.current++, name: '', inversion: 0 }]
-    setCards(next)
-    if (shownId === id) setShownId(next[Math.max(0, at - 1)].id)
+    const at = chords.findIndex((c) => c.id === id)
+    const rest = chords.filter((c) => c.id !== id)
+    setChords(rest)
+    setEditing(null)
+    if (shownId === id) setShownId(rest[Math.max(0, at - 1)]?.id ?? null)
   }
-  const known = cards.filter((c) => keysOf(c))
+  const setInversion = (id: number, inversion: number) => {
+    const chord = chords.find((c) => c.id === id)
+    if (!chord) return
+    setChords((list) => list.map((c) => (c.id === id ? { ...c, inversion } : c)))
+    hear([{ ...chord, inversion }])
+  }
+  const suggestions = [...new Set(chords.length ? chords.map((c) => c.name) : COMMON)]
+  const known = chords.filter((c) => keysOf(c))
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        {cards.map((card, k) => {
-          const keys = keysOf(card)
-          const inversions = card.name.trim() ? inversionsOf(card.name.trim()) : 0
-          const name = card.name.trim()
+      <div className="flex flex-wrap items-center gap-1.5">
+        {chords.map((chord) => {
+          const keys = keysOf(chord)
+          const isShown = chord.id === shownId
           return (
-            <div
-              key={card.id}
-              role="group"
-              aria-label={`Chord ${k + 1}`}
-              onFocusCapture={() => setShownId(card.id)}
-              onPointerDown={() => setShownId(card.id)}
-              className={cn(
-                // two to a row on a phone, a fixed width on wider screens
-                'w-[calc(50%-0.25rem)] space-y-1.5 rounded-lg border bg-background/40 p-2 transition-colors sm:w-44',
-                card.id === shown.id ? 'border-primary/70' : 'border-border',
-                card.id === hearingId && 'bg-primary/15',
-              )}
-            >
-              <div className="flex items-center gap-1">
-                <Input
-                  id={`chord-${card.id}`}
-                  value={card.name}
-                  onChange={(e) => edit(card.id, { name: e.target.value })}
-                  onKeyDown={(e) => {
-                    // Enter: hear it; Enter on the last card with a chord in it: a new card after it
-                    if (e.key !== 'Enter') return
-                    e.preventDefault()
-                    if (k === cards.length - 1 && keys) add()
-                    else if (keys) hear([card])
-                  }}
-                  placeholder={k === 0 ? 'e.g. Dm7, G/B' : 'Chord'}
-                  aria-label={`Chord ${k + 1} name`}
-                  className="h-8 min-w-0 flex-1 px-2 font-semibold"
-                />
-                <Button type="button" variant="ghost" size="icon-sm" aria-label={`Hear ${name || `chord ${k + 1}`}`} disabled={!keys} onClick={() => hear([card])}>
-                  <PlayIcon />
-                </Button>
-                {cards.length > 1 && (
-                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Remove ${name || `chord ${k + 1}`}`} onClick={() => remove(card.id)}>
-                    <XIcon />
-                  </Button>
+            <div key={chord.id} className="flex items-center">
+              <button
+                type="button"
+                aria-label={keys ? `${labelOf(chord.name, keys.inversion)}: hear it` : `${chord.name}: not a chord name this page knows`}
+                aria-pressed={isShown}
+                onClick={() => (setShownId(chord.id), keys ? hear([chord]) : setEditing(chord.id))}
+                onDoubleClick={() => setEditing(chord.id)}
+                className={cn(
+                  'flex h-10 min-w-12 items-start justify-center gap-0.5 rounded-md border-l-2 px-3 pt-1.5 text-lg font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                  !keys ? 'border-destructive bg-destructive/10 text-destructive line-through' : isShown ? 'border-highlight/70 bg-primary text-white' : 'border-slate-500 bg-accent',
+                  chord.id === hearingId && 'ring-2 ring-highlight/60',
                 )}
-              </div>
-              <NativeSelect
-                aria-label={`Inversion of ${name || `chord ${k + 1}`}`}
-                value={String(Math.min(card.inversion, inversions))}
-                disabled={!keys || inversions === 0}
-                onChange={(e) => edit(card.id, { inversion: Number(e.target.value) })}
-                size="sm"
-                wrapperClassName="w-full"
-                className="text-xs"
               >
-                {INVERSIONS.slice(0, Math.max(1, inversions + 1)).map((label, i) => (
-                  <option key={i} value={i}>
-                    {label}
-                  </option>
-                ))}
-              </NativeSelect>
-              <p className="min-h-4 truncate text-xs text-muted-foreground">
-                {!name ? (
-                  ' '
-                ) : !keys ? (
-                  <span className="text-destructive">Not a chord name this page knows</span>
-                ) : (
-                  <>
-                    {keys.bass !== null && <span className="text-foreground/80">{noteName(keys.bass % 12, keys.flats)} | </span>}
-                    <span className="font-medium text-foreground">{keys.chord.map((p) => noteName(p % 12, keys.flats)).join(' ')}</span>
-                  </>
-                )}
-              </p>
+                {chord.name}
+                {keys && keys.inversion > 0 && <sup className="mt-1 text-[10px] font-medium opacity-80">{ORDINAL[keys.inversion - 1]}</sup>}
+              </button>
+              {isShown && (
+                <Hint text="Change this chord">
+                  <Button type="button" variant="ghost" size="icon-sm" className="mobile:size-11" aria-label={`Change ${chord.name}`} onClick={() => setEditing(chord.id)}>
+                    <PencilIcon />
+                  </Button>
+                </Hint>
+              )}
             </div>
           )
         })}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={add}>
-          <PlusIcon />
-          Add chord
-        </Button>
-        {hearingId !== null ? (
-          <Button type="button" size="sm" onClick={stop}>
-            <SquareIcon />
-            Stop
+        <Hint text="Add chords">
+          <Button type="button" variant="outline" size={chords.length ? 'icon' : 'sm'} className={chords.length ? 'mobile:size-11' : ''} aria-label="Add chords" onClick={() => setEditing('new')}>
+            <PlusIcon />
+            {!chords.length && 'Add a chord'}
           </Button>
-        ) : (
-          known.length > 1 && (
-            <Button type="button" size="sm" onClick={() => hear(cards)}>
+        </Hint>
+        {known.length > 1 &&
+          (hearingId !== null ? (
+            <Button type="button" size="sm" className="ml-auto" onClick={stop}>
+              <SquareIcon />
+              Stop
+            </Button>
+          ) : (
+            <Button type="button" size="sm" className="ml-auto" onClick={() => hear(chords)}>
               <PlayIcon />
               Play all
             </Button>
-          )
-        )}
+          ))}
       </div>
+      {editing !== null && (
+        <div className="max-w-md">
+          <EditPopover
+            key={`${editing}-${editingChord?.name ?? ''}`}
+            title={editing === 'new' ? 'Add chords (several: put spaces between them)' : 'Chord'}
+            initial={editingChord?.name ?? ''}
+            placeholder="e.g. Dm7, G/B, Csus4"
+            suggestions={suggestions}
+            actions={editingChord ? [{ label: 'Remove', onClick: () => remove(editingChord.id) }] : []}
+            onSave={save}
+            onCancel={() => setEditing(null)}
+          >
+            {editingChord && <ChordDetails chord={editingChord} onInversion={(v) => setInversion(editingChord.id, v)} />}
+          </EditPopover>
+        </div>
+      )}
+    </div>
+  )
+}
+/** In the editor: the chord's inversion and its notes. */
+function ChordDetails({ chord, onInversion }: { chord: Chord; onInversion: (v: number) => void }) {
+  const keys = keysOf(chord)
+  if (!keys) return <p className="mt-2 text-xs text-destructive">Not a chord name this page knows.</p>
+  const count = inversionsOf(chord.name)
+  const options = (['Root', ...ORDINAL].slice(0, count + 1) as string[]).map((text, k): [string, string] => [String(k), text])
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <Segmented label="Inversion" size="sm" value={String(keys.inversion)} options={options} onChange={(v) => onInversion(Number(v))} />
+      <span className="text-xs text-muted-foreground">
+        {keys.bass !== null && (
+          <>
+            Left hand <span className="font-medium text-foreground">{noteName(keys.bass % 12, keys.flats)}</span>, right hand{' '}
+          </>
+        )}
+        <span className="font-medium text-foreground">{keys.chord.map((p) => noteName(p % 12, keys.flats)).join(' ')}</span>
+      </span>
     </div>
   )
 }
