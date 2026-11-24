@@ -42,6 +42,24 @@ const QUALITIES: Record<string, number[]> = {
   m7b5: [0, 3, 6, 10],
   aug: [0, 4, 8],
   '+': [0, 4, 8],
+  // augmented seventh: an augmented chord with the minor seventh (C E G# Bb), and with the major seventh (C E G# B)
+  aug7: [0, 4, 8, 10],
+  '+7': [0, 4, 8, 10],
+  '7#5': [0, 4, 8, 10],
+  '7+5': [0, 4, 8, 10],
+  'maj7#5': [0, 4, 8, 11],
+  'maj7+5': [0, 4, 8, 11],
+  '+maj7': [0, 4, 8, 11],
+  augmaj7: [0, 4, 8, 11],
+  // two notes: root and third, the fifth left out (root and fifth alone is "5", above)
+  no5: [0, 4],
+  '(no5)': [0, 4],
+  omit5: [0, 4],
+  '(omit5)': [0, 4],
+  mno5: [0, 3],
+  'm(no5)': [0, 3],
+  momit5: [0, 3],
+  'm(omit5)': [0, 3],
 }
 
 export interface ParsedChord {

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FolderOpenIcon, MinusIcon, PauseIcon, PianoIcon, PlayIcon, PlusIcon, RotateCcwIcon, RotateCwIcon, XIcon } from 'lucide-react'
+import { FolderOpenIcon, MinusIcon, PauseIcon, PianoIcon, PlayIcon, PlusIcon, RotateCcwIcon, RotateCwIcon } from 'lucide-react'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { ChordFinder } from '../components/ChordFinder'
 import { NativeSelect } from '@/components/ui/native-select'
 import { Hint } from '../components/Hint'
 import { PageHeader } from '../components/PageHeader'
@@ -12,8 +12,7 @@ import { Range } from '../components/Range'
 import { Toggle } from '../components/player/panels'
 import { useSeekDrag } from '../components/player/use-seek-drag'
 import { formatClock as clock } from '../lib/chart'
-import { chordFromNotes, chordKeys, prefersFlatsFor } from '../lib/chord-detect'
-import { noteName, parseChord } from '../lib/chord-shapes'
+import { chordFromNotes, prefersFlatsFor } from '../lib/chord-detect'
 import { MidiError, notesAt, parseMidi, type MidiSong } from '../lib/midi'
 import { LiveKeyboard, midiSupported, type InputDevice } from '../lib/midi-input'
 import { MidiPlayer } from '../lib/midi-player'
@@ -56,7 +55,8 @@ export default function MidiPage() {
   const [midi, setMidi] = useState<'idle' | 'asking' | 'denied' | 'on'>('idle')
   const [devices, setDevices] = useState<InputDevice[]>([])
   const [live, setLive] = useState<Map<number, number>>(new Map())
-  const [lookup, setLookup] = useState('')
+  // the chord shown from the chord cards (its keys are marked on the keyboard), null when none
+  const [shownChord, setShownChord] = useState<{ keys: number[]; label: string } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const keysBox = useRef<HTMLDivElement>(null)
   const change = (patch: Partial<Settings>) =>
@@ -187,13 +187,10 @@ export default function MidiPage() {
     return out
   }, [song, pos, live])
   const chord = useMemo(() => chordFromNotes([...active.keys()], flats), [active, flats])
-  // the chord looked up: its keys, and whether they are what is being played
-  const wanted = useMemo(() => (lookup.trim() ? chordKeys(lookup.trim()) : null), [lookup])
-  const target = useMemo(() => (wanted ? new Set([wanted.bass, ...wanted.keys]) : undefined), [wanted])
+  // the chord shown from the cards: marked on the keyboard, and "That's ..." when the keys sounding make it
+  const target = useMemo(() => (shownChord ? new Set(shownChord.keys) : undefined), [shownChord])
   const pcs = (list: number[]) => [...new Set(list.map((p) => p % 12))].sort().join(',')
-  const hit = !!wanted && active.size > 0 && pcs([...active.keys()]) === pcs([wanted.bass, ...wanted.keys]) && Math.min(...active.keys()) % 12 === wanted.bass % 12
-  // spelled as typed: flats when the name has one (as the chord shapes in Practice do)
-  const lookupFlats = parseChord(lookup.trim())?.flats ?? false
+  const hit = !!shownChord && active.size > 0 && pcs([...active.keys()]) === pcs(shownChord.keys) && Math.min(...active.keys()) % 12 === shownChord.keys[0] % 12
   const seekDrag = useSeekDrag(pos, (t) => void seek(t))
   const duration = song?.duration ?? 0
   return (
@@ -229,13 +226,17 @@ export default function MidiPage() {
             <span aria-live="polite" aria-label={chord ? `Chord ${chord}` : 'No chord'} className={`text-4xl font-semibold tabular-nums ${chord ? 'text-highlight' : 'text-muted-foreground/50'}`}>
               {chord ?? '—'}
             </span>
-            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {lookup.trim()}</span>}
+            {hit && <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-300">That's {shownChord?.label}</span>}
           </div>
           <div ref={keysBox} className="overflow-x-auto">
             <div className="min-w-[44rem]">
               <PianoKeys active={active} target={target} onPress={(p) => keyboard.press(p)} onRelease={(p) => keyboard.releaseKey(p)} />
             </div>
           </div>
+        </Card>
+        <Card className="surface-glass gap-2 p-3">
+          <h2 className="text-sm font-semibold">Chords</h2>
+          <ChordFinder press={(p) => keyboard.press(p, 80)} release={(p) => keyboard.releaseKey(p)} onShow={setShownChord} />
         </Card>
         <div className="grid gap-3 md:grid-cols-2">
           <Card className="surface-glass gap-2 p-3">
@@ -275,26 +276,6 @@ export default function MidiPage() {
               <span className="w-14 text-muted-foreground">Volume</span>
               <Range max={1} step={0.05} value={settings.volume} aria-label="Volume" onChange={(e) => change({ volume: Number(e.target.value) })} className="h-8 min-w-0 flex-1" />
             </label>
-          </Card>
-          <Card className="surface-glass gap-2 p-3">
-            <h2 className="text-sm font-semibold">Find a chord</h2>
-            <div className="flex items-center gap-2">
-              <Input value={lookup} onChange={(e) => setLookup(e.target.value)} placeholder="e.g. Dm7, G/B, Csus4" aria-label="Chord" className="h-9" />
-              {lookup && (
-                <Button type="button" variant="ghost" size="icon" aria-label="Clear the chord" onClick={() => setLookup('')}>
-                  <XIcon />
-                </Button>
-              )}
-            </div>
-            {lookup.trim() &&
-              (wanted ? (
-                <p className="text-sm text-muted-foreground">
-                  Bass <span className="font-medium text-foreground">{noteName(wanted.bass % 12, lookupFlats)}</span>, chord{' '}
-                  <span className="font-medium text-foreground">{wanted.keys.map((k) => noteName(k % 12, lookupFlats)).join(' ')}</span>
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">Not a chord name this page knows.</p>
-              ))}
           </Card>
         </div>
         {song && (
