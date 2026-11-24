@@ -1,7 +1,7 @@
 import { knownChord, parseChord } from './chord-shapes'
 /**
- * Names the chord that a set of sounding notes makes ("C", "Am7", "G/B"), or null when they make none: fewer than
- * three different notes, or notes no chord shape below explains. Doubled notes and octaves do not matter; the lowest
+ * Names the chord that a set of sounding notes makes ("C", "Am7", "G/B"; two notes a fifth or a third apart: "C5",
+ * "C(no5)", "Cm(no5)"), or null when they make none: one note, or notes no chord shape below explains. Doubled notes and octaves do not matter; the lowest
  * note is the bass, and a chord whose root is not the bass is written as a slash chord.
  */
 const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
@@ -31,6 +31,12 @@ const SHAPES: { name: string; notes: number[]; optional?: number[] }[] = [
   // piano voicings often leave the third out: root, fifth and seventh still name the chord
   { name: 'maj7', notes: [0, 7, 11] },
   { name: '7', notes: [0, 7, 10] },
+  { name: 'aug7', notes: [0, 4, 8, 10] },
+  { name: 'maj7#5', notes: [0, 4, 8, 11] },
+  // two notes: root and fifth (a power chord), root and third with the fifth left out
+  { name: '5', notes: [0, 7] },
+  { name: '(no5)', notes: [0, 4] },
+  { name: 'm(no5)', notes: [0, 3] },
 ]
 /**
  * `pitches`: MIDI note numbers sounding together. `flats`: spell with flats (as the song's key does). Returns the
@@ -39,7 +45,7 @@ const SHAPES: { name: string; notes: number[]; optional?: number[] }[] = [
 export function chordFromNotes(pitches: number[], flats = false): string | null {
   if (pitches.length === 0) return null
   const pcs = [...new Set(pitches.map((p) => ((p % 12) + 12) % 12))]
-  if (pcs.length < 3) return null
+  if (pcs.length < 2) return null
   const bass = ((Math.min(...pitches) % 12) + 12) % 12
   const names = flats ? FLATS : SHARPS
   let best: { name: string; score: number } | null = null

@@ -103,10 +103,22 @@ describe('naming the chord the notes make', () => {
     expect(chordFromNotes([58, 62, 65], true)).toBe('Bb')
     expect(chordFromNotes([58, 62, 65])).toBe('A#')
   })
-  it('gives no chord for fewer than three notes or notes no chord explains', () => {
+  it('gives no chord for one note or notes no chord explains', () => {
     expect(chordFromNotes([])).toBeNull()
-    expect(chordFromNotes([60, 67])).toBeNull()
+    expect(chordFromNotes([60, 72])).toBeNull()
+    expect(chordFromNotes([60, 62])).toBeNull()
     expect(chordFromNotes([60, 61, 62])).toBeNull()
+  })
+  it('names two notes a fifth or a third apart from the lower one', () => {
+    expect(chordFromNotes([48, 55])).toBe('C5')
+    expect(chordFromNotes([60, 64])).toBe('C(no5)')
+    expect(chordFromNotes([60, 63])).toBe('Cm(no5)')
+    // the fifth below the root: C over G
+    expect(chordFromNotes([55, 60])).toBe('C5/G')
+  })
+  it('names augmented sevenths', () => {
+    expect(chordFromNotes([60, 64, 68, 70])).toBe('Caug7')
+    expect(chordFromNotes([60, 64, 68, 71])).toBe('Cmaj7#5')
   })
   it('reads a piece in a flat key as wanting flats', () => {
     // F major scale notes, held equally
@@ -136,6 +148,14 @@ describe('the keys for a chord name', () => {
     expect(chordKeys('C/E', 1)?.keys).toEqual([52, 64, 67, 72])
     expect(chordKeys('C/D')?.keys).toEqual([50, 60, 64, 67])
     expect(chordKeys('D/F#')?.bass).toBe(54)
+  })
+  it('knows two-note chords and augmented sevenths, in their usual spellings', () => {
+    expect(chordKeys('C5')?.keys).toEqual([60, 67])
+    for (const name of ['C(no5)', 'Cno5', 'C(omit5)']) expect(chordKeys(name)?.keys).toEqual([60, 64])
+    expect(chordKeys('Cm(no5)')?.keys).toEqual([60, 63])
+    expect(chordKeys('C(no5)', 1)?.keys).toEqual([64, 72])
+    for (const name of ['Caug7', 'C+7', 'C7#5']) expect(chordKeys(name)?.keys).toEqual([60, 64, 68, 70])
+    expect(chordKeys('Cmaj7#5')?.keys).toEqual([60, 64, 68, 71])
   })
   it('counts the inversions a chord has', () => {
     expect(inversionsOf('C')).toBe(2)
