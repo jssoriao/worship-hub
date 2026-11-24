@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { audioCache } from '../lib/audio-cache'
 import { authClient } from '../lib/auth-client'
 import { TurnstileError } from '../lib/turnstile-error'
+import { DevSignIn } from './DevSignIn'
 import { Turnstile, type TurnstileHandle } from './Turnstile'
 
 const CODE_LENGTH = 6
@@ -240,6 +241,8 @@ export function EmailCodeSignIn({ intro, beforeSend, onSignedIn, heading }: Sign
         {human}
         {error && <ErrorNote>{error}</ErrorNote>}
       </form>
+      {/* local development only: the build for the site leaves it out */}
+      {import.meta.env.DEV && !beforeSend && <DevSignIn />}
     </AuthScreen>
   )
 }

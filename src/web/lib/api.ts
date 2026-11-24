@@ -23,6 +23,8 @@ export const servicesApi = client.api.church.services
 export const aiApi = client.api.church.ai
 /** /api/join/<token>: joining a church through a link. */
 export const joinApi = client.api.join
+/** /api/dev: local development only, sign in as a role (a 404 anywhere else). */
+export const devApi = client.api.dev
 /** An answer that was not ok. `message` is the server's `{ error }` (written for people) unless replaced. */
 export class ApiError extends Error {
   readonly status: number

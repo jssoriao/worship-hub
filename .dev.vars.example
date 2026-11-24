@@ -24,3 +24,6 @@ RESEND_API_KEY=
 # Cloudflare Turnstile (the human check before a sign-in code is sent). These are Cloudflare's public
 # test keys, which always pass; production's secret is a Worker secret (docs/infra.md)
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Local only: "on" adds "Sign in as" role buttons to the sign-in screen (no emailed code). Works only with an
+# http://127.0.0.1 or http://localhost APP_URL; never set it in production.
+DEV_LOGIN=on

@@ -14,4 +14,6 @@ export type Bindings = {
   RESEND_API_KEY: string
   /** Secret: Cloudflare Turnstile secret key of the sign-in widget (development: Cloudflare's test secret). */
   TURNSTILE_SECRET_KEY: string
+  /** Local development only (.dev.vars): "on" lets /api/dev sign in as any role without a code; see dev-login.ts. */
+  DEV_LOGIN?: string
 }
