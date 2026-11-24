@@ -49,8 +49,9 @@ export function chordFromNotes(pitches: number[], flats = false): string | null 
       const all = new Set([...shape.notes, ...(shape.optional ?? [])])
       // every required note sounds, and nothing sounds that the shape does not have
       if (!shape.notes.every((i) => rel.has(i)) || [...rel].some((i) => !all.has(i))) continue
-      // a chord built on the bass reads simplest; then the simpler shape
-      const score = (root === bass ? 0 : 100) + rank
+      // a whole chord first (G B E is Em over G, not G6 with no fifth), then one built on the bass, then the simpler shape
+      const missing = (shape.optional ?? []).filter((i) => !rel.has(i)).length
+      const score = missing * 1000 + (root === bass ? 0 : 100) + rank
       if (!best || score < best.score) best = { name: names[root] + shape.name + (root === bass ? '' : `/${names[bass]}`), score }
     }
   })

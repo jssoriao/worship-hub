@@ -95,6 +95,9 @@ describe('naming the chord the notes make', () => {
     expect(chordFromNotes([52, 60, 67])).toBe('C/E')
     expect(chordFromNotes([45, 60, 64, 67])).toBe('Am7')
     expect(chordFromNotes([48, 57, 64, 67])).toBe('C6')
+    // an inversion of a triad: Em over G, not G6 with its fifth left out
+    expect(chordFromNotes([67, 71, 76])).toBe('Em/G')
+    expect(chordFromNotes([64, 67, 72])).toBe('C/E')
   })
   it('spells with flats when asked', () => {
     expect(chordFromNotes([58, 62, 65], true)).toBe('Bb')
