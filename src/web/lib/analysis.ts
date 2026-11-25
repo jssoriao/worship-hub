@@ -3,7 +3,7 @@
  * beat grid, sections, and lyrics with a time per word. Times here are seconds.
  */
 import { songFile } from './api'
-import { keyName, parseKey, prefersFlats, shiftKey, transposeChord } from './chords'
+import { chordNumber, keyName, parseKey, prefersFlats, shiftKey, transposeChord } from './chords'
 
 export type ChordLevel = 'basic' | 'simple' | 'complex'
 
@@ -183,4 +183,18 @@ export function transposeAnalysis(a: SongAnalysis, semitones: number): SongAnaly
     key: target ? keyName(target) : a.key,
     chords: a.chords.map((c) => ({ ...c, basic: move(c.basic), simple: move(c.simple), complex: move(c.complex), bass: move(c.bass) })),
   }
+}
+/**
+ * The analysis with its chords written as Nashville numbers in the song's key (as Charts' "Numbers": degrees of the
+ * major scale, minor keys counted from their relative major): F#m in A is 6m, E/G# is 5/7. The bass is folded into each
+ * name, so the views show it as they do for letters. Unchanged when the key cannot be read.
+ */
+export function numberAnalysis(a: SongAnalysis): SongAnalysis {
+  const key = parseKey(a.key)
+  if (!key) return a
+  const num = (c: Chord, level: ChordLevel) => {
+    const name = chordName(c, level)
+    return name ? chordNumber(name, key) : ''
+  }
+  return { ...a, chords: a.chords.map((c) => ({ ...c, basic: num(c, 'basic'), simple: num(c, 'simple'), complex: num(c, 'complex'), bass: '' })) }
 }

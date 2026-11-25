@@ -28,7 +28,7 @@ import { LyricTools, type TapRequest } from '../components/player/LyricTools'
 import { ShapesView } from '../components/player/ShapesView'
 import { StemTimeline, type TimelineStem } from '../components/player/StemTimeline'
 import type { Instrument } from '../components/player/ChordShape'
-import { fetchAnalysis, fetchAnalysisVersion, indexAt, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
+import { fetchAnalysis, fetchAnalysisVersion, indexAt, numberAnalysis, transposeAnalysis, type ChordLevel, type SongAnalysis } from '../lib/analysis'
 import { addLine, approveLine, copyBars, lyricsText, retimeLines, setAllLyrics, copySectionChords, copySectionLyrics, deleteLine, joinWithNextLine, listVersions, removeChordAt, removeSectionAt, retimeWords, saveAnalysis, setChordAt, setLineText, setSectionAt, splitLine, type AnalysisVersion } from '../lib/analysis-edit'
 import { chartsPath, keyFromAddress, practicePath, resolveSongParam, songFromAddress } from '../lib/address'
 import { useChurch } from '../lib/church-context'
@@ -62,6 +62,8 @@ interface ViewPrefs {
   follow: boolean
   /** the Chords view shows the words sung in each beat (off at first) */
   chordLyrics: boolean
+  /** chords as Nashville numbers in the song's key (letters at first) */
+  numbers: boolean
 }
 function savedViewPrefs(): ViewPrefs {
   try {
@@ -72,9 +74,10 @@ function savedViewPrefs(): ViewPrefs {
       instrument: v?.instrument === 'piano' ? 'piano' : 'guitar',
       follow: v?.follow !== false,
       chordLyrics: v?.chordLyrics === true,
+      numbers: v?.numbers === true,
     }
   } catch {
-    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true, chordLyrics: false }
+    return { view: 'stems', level: 'simple', instrument: 'guitar', follow: true, chordLyrics: false, numbers: false }
   }
 }
 
@@ -199,6 +202,10 @@ export default function PracticePage() {
   // a line's edit box asks the Tap panel (in the edit bar) to open on its words
   const [tapRequest, setTapRequest] = useState<TapRequest | null>(null)
   const heard = useMemo(() => (shown && !editing ? transposeAnalysis(shown, key) : shown), [shown, editing, key])
+  // what the Stems, Lyrics and Chords views show: letters, or Nashville numbers (never while editing: edits are letters).
+  // Shapes always draws letters: a diagram needs the chord itself.
+  const canNumber = !!shown && parseKey(shown.key) !== null
+  const display = useMemo(() => (heard && prefs.numbers && canNumber && !editing ? numberAnalysis(heard) : heard), [heard, prefs.numbers, canNumber, editing])
   const change = (f: (a: SongAnalysis) => SongAnalysis) => {
     if (!shown) return
     setDraft(f(shown))
@@ -811,6 +818,9 @@ export default function PracticePage() {
       onFollow={(follow) => setPrefs((p) => ({ ...p, follow }))}
       chordLyrics={prefs.chordLyrics}
       onChordLyrics={(chordLyrics) => setPrefs((p) => ({ ...p, chordLyrics }))}
+      numbers={prefs.numbers}
+      onNumbers={(numbers) => setPrefs((p) => ({ ...p, numbers }))}
+      canNumber={canNumber}
     />
   )
   const tools = (
@@ -1090,7 +1100,7 @@ export default function PracticePage() {
                   position={pos}
                   onSeek={(t) => void seekTo(t)}
                   onPatch={patch}
-                  analysis={heard}
+                  analysis={display}
                   level={prefs.level}
                 />
               </div>
@@ -1134,9 +1144,9 @@ export default function PracticePage() {
               </div>
             )}
             <UnsavedDialog open={asking || blocked} saving={savingEdit} error={editError} onSave={() => void saveDraft().then((saved) => saved && goOn())} onDiscard={goOn} onCancel={stay} />
-            {heard && prefs.view === 'lyrics' && (
+            {display && prefs.view === 'lyrics' && (
               <LyricsView
-                analysis={heard}
+                analysis={display}
                 level={prefs.level}
                 position={pos}
                 onSeek={(t) => void seekTo(t)}
@@ -1152,9 +1162,9 @@ export default function PracticePage() {
                 onStartEdit={canEditView && !editing ? () => setEditing(true) : undefined}
               />
             )}
-            {heard && prefs.view === 'chords' && (
+            {display && prefs.view === 'chords' && (
               <ChordGrid
-                analysis={heard}
+                analysis={display}
                 level={prefs.level}
                 position={pos}
                 onSeek={(t) => void seekTo(t)}
