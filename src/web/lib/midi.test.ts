@@ -157,6 +157,15 @@ describe('the keys for a chord name', () => {
     for (const name of ['Caug7', 'C+7', 'C7#5']) expect(chordKeys(name)?.keys).toEqual([60, 64, 68, 70])
     expect(chordKeys('Cmaj7#5')?.keys).toEqual([60, 64, 68, 71])
   })
+  it('knows the names worship charts use: D2, A2/C#, A4, A7sus', () => {
+    // D2 = Dsus2: D E A
+    expect(chordKeys('D2')?.keys).toEqual([62, 64, 69])
+    // A2 over C#: C#3 under A4 B4 E5
+    expect(chordKeys('A2/C#')?.keys).toEqual([49, 69, 71, 76])
+    expect(chordKeys('A4')?.keys).toEqual([69, 74, 76])
+    // A7sus = A7sus4: A D E G
+    expect(chordKeys('A7sus')?.keys).toEqual([69, 74, 76, 79])
+  })
   it('counts the inversions a chord has', () => {
     expect(inversionsOf('C')).toBe(2)
     expect(inversionsOf('G7')).toBe(3)
