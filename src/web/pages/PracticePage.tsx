@@ -6,7 +6,7 @@ import { usePlayerSlot } from '../lib/player-slot'
 import { audioCache } from '../lib/audio-cache'
 import { MAX_TEMPO, MIN_TEMPO, StemEngine, SupersededError, type ClickBeat, type DownloadProgress, type StemInfo } from '../lib/engine'
 import { computeMix, families, type MixState } from '../lib/mix'
-import { keyName, parseKey, shiftKey } from '../lib/chords'
+import { keyName, numberChord, parseKey, shiftKey } from '../lib/chords'
 import { MAX_KEY_SHIFT } from '../lib/key-shift'
 import { savedTempo, saveTempo, stepTempo } from '../lib/tempo'
 import { loadSong as loadSongSettings, saveSong as saveSongSettings } from '../lib/chart-view'
@@ -202,10 +202,17 @@ export default function PracticePage() {
   // a line's edit box asks the Tap panel (in the edit bar) to open on its words
   const [tapRequest, setTapRequest] = useState<TapRequest | null>(null)
   const heard = useMemo(() => (shown && !editing ? transposeAnalysis(shown, key) : shown), [shown, editing, key])
-  // what the Stems, Lyrics and Chords views show: letters, or Nashville numbers (never while editing: edits are letters).
-  // Shapes always draws letters: a diagram needs the chord itself.
+  // what the Stems, Lyrics and Chords views show: letters, or Nashville numbers (also while editing: a number typed in a
+  // chord box is turned back into a chord in the song's key, see `chordTyped`). Shapes always draws letters: a diagram
+  // needs the chord itself.
   const canNumber = !!shown && parseKey(shown.key) !== null
-  const display = useMemo(() => (heard && prefs.numbers && canNumber && !editing ? numberAnalysis(heard) : heard), [heard, prefs.numbers, canNumber, editing])
+  const showNumbers = prefs.numbers && canNumber
+  const display = useMemo(() => (heard && showNumbers ? numberAnalysis(heard) : heard), [heard, showNumbers])
+  /** What a chord box saves: with numbers shown, a number ("6m7", "5/7") becomes the chord in the song's key; a chord name stays. */
+  const chordTyped = (text: string) => {
+    const songKey = showNumbers && shown ? parseKey(shown.key) : null
+    return (songKey && numberChord(text, songKey)) ?? text
+  }
   const change = (f: (a: SongAnalysis) => SongAnalysis) => {
     if (!shown) return
     setDraft(f(shown))
@@ -1171,7 +1178,8 @@ export default function PracticePage() {
                 follow={prefs.follow && playing && !editing}
                 editing={editing}
                 lyrics={prefs.chordLyrics}
-                onChord={(t, name) => change((a) => setChordAt(a, t, name))}
+                onChord={(t, name) => change((a) => setChordAt(a, t, chordTyped(name)))}
+                numbers={showNumbers}
                 onRemoveChord={(t) => change((a) => removeChordAt(a, t))}
                 onSection={(t, label) => change((a) => (label === null ? removeSectionAt(a, t) : setSectionAt(a, t, label)))}
                 onCopySection={(from, to) => change((a) => copySectionChords(a, from, to))}
