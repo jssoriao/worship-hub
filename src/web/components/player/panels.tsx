@@ -120,6 +120,10 @@ export function ViewPanel(props: {
   /** the Chords view shows the words sung in each beat */
   chordLyrics: boolean
   onChordLyrics: (on: boolean) => void
+  /** chords as Nashville numbers; `canNumber` false when the song's key is not known (only letters then) */
+  numbers: boolean
+  onNumbers: (on: boolean) => void
+  canNumber: boolean
 }) {
   return (
     <div className="space-y-3 text-slate-300">
@@ -134,6 +138,15 @@ export function ViewPanel(props: {
             ['complex', 'Full'],
           ]}
           onChange={props.onLevel}
+        />
+      </div>
+      <div>
+        <p className="mb-1 text-xs text-muted-foreground">Chords as</p>
+        <Segmented
+          label="Chords as"
+          value={props.numbers && props.canNumber ? 'numbers' : 'letters'}
+          options={props.canNumber ? [['letters', 'Letters'], ['numbers', 'Numbers']] : [['letters', 'Letters']]}
+          onChange={(v) => props.onNumbers(v === 'numbers')}
         />
       </div>
       <div>
