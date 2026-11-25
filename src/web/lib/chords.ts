@@ -89,3 +89,22 @@ export function chordNumber(chord: string, key: Key): string {
   const bass = m[4] ? `/${degree(m[4], m[5] ?? '')}` : ''
   return degree(m[1], m[2]) + m[3] + bass
 }
+/** A number's degree, "b3", "#4", "5" -> semitones above 1. */
+const STEP: Record<string, number> = { '1': 0, '2': 2, '3': 4, '4': 5, '5': 7, '6': 9, '7': 11 }
+/** degree, the rest (quality), and an optional bass degree after "/" */
+const NUMBER = /^([b#]?)([1-7])([^/]*)(?:\/([b#]?)([1-7]))?$/
+/**
+ * A Nashville number back to a chord in `key`, as chordNumber writes it: "6m7" in A is F#m7, "5/7" is E/G#, "b7" in C is
+ * Bb. Minor keys count from their relative major. A degree with a flat is spelled with flats, with a sharp with sharps,
+ * otherwise as the key is written. null when the text is not a number (a chord name, say), so the caller keeps it.
+ */
+export function numberChord(text: string, key: Key): string | null {
+  const m = NUMBER.exec(text.trim().replace('♭', 'b').replace('♯', '#'))
+  if (!m) return null
+  const one = key.minor ? mod12(key.tonic + 3) : key.tonic
+  const note = (acc: string, digit: string) => {
+    const pc = mod12(one + STEP[digit] + (acc === '#' ? 1 : acc === 'b' ? -1 : 0))
+    return (acc === 'b' ? FLATS : acc === '#' ? SHARPS : flatKey(key) ? FLATS : SHARPS)[pc]
+  }
+  return note(m[1], m[2]) + m[3] + (m[5] ? `/${note(m[4] ?? '', m[5])}` : '')
+}

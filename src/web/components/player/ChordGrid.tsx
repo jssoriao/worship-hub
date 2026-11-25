@@ -24,6 +24,8 @@ interface Props {
   clipboard?: BarClip | null
   onCopyBars?: (clip: BarClip) => void
   onPasteBars?: (to: number) => void
+  /** the chords are shown as Nashville numbers: the chord box asks for one (the page turns it back into a chord) */
+  numbers?: boolean
 }
 /** Bars copied in the Chords view: `count` bars from bar `from` (from 0). */
 export interface BarClip {
@@ -40,7 +42,7 @@ const COPY_COUNTS = [1, 2, 4, 8] as const
  * the chord on the beat on the left, the new one on the right. In edit mode a chord is placed "on the beat"
  * (the default) or on the half beat.
  */
-export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, lyrics = false, onChord, onRemoveChord, onSection, onCopySection, clipboard = null, onCopyBars, onPasteBars }: Props) {
+export function ChordGrid({ analysis, level, position, onSeek, follow, editing = false, lyrics = false, onChord, onRemoveChord, onSection, onCopySection, clipboard = null, onCopyBars, onPasteBars, numbers = false }: Props) {
   // `empty`: a beat where no chord starts (its box is blank), so there is nothing to change yet; `k`/`half`: which beat of the bar, and whether the chord is on its half beat
   const [open, setOpen] = useState<{ kind: 'chord' | 'section'; bar: number; k?: number; half?: boolean; t: number; value: string; empty?: boolean } | null>(null)
   // the section heading (by bar) whose copy box is open
@@ -252,7 +254,7 @@ export function ChordGrid({ analysis, level, position, onSeek, follow, editing =
                   key={`${open.bar}-${open.k}-${open.half ? 'half' : 'beat'}`}
                   title={`${open.empty ? 'New chord at' : 'Chord from'} bar ${i + 1}, beat ${(open.k ?? 0) + 1}${open.half ? ' and' : ''}`}
                   initial={open.value}
-                  placeholder="e.g. D/F#"
+                  placeholder={numbers ? 'e.g. 5/7, 6m7' : 'e.g. D/F#'}
                   suggestions={used}
                   actions={[
                     ...(open.half && !open.empty ? [{ label: 'Remove', onClick: () => (onRemoveChord?.(open.t), setOpen(null)) }] : []),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseKey, semitonesBetween, type Key } from './chords'
+import { chordNumber, numberChord, parseKey, semitonesBetween, type Key } from './chords'
 const k = (name: string) => parseKey(name) as Key
 describe('semitonesBetween', () => {
   it('takes the shortest way between two keys', () => {
@@ -30,5 +30,33 @@ describe('chords as Nashville numbers in Practice', () => {
     // no key: unchanged
     const noKey = { ...a, key: '' }
     expect(numberAnalysis(noKey)).toBe(noKey)
+  })
+})
+describe('numbers typed back into chords', () => {
+  it('turns a Nashville number into the chord in the key', () => {
+    expect(numberChord('1', k('A'))).toBe('A')
+    expect(numberChord('6m7', k('A'))).toBe('F#m7')
+    expect(numberChord('5/7', k('A'))).toBe('E/G#')
+    expect(numberChord('4maj7', k('A'))).toBe('Dmaj7')
+    expect(numberChord('2', k('D'))).toBe('E')
+    expect(numberChord('12', k('D'))).toBe('D2')
+  })
+  it('spells as the key does, or as the accidental says', () => {
+    expect(numberChord('4', k('F'))).toBe('Bb')
+    expect(numberChord('b7', k('C'))).toBe('Bb')
+    expect(numberChord('#4', k('C'))).toBe('F#')
+    expect(numberChord('b3', k('A'))).toBe('C')
+  })
+  it('counts a minor key from its relative major, as chordNumber does', () => {
+    expect(numberChord('6m', k('Em'))).toBe('Em')
+    expect(chordNumber('Em', k('Em'))).toBe('6m')
+  })
+  it('round-trips every chord of a key through its number', () => {
+    for (const c of ['A', 'Bm', 'C#m7', 'Dmaj7', 'E/G#', 'F#m', 'Esus4', 'A/C#']) expect(numberChord(chordNumber(c, k('A')), k('A'))).toBe(c)
+  })
+  it('leaves what is not a number to the caller', () => {
+    expect(numberChord('D/F#', k('A'))).toBeNull()
+    expect(numberChord('', k('A'))).toBeNull()
+    expect(numberChord('8', k('A'))).toBeNull()
   })
 })
