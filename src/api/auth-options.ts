@@ -58,6 +58,8 @@ type Adapter = {
   findMany<T>(args: { model: string; where?: { field: string; value: unknown }[]; sortBy?: { field: string; direction: 'asc' | 'desc' }; limit?: number }): Promise<T[]>
 }
 
+/** Better Auth paths (below /api/auth) that only read the caller's own session and churches. */
+export const UNLIMITED_READS = ['/ok', '/get-session', '/organization/list', '/organization/get-active-member', '/organization/get-active-member-role', '/organization/has-permission']
 export function authOptions(deps: AuthDeps) {
   return {
     baseURL: deps.baseURL,
@@ -114,7 +116,9 @@ export function authOptions(deps: AuthDeps) {
       storage: 'database' as const, // in-memory counters are useless across Workers isolates
       window: 60,
       max: 60,
-      customRules: { '/get-session': false as const },
+      // Reads of a signed-in session skip the limiter: each check costs two database round trips. Sign-in
+      // (asking for and redeeming a code), sign-out and switching church stay limited.
+      customRules: Object.fromEntries(UNLIMITED_READS.map((path) => [path, false as const])),
     },
 
     advanced: {
