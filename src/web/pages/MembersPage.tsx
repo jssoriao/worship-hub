@@ -12,6 +12,7 @@ import { NativeSelect } from '@/components/ui/native-select'
 import { useChurch } from '../lib/church-context'
 import { PencilIcon } from 'lucide-react'
 import { addMember, changeRole, listMembers, removeMember, renameMember, type MemberList } from '../lib/members-api'
+import { activityLine } from '../lib/ago'
 
 const label = (role: string) => role[0].toUpperCase() + role.slice(1)
 
@@ -189,6 +190,7 @@ export default function MembersPage() {
                     </p>
                   )}
                   <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{activityLine(m)}</p>
                 </div>
                 {editable ? (
                   <>

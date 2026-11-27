@@ -5,7 +5,7 @@
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
  * Service items likewise are scoped through their service.
  */
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 import { accounts, aiJobs, aiLimits, appSettings, arrangements, churchPlans, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink, type ItemPerson } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
@@ -39,6 +39,14 @@ export class Memo {
     }
     return value
   }
+  /** True at most once per `periodMs` for `key` in this isolate (a throttle; nothing is loaded). */
+  due(key: string, periodMs: number): boolean {
+    const hit = this.entries.get(key)
+    if (hit && hit.until > this.now()) return false
+    if (this.entries.size > 2000) this.entries.clear()
+    this.entries.set(key, { until: this.now() + periodMs, value: true })
+    return true
+  }
   clear() {
     this.entries.clear()
   }
@@ -61,6 +69,25 @@ export function memberRole(db: Db, userId: string, orgId: string, cache: Memo = 
   })
 }
 
+const HOUR = 60 * 60 * 1000
+
+/**
+ * Records that the person used the app in this church: at most once an hour per person and isolate, and
+ * the database only moves `last_active_at` when it is an hour old, so other isolates add no churn.
+ */
+export async function touchMember(db: Db, orgId: string, userId: string, cache: Memo = memo): Promise<void> {
+  if (!cache.due(`a:${orgId}:${userId}`, HOUR)) return
+  await db
+    .update(members)
+    .set({ lastActiveAt: sql`now()` })
+    .where(and(eq(members.organizationId, orgId), eq(members.userId, userId), or(isNull(members.lastActiveAt), lt(members.lastActiveAt, sql`now() - interval '1 hour'`))))
+}
+
+/** Records a sign-in (a new session) for the Members page. */
+export async function recordSignIn(db: Pick<Db, 'update'>, userId: string, at: Date = new Date()): Promise<void> {
+  await db.update(users).set({ lastSignInAt: at }).where(eq(users.id, userId))
+}
+
 export interface MemberRow {
   id: string
   userId: string
@@ -69,11 +96,29 @@ export interface MemberRow {
   /** always one of the roles: the API only ever writes those */
   role: Role
   joined: string
+  /** ISO times, null when not known yet: the last sign-in (any church) and the last use of this church, to the hour */
+  lastSignIn: string | null
+  lastActive: string | null
 }
 
-const memberColumns = { id: members.id, userId: members.userId, name: users.name, email: users.email, role: members.role, joined: members.createdAt }
+const memberColumns = {
+  id: members.id,
+  userId: members.userId,
+  name: users.name,
+  email: users.email,
+  role: members.role,
+  joined: members.createdAt,
+  lastSignIn: users.lastSignInAt,
+  lastActive: members.lastActiveAt,
+}
 
-const toMember = (r: { id: string; userId: string; name: string; email: string; role: string; joined: Date }): MemberRow => ({ ...r, role: r.role as Role, joined: iso(r.joined) })
+const toMember = (r: { id: string; userId: string; name: string; email: string; role: string; joined: Date; lastSignIn: Date | null; lastActive: Date | null }): MemberRow => ({
+  ...r,
+  role: r.role as Role,
+  joined: iso(r.joined),
+  lastSignIn: r.lastSignIn ? iso(r.lastSignIn) : null,
+  lastActive: r.lastActive ? iso(r.lastActive) : null,
+})
 
 export async function listMembers(db: Db, orgId: string): Promise<MemberRow[]> {
   const rows = await db

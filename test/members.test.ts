@@ -227,3 +227,24 @@ describe('methods', () => {
     expect((await call(as('owner'), 'GET', `/${await memberId('editor')}`)).status).toBe(405)
   })
 })
+describe('activity', () => {
+  type Listed = { members: { userId: string; lastActive: string | null; lastSignIn: string | null }[] }
+  const listed = async () => ((await (await call(as('owner'), 'GET')).json()) as Listed).members
+  it('records use of the church at most once an hour, per church, and shows it with the last sign-in', async () => {
+    await pg.query(`update users set last_sign_in_at = '2031-03-01T09:00:00Z' where id = $1`, ['member'])
+    expect((await listed()).find((m) => m.userId === 'member')).toMatchObject({ lastActive: null, lastSignIn: '2031-03-01T09:00:00.000Z' })
+    await call(as('member'), 'GET')
+    const first = (await listed()).find((m) => m.userId === 'member')!.lastActive
+    expect(first).not.toBeNull()
+    // an hour-old mark moves; a fresh one does not, even from another isolate (a new memo)
+    cache = new Memo()
+    await call(as('member'), 'GET')
+    expect((await listed()).find((m) => m.userId === 'member')!.lastActive).toBe(first)
+    await pg.query(`update members set last_active_at = now() - interval '2 hours' where user_id = 'member'`)
+    cache = new Memo()
+    await call(as('member'), 'GET')
+    expect(Date.parse((await listed()).find((m) => m.userId === 'member')!.lastActive!)).toBeGreaterThan(Date.now() - 60_000)
+    // another church is untouched
+    expect((await pg.query<{ last_active_at: Date | null }>(`select last_active_at from members where user_id = 'bob'`)).rows[0].last_active_at).toBeNull()
+  })
+})
