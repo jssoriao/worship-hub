@@ -9,6 +9,7 @@ import { routeLocalDb } from '../shared/local-neon.ts'
 import { authOptions } from './auth-options.ts'
 import type { Bindings } from './env.ts'
 import { sendLoginEmail } from './mail.ts'
+import { timePool, type Timing } from './timing.ts'
 
 /**
  * Workers must not reuse I/O objects (database sockets) across requests, but building the Better Auth
@@ -79,8 +80,11 @@ export type Auth = ReturnType<typeof createAuth>
 
 let instance: Auth | undefined
 
-/** Runs `run` with a request-scoped database, then closes its pool once background work is done. */
-export async function withAuth<T>(env: Bindings, ctx: ExecutionContext, run: (auth: Auth, db: Db) => Promise<T>): Promise<T> {
+/**
+ * Runs `run` with a request-scoped database, then closes its pool once background work is done.
+ * With `timing`, the pool's queries and its first connection are timed (timing.ts).
+ */
+export async function withAuth<T>(env: Bindings, ctx: ExecutionContext, run: (auth: Auth, db: Db) => Promise<T>, timing?: Timing): Promise<T> {
   instance ??= createAuth(env)
   // a database on this machine (docker-compose.local.yml) is reached through its WebSocket proxy; Neon and production are untouched
   routeLocalDb(neonConfig, env.DATABASE_URL)
@@ -88,6 +92,7 @@ export async function withAuth<T>(env: Bindings, ctx: ExecutionContext, run: (au
   // An idle connection whose WebSocket drops makes the pool emit 'error'. Unhandled, that crashes the
   // request (and any email still being sent in the background). The pool replaces the connection itself.
   pool.on('error', (error: Error) => console.error('database pool error:', error.message))
+  if (timing) timePool(pool, timing)
   const db = dbOver(pool)
   const tasks: Promise<unknown>[] = []
   try {
