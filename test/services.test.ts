@@ -105,6 +105,30 @@ describe('services', () => {
     expect((await pg.query('select 1 from service_items')).rows).toHaveLength(0)
   })
 })
+describe('next service', () => {
+  const next = async (from: string, who = as('member')) => call(who, 'GET', `/next?from=${from}`)
+  it('is the first on or after the date, untimed first within a day, with its items', async () => {
+    await make({ date: '2031-03-01' })
+    const { service: evening } = await make({ date: '2031-03-09', time: '18:00' })
+    const { service: untimed } = await make({ date: '2031-03-09' })
+    await call(as('editor'), 'PUT', `/${untimed.id}/items`, { items: [{ songId: SONG_A, key: 'F' }] })
+    const res = await next('2031-03-02')
+    expect(res.status).toBe(200)
+    const { service } = (await res.json()) as { service: Service }
+    expect([service.id, service.items.map((i) => [i.title, i.key, i.songKey])]).toEqual([untimed.id, [['Song A', 'F', 'E']]])
+    expect(((await (await next('2031-03-09')).json()) as { service: Service }).service.id).toBe(untimed.id)
+    await call(as('editor'), 'DELETE', `/${untimed.id}`)
+    expect(((await (await next('2031-03-09')).json()) as { service: Service }).service.id).toBe(evening.id)
+  })
+  it('is null when nothing is upcoming, needs a real date, and keeps churches apart', async () => {
+    await make({ date: '2031-03-01' })
+    expect(await (await next('2031-03-02')).json()).toEqual({ service: null })
+    expect((await next('2031-02-30')).status).toBe(400)
+    expect((await call(as('member'), 'GET', '/next')).status).toBe(400)
+    expect(await (await next('2031-01-01', as('bob', B))).json()).toEqual({ service: null })
+    expect((await call(null, 'GET', '/next?from=2031-01-01')).status).toBe(401)
+  })
+})
 describe('setlist', () => {
   const put = async (id: string, items: unknown[], who = 'editor') => call(as(who), 'PUT', `/${id}/items`, { items })
   it('keeps order, song titles, the key override and links', async () => {

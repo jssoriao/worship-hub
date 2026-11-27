@@ -5,6 +5,8 @@ export type ServiceList = Awaited<ReturnType<typeof listServices>>
 export type ServiceSummary = ServiceList['services'][number]
 export const getService = (id: string) => call(servicesApi[':serviceId'].$get({ param: { serviceId: id } }))
 export type ServiceFull = Awaited<ReturnType<typeof getService>>['service']
+/** The first service on or after `from` (the person's own date) with its items; null when there is none. */
+export const getNextService = (from: string) => call(servicesApi.next.$get({ query: { from } }))
 export type ServiceItem = ServiceFull['items'][number]
 export type ItemPerson = ServiceItem['people'][number]
 /** The church's people by name (no email), to pick who serves (people who plan the service only). */

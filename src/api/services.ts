@@ -4,6 +4,7 @@
  *
  *   GET    /api/church/services                    [{ id, date, time, title, notes, songs }], newest first
  *   POST   /api/church/services                    {date, time?, title?, notes?}
+ *   GET    /api/church/services/next?from=<date>    { service }: the first service on or after that date with its items, or null
  *   GET    /api/church/services/<id>               the service and its items, in order
  *   PATCH  /api/church/services/<id>               any of the fields above
  *   DELETE /api/church/services/<id>
@@ -25,7 +26,7 @@ import { isId } from '../shared/ids.ts'
 import { NAME_MAX, PEOPLE_MAX } from '../shared/assignments.ts'
 import * as data from './data.ts'
 import { church, fail, need, sameOrigin, type AppEnv } from './tenant.ts'
-import { body, only } from './validate.ts'
+import { body, only, query } from './validate.ts'
 const TITLE_MAX = 120
 const NOTES_MAX = 1000
 /** a line's notes have their own view (the Songs tab), so they may be longer than the service's */
@@ -108,7 +109,11 @@ export const servicesApp = new Hono<AppEnv>({ strict: false })
     if (made === 'taken') return fail(c, 409, taken)
     return c.json({ service: made }, 201)
   })
-  // before the service routes, or "people" would be read as a service id
+  // before the service routes, or "next" and "people" would be read as service ids
+  .use('/next', only('GET'))
+  .get('/next', need({ service: ['read'] }), query(z.object({ from: dateText })), async (c) =>
+    c.json({ service: await data.nextService(c.get('deps').db, c.get('tenant').orgId, c.req.valid('query').from) }),
+  )
   .use('/people', only('GET'))
   .get('/people', need({ service: ['plan'] }), async (c) => c.json({ people: await data.listPeople(c.get('deps').db, c.get('tenant').orgId) }))
   .use(SERVICE, only('GET', 'PATCH', 'DELETE'))

@@ -5,7 +5,7 @@
  * Arrangements have no church column; they are scoped through their song, so the two can never disagree.
  * Service items likewise are scoped through their service.
  */
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { customAlphabet } from 'nanoid'
 import { accounts, aiJobs, aiLimits, appSettings, arrangements, churchPlans, joinLinks, joinRequests, members, organizations, serviceItems, services, sessions, songs, users, type ItemKind, type ItemLink, type ItemPerson } from '../db/schema/index.ts'
 import { ID_ALPHABET } from '../shared/ids.ts'
@@ -632,7 +632,22 @@ export async function listServices(db: Db, orgId: string): Promise<ServiceSummar
 }
 export async function getService(db: Db, orgId: string, serviceId: string): Promise<ServiceFull | null> {
   const [row] = await serviceFrom(db).where(and(eq(services.organizationId, orgId), eq(services.id, serviceId)))
-  if (!row) return null
+  return row ? withItems(db, orgId, row) : null
+}
+/**
+ * The church's next service with its items: the first on or after `from` (the person's own date,
+ * `YYYY-MM-DD`), within a day the untimed one first, then by time (as the app's splitServices).
+ * One request for Home instead of the list and then the service.
+ */
+export async function nextService(db: Db, orgId: string, from: string): Promise<ServiceFull | null> {
+  const [row] = await serviceFrom(db)
+    .where(and(eq(services.organizationId, orgId), gte(services.date, from)))
+    .orderBy(asc(services.date), sql`${services.time} asc nulls first`)
+    .limit(1)
+  return row ? withItems(db, orgId, row) : null
+}
+async function withItems(db: Db, orgId: string, row: Awaited<ReturnType<typeof serviceFrom>>[number]): Promise<ServiceFull> {
+  const serviceId = row.id
   const items = await db
     .select({
       id: serviceItems.id,

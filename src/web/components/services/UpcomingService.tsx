@@ -1,40 +1,42 @@
 import { ArrowRightIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { practicePath, serviceKeyShift } from '../../lib/address'
 import { useChurch } from '../../lib/church-context'
-import { formatDate, formatTime, serviceName, splitServices, today, whenLabel } from '../../lib/services'
-import { getService, listServices, type ServiceFull } from '../../lib/services-api'
+import { saveNextService, savedNextService } from '../../lib/next-service-cache'
+import { formatDate, formatTime, serviceName, today, whenLabel } from '../../lib/services'
+import { getNextService, type ServiceFull } from '../../lib/services-api'
 
 /**
  * The church's next service, for the top of Home: when it is, its setlist in order (each song one tap from
  * Practice, in the key the service asks for), and quick links to the service and to its songs. Today counts as
- * upcoming. Nothing is shown when there is no upcoming service (or it cannot be loaded): the page simply
- * has no card.
+ * upcoming. One request (services/next); the copy saved by the last visit shows meanwhile (next-service-cache.ts).
+ * Nothing is shown when there is no upcoming service (or it cannot be loaded): the page simply has no card.
  */
 export function UpcomingService() {
   const church = useChurch()
-  // undefined while loading; null when there is none; tied to the church it was loaded for
+  // what this visit loaded, tied to the church it was loaded for; until then the copy saved by the last visit
   const [loaded, setLoaded] = useState<{ church: string; service: ServiceFull | null } | undefined>(undefined)
+  const saved = useMemo(() => savedNextService(church.id, today()), [church.id])
   useEffect(() => {
     let live = true
-    const finish = (service: ServiceFull | null) => live && setLoaded({ church: church.id, service })
-    listServices()
-      .then(async ({ services }) => {
-        const next = splitServices(services, today()).upcoming[0]
-        if (!next) return finish(null)
-        finish((await getService(next.id)).service)
+    getNextService(today())
+      .then(({ service }) => {
+        if (!live) return
+        saveNextService(church.id, service)
+        setLoaded({ church: church.id, service })
       })
-      .catch(() => finish(null))
+      // offline or failing: keep the saved copy if there is one, else no card
+      .catch(() => live && setLoaded((now) => (now?.church === church.id ? now : { church: church.id, service: savedNextService(church.id, today()) ?? null })))
     return () => {
       live = false
     }
   }, [church.id])
-  if (!loaded || loaded.church !== church.id) return <Skeleton aria-hidden="true" className="h-40 rounded-2xl" />
-  const service = loaded.service
+  const service = loaded && loaded.church === church.id ? loaded.service : saved
+  if (service === undefined) return <Skeleton aria-hidden="true" className="h-40 rounded-2xl" />
   if (!service) return null
   const now = today()
   // assignments are listed apart from the order; songs and plain lines are numbered, headers are not
