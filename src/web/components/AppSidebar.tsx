@@ -25,6 +25,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { audioCache } from '../lib/audio-cache'
+import { forgetNextServices } from '../lib/next-service-cache'
 import { authClient } from '../lib/auth-client'
 import { useChurch } from '../lib/church-context'
 import { useLayout } from '../lib/layout-context'
@@ -36,7 +37,7 @@ import { DEFAULT_THEME } from '../lib/theme'
 const initialOf = (text: string) => (text.trim()[0] ?? '?').toUpperCase()
 
 // songs saved on this device are for members: they go when the person signs out
-const signOut = () => void Promise.allSettled([authClient.signOut(), audioCache.clearAll()]).finally(() => window.location.replace('/'))
+const signOut = () => void Promise.allSettled([authClient.signOut(), audioCache.clearAll(), forgetNextServices()]).finally(() => window.location.replace('/'))
 
 /** A square with the church's logo, or its initial on the brand gradient. */
 function Mark({ logo, name, className = 'size-8' }: { logo: string | null; name: string; className?: string }) {

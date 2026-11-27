@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { audioCache } from '../lib/audio-cache'
+import { forgetNextServices } from '../lib/next-service-cache'
 import { authClient } from '../lib/auth-client'
 import { TurnstileError } from '../lib/turnstile-error'
 import { DevSignIn } from './DevSignIn'
@@ -279,7 +280,7 @@ export function SignOutButton({ redirect = '/' }: { redirect?: string }) {
     <Button
       variant="outline"
       // songs saved on this device are for members: they go when the person signs out
-      onClick={() => void Promise.allSettled([authClient.signOut(), audioCache.clearAll()]).finally(() => window.location.replace(redirect))}
+      onClick={() => void Promise.allSettled([authClient.signOut(), audioCache.clearAll(), forgetNextServices()]).finally(() => window.location.replace(redirect))}
     >
       Sign out
     </Button>
