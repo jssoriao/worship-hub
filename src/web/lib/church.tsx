@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { can, isRole } from '../../shared/permissions'
 import { authClient } from './auth-client'
+import { saveChurches, savedChurches } from './church-cache'
 import { applyTheme, themeFromMetadata } from './theme'
 import { ChurchContext, pickChurch, type ChurchInfo, type ChurchValue } from './church-context'
 import { Alert } from '@/components/ui/alert'
@@ -37,11 +38,15 @@ function Gate({ children }: { children: ReactNode }) {
   const member = authClient.useActiveMember()
   const [failed, setFailed] = useState(false)
 
-  const churches: ChurchInfo[] = useMemo(
-    () => (orgs.data ?? []).map((o) => ({ id: o.id, name: o.name, slug: o.slug, theme: themeFromMetadata(o.metadata), logo: safeLogo(o.logo) })),
+  const activeId = (session?.session as { activeOrganizationId?: string | null } | undefined)?.activeOrganizationId ?? ''
+  const userId = session?.user.id ?? ''
+  // the churches and role saved by the last start (church-cache.ts), shown until the fresh ones arrive
+  const saved = useMemo(() => savedChurches(userId, activeId), [userId, activeId])
+  const fresh: ChurchInfo[] | undefined = useMemo(
+    () => orgs.data?.map((o) => ({ id: o.id, name: o.name, slug: o.slug, theme: themeFromMetadata(o.metadata), logo: safeLogo(o.logo) })),
     [orgs.data],
   )
-  const activeId = (session?.session as { activeOrganizationId?: string | null } | undefined)?.activeOrganizationId ?? ''
+  const churches: ChurchInfo[] = useMemo(() => fresh ?? (orgs.isPending ? saved?.churches : undefined) ?? [], [fresh, orgs.isPending, saved])
   const active = churches.find((c) => c.id === activeId)
 
   const choose = useCallback(async (id: string) => {
@@ -73,7 +78,11 @@ function Gate({ children }: { children: ReactNode }) {
   const activeTheme = active?.theme
   useEffect(() => applyTheme(activeTheme ?? {}), [activeTheme])
 
-  const role = member.data?.role
+  const role = member.data ? member.data.role : member.isPending ? saved?.role : undefined
+  const freshRole = member.data?.role
+  useEffect(() => {
+    if (fresh && userId && fresh.some((c) => c.id === activeId) && isRole(freshRole)) saveChurches({ userId, activeId, churches: fresh, role: freshRole })
+  }, [fresh, userId, activeId, freshRole])
   const value: ChurchValue = useMemo(
     () => ({
       id: active?.id ?? '',
@@ -93,7 +102,7 @@ function Gate({ children }: { children: ReactNode }) {
     const offline: ChurchValue = { id: lastChurch(), name: '', theme: {}, logo: null, role: null, churches: [], can: () => false, switchTo: async () => {} }
     return <ChurchContext.Provider value={offline}>{children}</ChurchContext.Provider>
   }
-  if (orgs.isPending) {
+  if (orgs.isPending && !saved) {
     return (
       <AuthScreen>
         <p role="status" className="text-sm text-muted-foreground">
