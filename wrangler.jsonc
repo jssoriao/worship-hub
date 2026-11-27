@@ -32,5 +32,9 @@
   // Don't also publish on the *.workers.dev address.
   "workers_dev": false,
 
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // Run the Worker next to its database (Neon, aws ap-southeast-1) instead of near each visitor: every
+  // API request makes several database round trips, so they become short. Static assets are still
+  // served from the visitor's nearest location. The R2 bucket is in APAC as well.
+  "placement": { "region": "aws:ap-southeast-1" }
 }
