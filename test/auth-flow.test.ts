@@ -53,6 +53,8 @@ describe('sign-in with an emailed code', () => {
     expect(session?.user.email).toBe(EMAIL)
     expect((session?.session as { activeOrganizationId?: string } | undefined)?.activeOrganizationId).toBe(CHURCH)
     const stored = await pg.query<{ user_id: string; active_organization_id: string }>('select user_id, active_organization_id from sessions')
+    // the sign-in is recorded for the Members page
+    expect((await pg.query<{ last_sign_in_at: Date | null }>('select last_sign_in_at from users where id = (select user_id from sessions limit 1)')).rows[0].last_sign_in_at).toBeInstanceOf(Date)
     expect(stored.rows).toEqual([{ user_id: 'singer', active_organization_id: CHURCH }])
     // Better Auth's rows get the app's ids (src/shared/ids.ts)
     const ids = await pg.query<{ id: string }>('select id from sessions union all select id from verifications')

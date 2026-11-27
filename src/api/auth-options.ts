@@ -14,7 +14,7 @@ import { captcha, emailOTP, organization } from 'better-auth/plugins'
 import type { Db } from '../db/client.ts'
 import * as schema from '../db/schema/index.ts'
 import { ac, roles } from '../shared/permissions.ts'
-import { hasJoinRequest } from './data.ts'
+import { hasJoinRequest, recordSignIn } from './data.ts'
 import { ID_PREFIX, newId, type IdKind } from '../shared/ids.ts'
 
 /** The id kind of a Better Auth model; a model without one (a new plugin table) needs a prefix in ID_PREFIX first. */
@@ -98,6 +98,10 @@ export function authOptions(deps: AuthDeps) {
               limit: 1,
             })
             return { data: { ...session, activeOrganizationId: first[0]?.organizationId ?? null } }
+          },
+          // the last sign-in, for the Members page
+          after: async (session: { userId: string; createdAt?: Date }) => {
+            await recordSignIn(deps.db, session.userId, session.createdAt ?? new Date())
           },
         },
       },

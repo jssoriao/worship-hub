@@ -8,7 +8,7 @@ import { createMiddleware } from 'hono/factory'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { isId } from '../shared/ids.ts'
 import { can, type Request as Permission, type Role } from '../shared/permissions.ts'
-import { memberRole, songBelongs, type Db, type Memo } from './data.ts'
+import { memberRole, songBelongs, touchMember, type Db, type Memo } from './data.ts'
 import type { Bindings } from './env.ts'
 export interface Tenant {
   user: { id: string; name: string; email: string }
@@ -54,6 +54,8 @@ export const church = createMiddleware<AppEnv>(async (c, next) => {
   if (!role) return c.json({ error: 'forbidden' }, 403)
   c.set('tenant', { user: { id: user.id, name: user.name ?? '', email: user.email ?? '' }, orgId, role, platformAdmin: user.platformAdmin === true })
   await next()
+  // last active, for the Members page; after the answer is built, and never fails the request
+  await touchMember(db, orgId, user.id, memo).catch((error: unknown) => console.error('touchMember failed:', error instanceof Error ? error.message : 'unknown error'))
   for (const cookie of session.headers.getSetCookie()) c.res.headers.append('Set-Cookie', cookie)
 })
 /** Writes only come from the app's own origin. */

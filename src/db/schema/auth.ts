@@ -20,6 +20,8 @@ export const users = pgTable('users', {
   updatedAt: at('updated_at').notNull().defaultNow(),
   // the platform super admin, outside any church; only the CLI sets it (Better Auth: input: false)
   platformAdmin: boolean('platform_admin').notNull().default(false),
+  // not Better Auth's: the last time the person signed in (a session was made), for the Members page
+  lastSignInAt: at('last_sign_in_at'),
 })
 
 export const sessions = pgTable(
@@ -99,6 +101,8 @@ export const members = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     role: text('role').notNull().default('member'),
     createdAt: at('created_at').notNull().defaultNow(),
+    // not Better Auth's: the last time the person used the app in this church, to the hour (data.touchMember)
+    lastActiveAt: at('last_active_at'),
   },
   (t) => [unique('members_organization_id_user_id_key').on(t.organizationId, t.userId), index('members_user_id_idx').on(t.userId)],
 )

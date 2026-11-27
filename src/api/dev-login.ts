@@ -17,6 +17,7 @@ import * as z from 'zod'
 import { members, organizations, sessions, users } from '../db/schema/index.ts'
 import { newId } from '../shared/ids.ts'
 import { ROLE_NAMES, isRole } from '../shared/permissions.ts'
+import { recordSignIn } from './data.ts'
 import type { Bindings } from './env.ts'
 import { fail, sameOrigin, type AppEnv } from './tenant.ts'
 import { body } from './validate.ts'
@@ -91,6 +92,7 @@ export const devLogin = new Hono<AppEnv>({ strict: false })
       expiresAt: new Date(Date.now() + DAYS_30 * 1000),
       userAgent: 'dev sign-in',
     })
+    await recordSignIn(db, person.userId)
     const env = c.env as unknown as DevEnv
     // a cached session from whoever was signed in before would win for 5 minutes: drop it
     deleteCookie(c, CACHE_COOKIE, { path: '/' })
